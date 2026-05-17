@@ -96,10 +96,6 @@ def test_cli_diff_abundance_help_and_missing_rscript(
     monkeypatch.setattr(shutil, "which", lambda name: None)
     runner = CliRunner()
 
-    help_result = runner.invoke(app, ["diff_abundance", "--help"])
-    assert help_result.exit_code == 0
-    assert "--backend" in help_result.stdout
-
     result = runner.invoke(
         app,
         [

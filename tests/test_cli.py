@@ -136,13 +136,28 @@ def test_cli_tax_classify_planned_method(tmp_path: Path) -> None:
     assert "not implemented" in str(result.exception)
 
 
-def test_cli_diversity_calc_help() -> None:
-    result = CliRunner().invoke(app, ["diversity_calc", "--help"])
+def test_cli_diversity_calc_requires_phylogeny_for_unifrac(tmp_path: Path) -> None:
+    table = tmp_path / "table.qza"
+    table.write_text("placeholder", encoding="utf-8")
 
-    assert result.exit_code == 0, result.stdout
-    assert "--backend" in result.stdout
-    assert "--metric" in result.stdout
-    assert "--phylogeny" in result.stdout
+    result = CliRunner().invoke(
+        app,
+        [
+            "diversity_calc",
+            "--backend",
+            "qiime2",
+            "--metric",
+            "weighted-unifrac",
+            "--table",
+            str(table),
+            "-o",
+            str(tmp_path / "weighted-unifrac.qza"),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert result.exception is not None
+    assert "--phylogeny" in str(result.exception)
 
 
 def test_cli_method_alias_still_works(tmp_path: Path) -> None:
