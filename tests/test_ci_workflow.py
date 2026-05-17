@@ -22,7 +22,8 @@ def test_github_actions_ci_runs_project_quality_gate() -> None:
     assert "uv run ty check" in text
     assert "uv build" in text
     assert "nextflow-smoke:" in text
-    assert "nextflow-io/setup-nextflow@v2" in text
+    assert "nf-core/setup-nextflow@v2" in text
+    assert "nextflow-io/setup-nextflow" not in text
     assert 'version: "25.10.0"' in text
     assert "nextflow run workflows/nextflow/main.nf" in text
     assert "--outdir results/nextflow-smoke" in text

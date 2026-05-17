@@ -71,7 +71,7 @@ jobs:
           java-version: "21"
 
       - name: Install Nextflow
-        uses: nextflow-io/setup-nextflow@v2
+        uses: nf-core/setup-nextflow@v2
         with:
           version: "25.10.0"
 
