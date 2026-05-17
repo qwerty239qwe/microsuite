@@ -17,6 +17,8 @@ from microsuite.methods.diversity_calc import SUPPORTED_METHODS as DIVERSITY_MET
 from microsuite.methods.diversity_calc import diversity_calc
 from microsuite.methods.normalize import SUPPORTED_BACKENDS as NORMALIZE_BACKENDS
 from microsuite.methods.normalize import normalize
+from microsuite.methods.qc import SUPPORTED_BACKENDS as QC_BACKENDS
+from microsuite.methods.qc import qc
 from microsuite.methods.rarefy import SUPPORTED_BACKENDS as RAREFY_BACKENDS
 from microsuite.methods.rarefy import rarefy
 from microsuite.methods.report import SUPPORTED_BACKENDS as REPORT_BACKENDS
@@ -24,12 +26,20 @@ from microsuite.methods.report import report
 from microsuite.methods.shared_taxa import SUPPORTED_BACKENDS as SHARED_TAXA_BACKENDS
 from microsuite.methods.shared_taxa import shared_taxa
 from microsuite.methods.tax_classify import SUPPORTED_METHODS, tax_classify
+from microsuite.methods.trim import SUPPORTED_BACKENDS as TRIM_BACKENDS
+from microsuite.methods.trim import trim
 
 app = typer.Typer(help="Method-oriented microbiome operations.", no_args_is_help=True)
 
 
 @app.command("methods")
 def methods() -> None:
+    typer.echo("qc")
+    for backend in QC_BACKENDS:
+        typer.echo(f"  - {backend}")
+    typer.echo("trim")
+    for backend in TRIM_BACKENDS:
+        typer.echo(f"  - {backend}")
     typer.echo("denoise")
     for backend in DENOISE_BACKENDS:
         typer.echo(f"  - {backend}")
@@ -60,6 +70,67 @@ def methods() -> None:
     typer.echo("report")
     for backend in REPORT_BACKENDS:
         typer.echo(f"  - {backend}")
+
+
+@app.command("qc")
+def qc_cmd(
+    backend: Annotated[str, typer.Option("--backend", help="QC backend.")],
+    inputs: Annotated[
+        list[Path] | None,
+        typer.Option("--input", help="Input FASTQ file. Repeat for multiple files."),
+    ] = None,
+    input_dir: Annotated[
+        Path | None, typer.Option("--input-dir", help="Input directory for MultiQC.")
+    ] = None,
+    demux: Annotated[
+        Path | None, typer.Option("--demux", help="QIIME 2 demultiplexed reads artifact.")
+    ] = None,
+    output_dir: Annotated[
+        Path | None, typer.Option("--output-dir", help="Output directory for report files.")
+    ] = None,
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Output QIIME 2 visualization.")
+    ] = None,
+    threads: Annotated[int, typer.Option("--threads", min=1)] = 1,
+    force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
+) -> None:
+    qc(
+        backend=backend,
+        inputs=inputs,
+        input_dir=input_dir,
+        demux=demux,
+        output_dir=output_dir,
+        output=output,
+        threads=threads,
+        force=force,
+    )
+
+
+@app.command("trim")
+def trim_cmd(
+    backend: Annotated[str, typer.Option("--backend", help="Trim backend.")],
+    read1: Annotated[Path, typer.Option("--read1", help="Forward or single-end FASTQ.")],
+    output1: Annotated[Path, typer.Option("--output1", help="Output forward/single FASTQ.")],
+    read2: Annotated[Path | None, typer.Option("--read2", help="Reverse FASTQ.")] = None,
+    output2: Annotated[Path | None, typer.Option("--output2", help="Output reverse FASTQ.")] = None,
+    html: Annotated[Path | None, typer.Option("--html", help="fastp HTML report.")] = None,
+    json_report: Annotated[
+        Path | None, typer.Option("--json-report", help="fastp JSON report.")
+    ] = None,
+    threads: Annotated[int, typer.Option("--threads", min=1)] = 1,
+    force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
+) -> None:
+    trim(
+        backend=backend,
+        read1=read1,
+        read2=read2,
+        output1=output1,
+        output2=output2,
+        html=html,
+        json_report=json_report,
+        threads=threads,
+        force=force,
+    )
 
 
 @app.command("denoise")

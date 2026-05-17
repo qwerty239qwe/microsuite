@@ -33,6 +33,9 @@ and visualization outputs.
 Method-oriented commands are named by the biological or analytical task:
 
 - `tax_classify --backend qiime2`
+- `qc --backend fastqc`
+- `qc --backend qiime2-demux`
+- `trim --backend fastp`
 - `denoise --backend qiime2-dada2`
 - `cluster --backend vsearch`
 - `diversity_calc --backend qiime2`
@@ -47,3 +50,9 @@ Method-oriented commands are named by the biological or analytical task:
 
 The `--backend` option selects the tool or engine. Backends that call external tools
 must check for the external executable and fail with a clear setup message.
+
+QC and trimming are intentionally separate from denoising:
+
+- `qc` reports read or demultiplexed artifact quality without producing ASVs.
+- `trim` performs preprocessing such as fastp adapter/quality filtering.
+- `denoise` runs ASV-producing methods such as DADA2 or Deblur.

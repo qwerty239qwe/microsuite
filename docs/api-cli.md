@@ -6,6 +6,10 @@ Use it when you want to run a single operation, debug a workflow step, or teach 
 small example:
 
 ```bash
+microsuite qc --backend fastqc --input sample_R1.fastq.gz --output-dir qc/fastqc
+microsuite qc --backend multiqc --input-dir qc/fastqc --output-dir qc/multiqc
+microsuite qc --backend qiime2-demux --demux demux.qza -o qc/demux.qzv
+microsuite trim --backend fastp --read1 sample_R1.fastq.gz --output1 trimmed_R1.fastq.gz --html qc/fastp.html --json-report qc/fastp.json
 microsuite denoise --backend qiime2-dada2 --demux demux.qza --output-table table.qza --output-rep-seqs rep-seqs.qza --output-stats stats.qza --trunc-len 150
 microsuite cluster --backend vsearch --table table.qza --rep-seqs rep-seqs.qza --output-table clustered-table.qza --output-rep-seqs clustered-rep-seqs.qza
 microsuite normalize --backend native --method clr --table table.h5ad -o clr.h5ad

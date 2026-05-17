@@ -164,10 +164,12 @@ Rules:
 qc
   - fastqc
   - multiqc
+  - qiime2-demux
 
 trim
-  - cutadapt
   - fastp
+  - cutadapt later
+  - qiime2-cutadapt later
 
 denoise
   - qiime2-dada2

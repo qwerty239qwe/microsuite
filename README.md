@@ -20,8 +20,8 @@ See [docs/three-api-roadmap.md](docs/three-api-roadmap.md) for the architecture.
 
 | Task | Backends | Status | Purpose |
 | --- | --- | --- | --- |
-| `qc` | `fastqc`, `multiqc` | planned | Read quality checks and aggregate QC reports. |
-| `trim` | `cutadapt`, `fastp` | planned | Adapter and quality trimming. |
+| `qc` | `fastqc`, `multiqc`, `qiime2-demux` | partial | Raw-read and demultiplexed-read quality reports. |
+| `trim` | `fastp`; planned: `cutadapt`, `qiime2-cutadapt` | partial | Adapter trimming, quality filtering, and fastp reports. |
 | `denoise` | `qiime2-dada2`, `qiime2-deblur`; planned: `dada2-r` | partial | Amplicon denoising from demultiplexed QIIME 2 artifacts. |
 | `cluster` | `vsearch` | partial | QIIME 2 VSEARCH de novo feature clustering. |
 | `tax_classify` | `qiime2`, `kraken2`, `bracken`, `metaphlan` | partial | Taxonomy assignment or taxonomic profiling. |
@@ -69,6 +69,17 @@ microsuite workflow table-summary \
   --metadata metadata.tsv \
   --taxonomy taxonomy.tsv \
   --out runs/table-summary
+microsuite qc --backend fastqc --input sample_R1.fastq.gz --output-dir qc/fastqc
+microsuite qc --backend multiqc --input-dir qc/fastqc --output-dir qc/multiqc
+microsuite qc --backend qiime2-demux --demux demux.qza -o qc/demux.qzv
+microsuite trim \
+  --backend fastp \
+  --read1 sample_R1.fastq.gz \
+  --read2 sample_R2.fastq.gz \
+  --output1 trimmed_R1.fastq.gz \
+  --output2 trimmed_R2.fastq.gz \
+  --html qc/fastp.html \
+  --json-report qc/fastp.json
 microsuite denoise \
   --backend qiime2-dada2 \
   --demux demux.qza \
