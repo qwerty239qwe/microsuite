@@ -1,0 +1,39 @@
+cff-version: 1.2.0
+message: "If you use microsuite, cite the software and the relevant upstream datasets/tools."
+title: "microsuite"
+version: 0.1.0
+authors:
+  - name: "microsuite contributors"
+repository-code: "https://github.com/qwerty239qwe/microsuite"
+references:
+  - type: article
+    title: "Moving pictures of the human microbiome"
+    authors:
+      - family-names: Caporaso
+        given-names: J. Gregory
+      - family-names: Lauber
+        given-names: Christian L.
+      - family-names: Costello
+        given-names: Elizabeth K.
+      - family-names: Berg-Lyons
+        given-names: Donna
+      - family-names: Gonzalez
+        given-names: Antonio
+      - family-names: Stombaugh
+        given-names: Jesse
+      - family-names: Knights
+        given-names: Dan
+      - family-names: Gajer
+        given-names: Pawel
+      - family-names: Ravel
+        given-names: Jacques
+      - family-names: Fierer
+        given-names: Noah
+      - family-names: Gordon
+        given-names: Jeffrey I.
+      - family-names: Knight
+        given-names: Rob
+    journal: "Genome Biology"
+    year: 2011
+    volume: 12
+    doi: "10.1186/gb-2011-12-5-r50"

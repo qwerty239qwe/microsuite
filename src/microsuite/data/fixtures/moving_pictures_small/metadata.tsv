@@ -1,0 +1,5 @@
+sample_id	body_site	subject	treatment
+L1S8	gut	subject-1	baseline
+L1S57	tongue	subject-1	baseline
+L1S76	gut	subject-2	intervention
+L2S155	tongue	subject-2	intervention

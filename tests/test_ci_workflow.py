@@ -28,3 +28,23 @@ def test_github_actions_ci_runs_project_quality_gate() -> None:
     assert 'version: "25.10.0"' in text
     assert "nextflow run workflows/nextflow/main.nf" in text
     assert "--outdir results/nextflow-smoke" in text
+
+
+def test_source_data_package_is_not_ignored() -> None:
+    assert (ROOT / "src" / "microsuite" / "data" / "__init__.py").exists()
+    assert (ROOT / "src" / "microsuite" / "data" / "moving_pictures.py").exists()
+    assert (
+        ROOT / "src" / "microsuite" / "data" / "fixtures" / "moving_pictures_small" / "table.tsv"
+    ).exists()
+
+
+def test_demo_data_attribution_is_documented() -> None:
+    attribution = (ROOT / "docs" / "data-attribution.md").read_text(encoding="utf-8")
+    fixture_readme = (
+        ROOT / "src" / "microsuite" / "data" / "fixtures" / "moving_pictures_small" / "README.md"
+    ).read_text(encoding="utf-8")
+
+    for text in (attribution, fixture_readme):
+        assert "not owned by this project" in text
+        assert "10.1186/gb-2011-12-5-r50" in text
+        assert "QIIME 2 Moving Pictures tutorial" in text

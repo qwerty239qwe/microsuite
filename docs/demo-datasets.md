@@ -5,6 +5,18 @@
 The preferred real-world demo dataset for 0.1.0 is the QIIME 2 Moving Pictures
 tutorial dataset. It is small enough for quick demos, but rich enough to show
 metadata-aware microbiome workflows across body sites, subjects, and timepoints.
+The data are not owned by this project.
+
+Citation:
+
+Caporaso, J. G., Lauber, C. L., Costello, E. K. et al. Moving pictures of the
+human microbiome. Genome Biology 12, R50 (2011).
+https://doi.org/10.1186/gb-2011-12-5-r50
+
+The QIIME 2 Moving Pictures tutorial describes its tutorial files as a small
+subset of the Caporaso et al. study selected for quick local runs. See
+[docs/data-attribution.md](data-attribution.md) for fixture and download
+attribution details.
 
 Fetch the tiny bundled fixture:
 

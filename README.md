@@ -15,6 +15,8 @@
 - fetch and run demo datasets
 
 See [docs/three-api-roadmap.md](docs/three-api-roadmap.md) for the architecture.
+Demo data attribution and citation details are in
+[docs/data-attribution.md](docs/data-attribution.md).
 
 ## Method Surface
 
