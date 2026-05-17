@@ -134,4 +134,7 @@ uv run ruff check .
 uv run ruff format --check .
 uv run ty check
 uv run pytest
+uv build
 ```
+
+GitHub Actions runs the same quality gate on Python 3.11 and 3.12.
