@@ -12,6 +12,7 @@ def test_github_actions_ci_runs_project_quality_gate() -> None:
     text = workflow.read_text(encoding="utf-8")
     assert "astral-sh/setup-uv" in text
     assert 'python-version: ["3.11", "3.12"]' in text
+    assert "UV_PYTHON: ${{ matrix.python-version }}" in text
     assert "enable-cache: true" in text
     assert "cache-dependency-glob: uv.lock" in text
     assert "uv sync --all-extras --locked" in text
