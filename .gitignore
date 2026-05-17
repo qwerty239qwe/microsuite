@@ -4,6 +4,9 @@
 .uv-cache/
 .pytest_cache/
 .ruff_cache/
+.nextflow/
+.nextflow.log*
+work/
 __pycache__/
 *.py[cod]
 dist/
@@ -11,3 +14,4 @@ build/
 *.egg-info/
 runs/
 data/
+results/

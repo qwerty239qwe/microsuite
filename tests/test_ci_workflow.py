@@ -14,9 +14,15 @@ def test_github_actions_ci_runs_project_quality_gate() -> None:
     assert 'python-version: ["3.11", "3.12"]' in text
     assert "enable-cache: true" in text
     assert "cache-dependency-glob: uv.lock" in text
-    assert "uv sync --extra dev --all-extras" in text
+    assert "uv sync --all-extras --locked" in text
+    assert "--extra dev --all-extras" not in text
     assert "uv run pytest" in text
     assert "uv run ruff check ." in text
     assert "uv run ruff format --check ." in text
     assert "uv run ty check" in text
     assert "uv build" in text
+    assert "nextflow-smoke:" in text
+    assert "nextflow-io/setup-nextflow@v2" in text
+    assert 'version: "25.10.0"' in text
+    assert "nextflow run workflows/nextflow/main.nf" in text
+    assert "--outdir results/nextflow-smoke" in text

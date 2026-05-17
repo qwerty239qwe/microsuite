@@ -39,7 +39,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --extra dev --all-extras --locked
+        run: uv sync --all-extras --locked
 
       - name: Run tests
         run: uv run pytest
@@ -55,3 +55,31 @@ jobs:
 
       - name: Build package
         run: uv build
+
+  nextflow-smoke:
+    name: Nextflow smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Nextflow
+        uses: nextflow-io/setup-nextflow@v2
+        with:
+          version: "25.10.0"
+
+      - name: Run placeholder amplicon workflow
+        run: |
+          nextflow run workflows/nextflow/main.nf \
+            -profile local \
+            --manifest tests/fixtures/moving_pictures_small/table.tsv \
+            --metadata tests/fixtures/moving_pictures_small/metadata.tsv \
+            --classifier tests/fixtures/moving_pictures_small/taxonomy.tsv \
+            --outdir results/nextflow-smoke
