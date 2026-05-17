@@ -1,0 +1,7 @@
+* text=auto eol=lf
+
+*.png binary
+*.qza binary
+*.h5ad binary
+*.gz binary
+*.whl binary

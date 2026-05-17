@@ -1,0 +1,76 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from microsuite._errors import MicrobiomeSuiteError
+from microsuite.io.h5ad import read_h5ad, write_h5ad
+from microsuite.io.tsv import read_tsv
+from microsuite.methods.abundance import abundance_native
+from microsuite.methods.normalize import normalize_native
+from microsuite.methods.rarefy import rarefy_native
+from microsuite.methods.shared_taxa import shared_taxa_native
+
+FIXTURE = Path(__file__).parent / "fixtures" / "moving_pictures_small"
+
+
+def fixture_adata():
+    return read_tsv(FIXTURE / "table.tsv", FIXTURE / "metadata.tsv", FIXTURE / "taxonomy.tsv")
+
+
+def test_normalize_relative_rows_sum_to_one() -> None:
+    result = normalize_native(fixture_adata(), method="relative")
+
+    assert np.allclose(np.asarray(result.X).sum(axis=1), 1.0)
+    assert result.uns["microsuite_normalize"]["method"] == "relative"
+
+
+def test_normalize_clr_centers_each_sample() -> None:
+    result = normalize_native(fixture_adata(), method="clr", pseudocount=1.0)
+
+    assert np.allclose(np.asarray(result.X).mean(axis=1), 0.0)
+
+
+def test_prevalence_filter_removes_low_prevalence_features() -> None:
+    result = normalize_native(fixture_adata(), method="prevalence-filter", min_prevalence=0.75)
+
+    assert list(result.var_names) == ["f1", "f3", "f4"]
+
+
+def test_abundance_native_aggregates_taxonomy_level() -> None:
+    result = abundance_native(fixture_adata(), level="genus", relative=False)
+
+    assert result.loc["L1S8", "Lactobacillus"] == 10
+    assert result.loc["L1S57", "Bacteroides"] == 5
+
+
+def test_shared_taxa_native_groups_presence() -> None:
+    result = shared_taxa_native(fixture_adata(), level="genus", group="body_site")
+
+    lactobacillus = result.set_index("taxon").loc["Lactobacillus"]
+    assert lactobacillus["n_groups"] == 2
+    assert lactobacillus["groups"] == "gut,tongue"
+
+
+def test_rarefy_native_fixed_depth_and_seed() -> None:
+    result = rarefy_native(fixture_adata(), depth=10, seed=42)
+
+    assert np.asarray(result.X).sum(axis=1).tolist() == [10.0, 10.0, 10.0, 10.0]
+    assert result.uns["microsuite_rarefy"]["depth"] == 10
+
+
+def test_rarefy_native_rejects_low_depth_samples() -> None:
+    with pytest.raises(MicrobiomeSuiteError, match="below rarefaction depth"):
+        rarefy_native(fixture_adata(), depth=20)
+
+
+def test_h5ad_roundtrip_for_normalize(tmp_path: Path) -> None:
+    table = tmp_path / "table.h5ad"
+    output = tmp_path / "relative.h5ad"
+    write_h5ad(fixture_adata(), table)
+    write_h5ad(normalize_native(read_h5ad(table), method="relative"), output)
+
+    assert pd.DataFrame(read_h5ad(output).obs).shape[0] == 4
