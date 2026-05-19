@@ -20,31 +20,55 @@ Demo data attribution and citation details are in
 
 ## Method Surface
 
-| Task | Backends | Status | Purpose |
-| --- | --- | --- | --- |
-| `qc` | `fastqc`, `multiqc`, `qiime2-demux` | partial | Raw-read and demultiplexed-read quality reports. |
-| `trim` | `fastp`; planned: `cutadapt`, `qiime2-cutadapt` | partial | Adapter trimming, quality filtering, and fastp reports. |
-| `denoise` | `qiime2-dada2`, `qiime2-deblur`; planned: `dada2-r` | partial | Amplicon denoising from demultiplexed QIIME 2 artifacts. |
-| `cluster` | `vsearch` | partial | QIIME 2 VSEARCH de novo feature clustering. |
-| `tax_classify` | `qiime2`, `kraken2`, `bracken`, `metaphlan` | partial | Taxonomy assignment or taxonomic profiling. |
-| `phylogeny` | `qiime2`, `mafft-fasttree` | partial | Alignment, masking, tree construction, and rooting. |
-| `normalize` | `native` | ready | Relative abundance, CLR, and related table transforms. |
-| `abundance` | `native` | ready | Summarize abundance at taxonomy levels. |
-| `shared_taxa` | `native` | ready | Compare shared taxa across sample groups. |
-| `rarefy` | `native` | ready | Rarefy feature tables to a fixed depth. |
-| `diversity_calc` | `native`, `qiime2` | partial | Alpha/beta diversity calculation. |
-| `beta_significance` | `qiime2`, `native` | planned | PERMANOVA and related beta-diversity tests. |
-| `diff_abundance` | `ancombc`, `aldex2`, `maaslin2`, `lefse` | partial | Differential abundance testing. |
-| `env_assoc` | `mantel`, `rda`, `cca`, `db-rda` | planned | Environmental association and constrained ordination. |
-| `network` | `native-correlation`, `sparcc`, `spieceasi`, `flashweave` | planned | Taxa association network analysis. |
-| `functional_predict` | `picrust2`, `tax4fun2` | planned | Predict function from marker-gene profiles. |
-| `functional_profile` | `humann` | planned | Functional profiling from metagenomic data. |
-| `classify_samples` | `randomforest`, `xgboost` | planned | Supervised sample classification. |
-| `time_series` | `native` | planned | Longitudinal microbiome analysis. |
-| `gamma_diversity` | `native` | planned | Region/group-level diversity summaries. |
-| `turnover` | `beta-turnover`, `taxa-turnover` | planned | Community and taxa turnover analysis. |
-| `visualize` | `native` | ready | Barplots, ordination plots, and heatmaps. |
-| `report` | `native` | ready | HTML provenance reports from run metadata. |
+| Task | Backend | Status | Image / environment | Purpose |
+| --- | --- | --- | --- | --- |
+| `qc` | `fastqc` | partial | External `fastqc`; container planned | Raw-read quality reports. |
+| `qc` | `multiqc` | partial | External `multiqc`; container planned | Aggregate QC reports. |
+| `qc` | `qiime2-demux` | partial | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Demultiplexed-read quality visualization. |
+| `trim` | `fastp` | partial | External `fastp`; container planned | Adapter trimming, quality filtering, HTML/JSON reports. |
+| `trim` | `cutadapt` | planned | Image not added yet | Adapter/primer trimming. |
+| `trim` | `qiime2-cutadapt` | planned | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | QIIME 2 Cutadapt wrapper. |
+| `denoise` | `qiime2-dada2` | partial | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | DADA2 ASV inference from demultiplexed reads. |
+| `denoise` | `qiime2-deblur` | partial | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Deblur ASV inference from demultiplexed reads. |
+| `denoise` | `dada2-r` | planned | [R diffab](containers/r-diffab/Dockerfile) or dedicated DADA2 image later | R/DADA2 denoising. |
+| `cluster` | `vsearch` | partial | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | QIIME 2 VSEARCH de novo feature clustering. |
+| `tax_classify` | `qiime2` | partial | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | QIIME 2 taxonomy classification. |
+| `tax_classify` | `kraken2` | planned | [Kraken2](containers/kraken2/Dockerfile) | Taxonomic profiling/classification. |
+| `tax_classify` | `bracken` | planned | [Kraken2](containers/kraken2/Dockerfile), Bracken planned | Abundance re-estimation from Kraken2 output. |
+| `tax_classify` | `metaphlan` | planned | Image not added yet | Marker-gene taxonomic profiling. |
+| `phylogeny` | `qiime2` | partial | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Alignment, masking, tree construction, and rooting. |
+| `phylogeny` | `mafft-fasttree` | planned | Image not added yet | Standalone MAFFT/FastTree phylogeny. |
+| `normalize` | `native` | ready | [microsuite Python](containers/microsuite/Dockerfile) | Relative abundance, CLR, and table transforms. |
+| `abundance` | `native` | ready | [microsuite Python](containers/microsuite/Dockerfile) | Summarize abundance at taxonomy levels. |
+| `shared_taxa` | `native` | ready | [microsuite Python](containers/microsuite/Dockerfile) | Compare shared taxa across sample groups. |
+| `rarefy` | `native` | ready | [microsuite Python](containers/microsuite/Dockerfile) | Rarefy feature tables to a fixed depth. |
+| `diversity_calc` | `native` | ready | [microsuite Python](containers/microsuite/Dockerfile) | Native alpha/beta diversity. |
+| `diversity_calc` | `qiime2` | partial | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | QIIME 2 diversity-lib metrics. |
+| `beta_significance` | `qiime2` | planned | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | PERMANOVA and beta-diversity tests. |
+| `beta_significance` | `native` | planned | [microsuite Python](containers/microsuite/Dockerfile) | Native beta-diversity tests. |
+| `diff_abundance` | `ancombc` | partial | [R diffab](containers/r-diffab/Dockerfile) | ANCOM-BC differential abundance. |
+| `diff_abundance` | `aldex2` | planned | [R diffab](containers/r-diffab/Dockerfile) | ALDEx2 differential abundance. |
+| `diff_abundance` | `maaslin2` | planned | [R diffab](containers/r-diffab/Dockerfile) | MaAsLin2 multivariable association testing. |
+| `diff_abundance` | `lefse` | planned | Image not added yet | LEfSe legacy differential abundance. |
+| `env_assoc` | `mantel` | planned | [microsuite Python](containers/microsuite/Dockerfile) or R image later | Mantel association testing. |
+| `env_assoc` | `rda` | planned | R image later | Redundancy analysis. |
+| `env_assoc` | `cca` | planned | R image later | Canonical correspondence analysis. |
+| `env_assoc` | `db-rda` | planned | R image later | Distance-based redundancy analysis. |
+| `network` | `native-correlation` | planned | [microsuite Python](containers/microsuite/Dockerfile) | Correlation network analysis. |
+| `network` | `sparcc` | planned | Image not added yet | SparCC association network analysis. |
+| `network` | `spieceasi` | planned | R image later | SPIEC-EASI network inference. |
+| `network` | `flashweave` | planned | Image not added yet | FlashWeave network inference. |
+| `functional_predict` | `picrust2` | planned | Image not added yet | Predict function from marker-gene profiles. |
+| `functional_predict` | `tax4fun2` | planned | Image not added yet | Tax4Fun2 function prediction. |
+| `functional_profile` | `humann` | planned | Image not added yet | Functional profiling from metagenomic data. |
+| `classify_samples` | `randomforest` | planned | [microsuite Python](containers/microsuite/Dockerfile) | Supervised sample classification. |
+| `classify_samples` | `xgboost` | planned | Image not added yet | Optional XGBoost sample classification. |
+| `time_series` | `native` | planned | [microsuite Python](containers/microsuite/Dockerfile) | Longitudinal microbiome analysis. |
+| `gamma_diversity` | `native` | planned | [microsuite Python](containers/microsuite/Dockerfile) | Region/group-level diversity summaries. |
+| `turnover` | `beta-turnover` | planned | [microsuite Python](containers/microsuite/Dockerfile) | Community turnover analysis. |
+| `turnover` | `taxa-turnover` | planned | [microsuite Python](containers/microsuite/Dockerfile) | Taxa turnover analysis. |
+| `visualize` | `native` | ready | [microsuite Python](containers/microsuite/Dockerfile) | Barplots, ordination plots, and heatmaps. |
+| `report` | `native` | ready | [microsuite Python](containers/microsuite/Dockerfile) | HTML provenance reports from run metadata. |
 
 ## Install
 
