@@ -9,7 +9,7 @@ Initial image skeletons:
 containers/microsuite/   Python CLI + SDK
 containers/qiime2-amplicon/    QIIME 2 amplicon workflows
 containers/r-diffab/           R differential-abundance tools
-containers/kraken2/            Kraken2/Bracken taxonomy profiling
+containers/kraken2/            Kraken2 taxonomy profiling
 ```
 
 | Image | Purpose | Expected commands | Build status |
@@ -17,10 +17,11 @@ containers/kraken2/            Kraken2/Bracken taxonomy profiling
 | `microsuite` | Python CLI and SDK runtime | `microsuite`, `uv` | skeleton |
 | `qiime2-amplicon` | QIIME 2 amplicon backend | `qiime` | skeleton |
 | `r-diffab` | R differential abundance backend | `Rscript`, `ANCOMBC` | skeleton |
-| `kraken2` | Kraken2/Bracken taxonomy profiling | `kraken2`, `bracken` | skeleton |
+| `kraken2` | Kraken2 taxonomy profiling | `kraken2`; planned: `bracken` | skeleton |
 
-Default unit tests should validate container files statically. They should not
-build images unless explicitly requested.
+Default unit tests validate container files statically. GitHub Actions also
+builds the lighter `microsuite` and `kraken2` images on every push and pull
+request.
 
 The CLI may check for external commands, but the Nextflow API should own
 container/profile selection for full workflows.
@@ -34,9 +35,10 @@ containers/r-diffab/Dockerfile
 containers/kraken2/Dockerfile
 ```
 
-These Dockerfiles are intentionally checked statically by default. Building them
-is a separate, explicit validation step because QIIME 2, R/Bioconductor, and
-Kraken2 images can be large and network-sensitive.
+Heavy images remain explicit validation steps because QIIME 2 and
+R/Bioconductor images can be large and network-sensitive. Use the manual
+GitHub Actions `build-heavy-containers=true` input to build `qiime2-amplicon`
+and `r-diffab` in CI.
 
 Build from the repository root so Dockerfiles that copy project files have the
 right context:

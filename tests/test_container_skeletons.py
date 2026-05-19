@@ -11,7 +11,7 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
         "microsuite": ["microsuite", "uv"],
         "qiime2-amplicon": ["qiime", "QIIME 2"],
         "r-diffab": ["Rscript", "ANCOMBC"],
-        "kraken2": ["kraken2", "bracken"],
+        "kraken2": ["kraken2", "Bracken support is planned"],
     }
 
     for name, tokens in expected.items():
@@ -23,3 +23,11 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
         assert "# Expected commands:" in text
         for token in tokens:
             assert token in text
+
+
+def test_dockerignore_excludes_local_artifacts() -> None:
+    text = (ROOT / ".dockerignore").read_text(encoding="utf-8")
+
+    for pattern in [".venv", ".git", "dist", "/runs", "/data", "/results", ".tokensave"]:
+        assert pattern in text
+    assert "src/microsuite/data" not in text

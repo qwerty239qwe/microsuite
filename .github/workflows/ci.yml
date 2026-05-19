@@ -6,6 +6,15 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      build-heavy-containers:
+        description: "Build heavy QIIME 2 and R differential-abundance images"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 permissions:
   contents: read
@@ -85,3 +94,57 @@ jobs:
             --metadata tests/fixtures/moving_pictures_small/metadata.tsv \
             --classifier tests/fixtures/moving_pictures_small/taxonomy.tsv \
             --outdir results/nextflow-smoke
+
+  docker-build:
+    name: Docker build (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: microsuite
+            dockerfile: containers/microsuite/Dockerfile
+            context: .
+            heavy: false
+          - image: kraken2
+            dockerfile: containers/kraken2/Dockerfile
+            context: .
+            heavy: false
+          - image: qiime2-amplicon
+            dockerfile: containers/qiime2-amplicon/Dockerfile
+            context: .
+            heavy: true
+          - image: r-diffab
+            dockerfile: containers/r-diffab/Dockerfile
+            context: .
+            heavy: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build container image
+        if: ${{ !matrix.heavy || github.event.inputs.build-heavy-containers == 'true' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          tags: microsuite/${{ matrix.image }}:ci
+          push: false
+          load: ${{ !matrix.heavy }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+      - name: Smoke test microsuite image
+        if: ${{ matrix.image == 'microsuite' }}
+        run: docker run --rm microsuite/${{ matrix.image }}:ci --help
+
+      - name: Smoke test kraken2 image
+        if: ${{ matrix.image == 'kraken2' }}
+        run: docker run --rm --entrypoint kraken2 microsuite/${{ matrix.image }}:ci --version
+
+      - name: Skip heavy container image
+        if: ${{ matrix.heavy && github.event.inputs.build-heavy-containers != 'true' }}
+        run: echo "Skipping heavy container image ${{ matrix.image }}. Use workflow_dispatch with build-heavy-containers=true to build it."
