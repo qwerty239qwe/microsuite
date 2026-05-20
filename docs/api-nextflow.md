@@ -62,4 +62,6 @@ Current status:
 - `workflows/nextflow/main.nf` exists.
 - local, Docker, and Singularity profiles exist.
 - module files are placeholders and are not yet production implementations.
+- the FastQC container exists, but the Nextflow `FASTQC` process still uses
+  placeholder behavior until the raw-read manifest contract is implemented.
 - default tests validate the skeleton statically rather than running Nextflow.

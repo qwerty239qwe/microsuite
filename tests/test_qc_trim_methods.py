@@ -36,6 +36,27 @@ def test_qc_fastqc_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     assert calls == [["fastqc", "--outdir", str(tmp_path / "qc"), "--threads", "2", str(read)]]
 
 
+def test_qc_fastqc_extract_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    read = touch(tmp_path / "sample_R1.fastq.gz")
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr("shutil.which", lambda name: "fastqc" if name == "fastqc" else None)
+
+    def fake_run(
+        command: list[str], *, check: bool, text: bool, capture_output: bool
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    qc(backend="fastqc", inputs=[read], output_dir=tmp_path / "qc", threads=2, extract=True)
+
+    assert calls == [
+        ["fastqc", "--outdir", str(tmp_path / "qc"), "--threads", "2", "--extract", str(read)]
+    ]
+
+
 def test_qc_multiqc_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     input_dir = tmp_path / "fastqc"
     input_dir.mkdir()

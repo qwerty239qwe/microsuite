@@ -92,6 +92,9 @@ def qc_cmd(
         Path | None, typer.Option("--output", "-o", help="Output QIIME 2 visualization.")
     ] = None,
     threads: Annotated[int, typer.Option("--threads", min=1)] = 1,
+    extract: Annotated[
+        bool, typer.Option("--extract", help="Extract FastQC zip output after analysis.")
+    ] = False,
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
 ) -> None:
     qc(
@@ -102,6 +105,7 @@ def qc_cmd(
         output_dir=output_dir,
         output=output,
         threads=threads,
+        extract=extract,
         force=force,
     )
 

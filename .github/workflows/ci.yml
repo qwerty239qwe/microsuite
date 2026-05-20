@@ -106,6 +106,10 @@ jobs:
             dockerfile: containers/microsuite/Dockerfile
             context: .
             heavy: false
+          - image: fastqc
+            dockerfile: containers/fastqc/Dockerfile
+            context: .
+            heavy: false
           - image: kraken2
             dockerfile: containers/kraken2/Dockerfile
             context: .
@@ -140,6 +144,10 @@ jobs:
       - name: Smoke test microsuite image
         if: ${{ matrix.image == 'microsuite' }}
         run: docker run --rm microsuite/${{ matrix.image }}:ci --help
+
+      - name: Smoke test FastQC image
+        if: ${{ matrix.image == 'fastqc' }}
+        run: docker run --rm microsuite/${{ matrix.image }}:ci --version
 
       - name: Smoke test kraken2 image
         if: ${{ matrix.image == 'kraken2' }}

@@ -24,7 +24,7 @@ Demo data attribution and citation details are in
 
 | Backend | Version | Status | CLI command | Python function name | Image / environment | Operational tradeoff | Purpose |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `fastqc` | User env | partial | `microsuite qc --backend fastqc` | `microsuite.methods.qc.qc` | External `fastqc`; container planned | Fast and familiar; requires separate install. | Raw-read quality reports. |
+| `fastqc` | FastQC 0.12.1 | ready | `microsuite qc --backend fastqc` | `microsuite.methods.qc.qc` | [FastQC](containers/fastqc/Dockerfile) or external `fastqc` | Ready as a CLI wrapper and standalone container; Nextflow raw-read wiring remains planned. | Raw-read quality reports. |
 | `multiqc` | User env | partial | `microsuite qc --backend multiqc` | `microsuite.methods.qc.qc` | External `multiqc`; container planned | Good aggregation layer; depends on upstream report files. | Aggregate QC reports. |
 | `qiime2-demux-summarize` | QIIME 2 2024.10 | partial | `microsuite qc --backend qiime2-demux` | `microsuite.methods.qc.qc` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Best for QIIME artifacts; current CLI backend name should be renamed or aliased. | Demultiplexed-read quality visualization. |
 

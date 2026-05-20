@@ -19,11 +19,18 @@ def qc(
     output_dir: Path | None = None,
     output: Path | None = None,
     threads: int = 1,
+    extract: bool = False,
     force: bool = False,
 ) -> None:
     backend = backend.lower()
     if backend == "fastqc":
-        qc_fastqc(inputs=inputs or [], output_dir=output_dir, threads=threads, force=force)
+        qc_fastqc(
+            inputs=inputs or [],
+            output_dir=output_dir,
+            threads=threads,
+            extract=extract,
+            force=force,
+        )
         return
     if backend == "multiqc":
         qc_multiqc(input_dir=input_dir, output_dir=output_dir, force=force)
@@ -35,7 +42,9 @@ def qc(
     raise MicrobiomeSuiteError(f"Unsupported QC backend '{backend}'. Choose one of: {backends}")
 
 
-def qc_fastqc(*, inputs: list[Path], output_dir: Path | None, threads: int, force: bool) -> None:
+def qc_fastqc(
+    *, inputs: list[Path], output_dir: Path | None, threads: int, extract: bool, force: bool
+) -> None:
     if not inputs:
         raise MicrobiomeSuiteError("--input is required for --backend fastqc.")
     if output_dir is None:
@@ -46,6 +55,8 @@ def qc_fastqc(*, inputs: list[Path], output_dir: Path | None, threads: int, forc
     _prepare_dir(output_dir, force=force)
 
     command = [fastqc, "--outdir", str(output_dir), "--threads", str(threads)]
+    if extract:
+        command.append("--extract")
     command.extend(str(path) for path in inputs)
     _run(command, "FastQC failed.")
 
