@@ -203,9 +203,59 @@ def trim_cmd(
     output1: Annotated[Path, typer.Option("--output1", help="Output forward/single FASTQ.")],
     read2: Annotated[Path | None, typer.Option("--read2", help="Reverse FASTQ.")] = None,
     output2: Annotated[Path | None, typer.Option("--output2", help="Output reverse FASTQ.")] = None,
+    unpaired1: Annotated[
+        Path | None, typer.Option("--unpaired1", help="Trimmomatic unpaired R1 output.")
+    ] = None,
+    unpaired2: Annotated[
+        Path | None, typer.Option("--unpaired2", help="Trimmomatic unpaired R2 output.")
+    ] = None,
     html: Annotated[Path | None, typer.Option("--html", help="fastp HTML report.")] = None,
     json_report: Annotated[
-        Path | None, typer.Option("--json-report", help="fastp JSON report.")
+        Path | None, typer.Option("--json-report", help="fastp or Cutadapt JSON report.")
+    ] = None,
+    adapter: Annotated[
+        str | None, typer.Option("--adapter", "-a", help="Cutadapt 3' adapter for R1.")
+    ] = None,
+    front: Annotated[
+        str | None, typer.Option("--front", "-g", help="Cutadapt 5' adapter for R1.")
+    ] = None,
+    anywhere: Annotated[
+        str | None, typer.Option("--anywhere", "-b", help="Cutadapt 5'/3' adapter for R1.")
+    ] = None,
+    adapter2: Annotated[
+        str | None, typer.Option("--adapter2", "-A", help="Cutadapt 3' adapter for R2.")
+    ] = None,
+    front2: Annotated[
+        str | None, typer.Option("--front2", "-G", help="Cutadapt 5' adapter for R2.")
+    ] = None,
+    anywhere2: Annotated[
+        str | None, typer.Option("--anywhere2", "-B", help="Cutadapt 5'/3' adapter for R2.")
+    ] = None,
+    quality_cutoff: Annotated[
+        str | None,
+        typer.Option("--quality-cutoff", "-q", help="Cutadapt quality cutoff, e.g. 20 or 10,20."),
+    ] = None,
+    minimum_length: Annotated[
+        str | None, typer.Option("--minimum-length", "-m", help="Cutadapt minimum length.")
+    ] = None,
+    maximum_length: Annotated[
+        str | None, typer.Option("--maximum-length", "-M", help="Cutadapt maximum length.")
+    ] = None,
+    max_n: Annotated[
+        str | None, typer.Option("--max-n", help="Discard reads with more than this many Ns.")
+    ] = None,
+    discard_untrimmed: Annotated[
+        bool, typer.Option("--discard-untrimmed", help="Discard reads without adapter matches.")
+    ] = False,
+    trimmomatic_steps: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--trimmomatic-step",
+            help="Trimmomatic trimming step. Repeat for multiple steps.",
+        ),
+    ] = None,
+    basename: Annotated[
+        str | None, typer.Option("--basename", help="Trim Galore output basename.")
     ] = None,
     threads: Annotated[int, typer.Option("--threads", min=1)] = 1,
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
@@ -216,8 +266,23 @@ def trim_cmd(
         read2=read2,
         output1=output1,
         output2=output2,
+        unpaired1=unpaired1,
+        unpaired2=unpaired2,
         html=html,
         json_report=json_report,
+        adapter=adapter,
+        front=front,
+        anywhere=anywhere,
+        adapter2=adapter2,
+        front2=front2,
+        anywhere2=anywhere2,
+        quality_cutoff=quality_cutoff,
+        minimum_length=minimum_length,
+        maximum_length=maximum_length,
+        max_n=max_n,
+        discard_untrimmed=discard_untrimmed,
+        trimmomatic_steps=trimmomatic_steps,
+        basename=basename,
         threads=threads,
         force=force,
     )

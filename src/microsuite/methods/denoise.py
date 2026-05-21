@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from importlib.resources import files
 from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
 
 SUPPORTED_BACKENDS = ("qiime2-dada2", "qiime2-deblur", "dada2-r")
-PLANNED_BACKENDS = ("dada2-r",)
+PLANNED_BACKENDS: tuple[str, ...] = ()
+DADA2_R_SCRIPT = "dada2_denoise.R"
 
 
 def denoise(
@@ -54,6 +56,23 @@ def denoise(
             output_stats=output_stats,
             trim_left=trim_left,
             trunc_len=trunc_len,
+            threads=threads,
+            force=force,
+        )
+        return
+    if backend == "dada2-r":
+        denoise_dada2_r(
+            input_dir=demux,
+            output_table=output_table,
+            output_rep_seqs=output_rep_seqs,
+            output_stats=output_stats,
+            paired=paired,
+            trim_left=trim_left,
+            trunc_len=trunc_len,
+            trim_left_f=trim_left_f,
+            trunc_len_f=trunc_len_f,
+            trim_left_r=trim_left_r,
+            trunc_len_r=trunc_len_r,
             threads=threads,
             force=force,
         )
@@ -166,6 +185,65 @@ def denoise_qiime2_deblur(
         str(output_stats),
     ]
     _run(command, "QIIME 2 Deblur denoising failed.")
+
+
+def denoise_dada2_r(
+    *,
+    input_dir: Path,
+    output_table: Path,
+    output_rep_seqs: Path,
+    output_stats: Path,
+    paired: bool,
+    trim_left: int,
+    trunc_len: int,
+    trim_left_f: int,
+    trunc_len_f: int,
+    trim_left_r: int,
+    trunc_len_r: int,
+    threads: int,
+    force: bool,
+) -> None:
+    rscript = shutil.which("Rscript")
+    if rscript is None:
+        raise MicrobiomeSuiteError(
+            "R/DADA2 denoising requires the external 'Rscript' command. "
+            "Install R with the dada2 package and rerun this command."
+        )
+    if not input_dir.exists() or not input_dir.is_dir():
+        raise MicrobiomeSuiteError(f"Input directory does not exist: {input_dir}")
+    _prepare_outputs(output_table, output_rep_seqs, output_stats, force=force)
+
+    command = [
+        rscript,
+        str(files("microsuite.resources").joinpath(DADA2_R_SCRIPT)),
+        "--input-dir",
+        str(input_dir),
+        "--output-table",
+        str(output_table),
+        "--output-rep-seqs",
+        str(output_rep_seqs),
+        "--output-stats",
+        str(output_stats),
+        "--threads",
+        str(threads),
+    ]
+    if paired:
+        command.append("--paired")
+        command.extend(
+            [
+                "--trim-left-f",
+                str(trim_left_f),
+                "--trunc-len-f",
+                str(trunc_len_f),
+                "--trim-left-r",
+                str(trim_left_r),
+                "--trunc-len-r",
+                str(trunc_len_r),
+            ]
+        )
+    else:
+        command.extend(["--trim-left", str(trim_left), "--trunc-len", str(trunc_len)])
+    _run(command, "R/DADA2 denoising failed.")
 
 
 def _require_qiime(task: str) -> str:

@@ -11,15 +11,18 @@ from microsuite.api.ecology import (
 )
 from microsuite.api.table import read_table, write_table
 from microsuite.methods.decontam import decontam
+from microsuite.methods.denoise import denoise
 from microsuite.methods.evaluate import evaluate
 from microsuite.methods.qc import qc
 from microsuite.methods.qc_filter import qc_filter
+from microsuite.methods.trim import trim
 
 __all__ = [
     "abundance_table",
     "alpha_diversity",
     "beta_diversity",
     "decontam",
+    "denoise",
     "evaluate",
     "normalize_table",
     "pcoa",
@@ -28,5 +31,6 @@ __all__ = [
     "rarefy_table",
     "read_table",
     "shared_taxa_table",
+    "trim",
     "write_table",
 ]

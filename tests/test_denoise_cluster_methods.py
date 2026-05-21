@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+import microsuite.api as api
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite.cli.app import app
 from microsuite.methods.cluster import cluster
@@ -15,6 +16,11 @@ from microsuite.methods.denoise import denoise
 def touch(path: Path) -> Path:
     path.write_text("placeholder", encoding="utf-8")
     return path
+
+
+def test_python_sdk_facade_exports_denoise() -> None:
+    assert api.denoise is denoise
+    assert "denoise" in api.__all__
 
 
 def test_denoise_qiime2_dada2_single_builds_command(
@@ -172,16 +178,60 @@ def test_denoise_qiime2_deblur_builds_command(
     ]
 
 
-def test_denoise_planned_backend_message(tmp_path: Path) -> None:
-    demux = touch(tmp_path / "demux.qza")
+def test_denoise_dada2_r_builds_rscript_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reads = tmp_path / "reads"
+    reads.mkdir()
+    calls: list[list[str]] = []
+    monkeypatch.setattr("shutil.which", lambda name: "Rscript" if name == "Rscript" else None)
 
-    with pytest.raises(MicrobiomeSuiteError, match="registered but not implemented"):
+    def fake_run(
+        command: list[str], *, check: bool, text: bool, capture_output: bool
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    denoise(
+        backend="dada2-r",
+        demux=reads,
+        output_table=tmp_path / "table.tsv",
+        output_rep_seqs=tmp_path / "rep-seqs.fasta",
+        output_stats=tmp_path / "stats.tsv",
+        paired=True,
+        trim_left_f=7,
+        trunc_len_f=151,
+        trim_left_r=11,
+        trunc_len_r=149,
+        threads=4,
+    )
+
+    command = calls[0]
+    assert command[0] == "Rscript"
+    assert command[1].endswith(str(Path("microsuite/resources/dada2_denoise.R")))
+    assert command[2] == "--input-dir"
+    assert str(reads) in command
+    assert "--paired" in command
+    assert "--trunc-len-f" in command
+    assert "151" in command
+    assert "--threads" in command
+    assert "4" in command
+
+
+def test_denoise_dada2_r_missing_rscript(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    reads = tmp_path / "reads"
+    reads.mkdir()
+    monkeypatch.setattr("shutil.which", lambda name: None)
+
+    with pytest.raises(MicrobiomeSuiteError, match="R/DADA2 denoising requires"):
         denoise(
             backend="dada2-r",
-            demux=demux,
-            output_table=tmp_path / "table.qza",
-            output_rep_seqs=tmp_path / "rep-seqs.qza",
-            output_stats=tmp_path / "stats.qza",
+            demux=reads,
+            output_table=tmp_path / "table.tsv",
+            output_rep_seqs=tmp_path / "rep-seqs.fasta",
+            output_stats=tmp_path / "stats.tsv",
         )
 
 

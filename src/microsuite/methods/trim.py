@@ -7,8 +7,8 @@ from pathlib import Path
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
 
-SUPPORTED_BACKENDS = ("fastp", "cutadapt", "qiime2-cutadapt")
-PLANNED_BACKENDS = ("cutadapt", "qiime2-cutadapt")
+SUPPORTED_BACKENDS = ("fastp", "cutadapt", "trimmomatic", "trim-galore", "qiime2-cutadapt")
+PLANNED_BACKENDS = ("qiime2-cutadapt",)
 
 
 def trim(
@@ -18,13 +18,47 @@ def trim(
     output1: Path,
     read2: Path | None = None,
     output2: Path | None = None,
+    unpaired1: Path | None = None,
+    unpaired2: Path | None = None,
     html: Path | None = None,
     json_report: Path | None = None,
+    adapter: str | None = None,
+    front: str | None = None,
+    anywhere: str | None = None,
+    adapter2: str | None = None,
+    front2: str | None = None,
+    anywhere2: str | None = None,
+    quality_cutoff: str | None = None,
+    minimum_length: str | None = None,
+    maximum_length: str | None = None,
+    max_n: str | None = None,
+    discard_untrimmed: bool = False,
+    trimmomatic_steps: list[str] | None = None,
+    basename: str | None = None,
     threads: int = 1,
     force: bool = False,
 ) -> None:
     backend = backend.lower()
     if backend == "fastp":
+        if (
+            any(
+                value is not None
+                for value in (
+                    adapter,
+                    front,
+                    anywhere,
+                    adapter2,
+                    front2,
+                    anywhere2,
+                    quality_cutoff,
+                    minimum_length,
+                    maximum_length,
+                    max_n,
+                )
+            )
+            or discard_untrimmed
+        ):
+            raise MicrobiomeSuiteError("Cutadapt-specific trim options require --backend cutadapt.")
         trim_fastp(
             read1=read1,
             output1=output1,
@@ -32,6 +66,95 @@ def trim(
             output2=output2,
             html=html,
             json_report=json_report,
+            threads=threads,
+            force=force,
+        )
+        return
+    if backend == "cutadapt":
+        trim_cutadapt(
+            read1=read1,
+            output1=output1,
+            read2=read2,
+            output2=output2,
+            unpaired1=unpaired1,
+            unpaired2=unpaired2,
+            html=html,
+            json_report=json_report,
+            adapter=adapter,
+            front=front,
+            anywhere=anywhere,
+            adapter2=adapter2,
+            front2=front2,
+            anywhere2=anywhere2,
+            quality_cutoff=quality_cutoff,
+            minimum_length=minimum_length,
+            maximum_length=maximum_length,
+            max_n=max_n,
+            discard_untrimmed=discard_untrimmed,
+            threads=threads,
+            force=force,
+        )
+        return
+    if backend == "trimmomatic":
+        _reject_options(
+            "trimmomatic",
+            {
+                "--html": html,
+                "--json-report": json_report,
+                "--adapter": adapter,
+                "--front": front,
+                "--anywhere": anywhere,
+                "--adapter2": adapter2,
+                "--front2": front2,
+                "--anywhere2": anywhere2,
+                "--quality-cutoff": quality_cutoff,
+                "--minimum-length": minimum_length,
+                "--maximum-length": maximum_length,
+                "--max-n": max_n,
+                "--discard-untrimmed": discard_untrimmed,
+                "--basename": basename,
+            },
+        )
+        trim_trimmomatic(
+            read1=read1,
+            output1=output1,
+            read2=read2,
+            output2=output2,
+            unpaired1=unpaired1,
+            unpaired2=unpaired2,
+            steps=trimmomatic_steps or [],
+            threads=threads,
+            force=force,
+        )
+        return
+    if backend == "trim-galore":
+        _reject_options(
+            "trim-galore",
+            {
+                "--html": html,
+                "--json-report": json_report,
+                "--front": front,
+                "--anywhere": anywhere,
+                "--front2": front2,
+                "--anywhere2": anywhere2,
+                "--maximum-length": maximum_length,
+                "--max-n": max_n,
+                "--discard-untrimmed": discard_untrimmed,
+                "--trimmomatic-step": trimmomatic_steps,
+                "--unpaired1": unpaired1,
+                "--unpaired2": unpaired2,
+            },
+        )
+        trim_galore(
+            read1=read1,
+            output1=output1,
+            read2=read2,
+            output2=output2,
+            adapter=adapter,
+            adapter2=adapter2,
+            quality_cutoff=quality_cutoff,
+            minimum_length=minimum_length,
+            basename=basename,
             threads=threads,
             force=force,
         )
@@ -84,6 +207,273 @@ def trim_fastp(
     result = subprocess.run(command, check=False, text=True, capture_output=True)
     if result.returncode != 0:
         message = result.stderr.strip() or result.stdout.strip() or "fastp trimming failed."
+        raise MicrobiomeSuiteError(message)
+
+
+def trim_cutadapt(
+    *,
+    read1: Path,
+    output1: Path,
+    read2: Path | None,
+    output2: Path | None,
+    unpaired1: Path | None,
+    unpaired2: Path | None,
+    html: Path | None,
+    json_report: Path | None,
+    adapter: str | None,
+    front: str | None,
+    anywhere: str | None,
+    adapter2: str | None,
+    front2: str | None,
+    anywhere2: str | None,
+    quality_cutoff: str | None,
+    minimum_length: str | None,
+    maximum_length: str | None,
+    max_n: str | None,
+    discard_untrimmed: bool,
+    threads: int,
+    force: bool,
+) -> None:
+    if unpaired1 is not None or unpaired2 is not None:
+        raise MicrobiomeSuiteError(
+            "--unpaired1 and --unpaired2 are only supported by --backend trimmomatic."
+        )
+    if html is not None:
+        raise MicrobiomeSuiteError(
+            "--html is only supported by --backend fastp. Use --json-report for Cutadapt."
+        )
+    if read2 is not None and output2 is None:
+        raise MicrobiomeSuiteError("--output2 is required when --read2 is supplied.")
+    if output2 is not None and read2 is None:
+        raise MicrobiomeSuiteError("--read2 is required when --output2 is supplied.")
+    if read2 is None and any(value is not None for value in (adapter2, front2, anywhere2)):
+        raise MicrobiomeSuiteError("R2 adapter options require --read2 and --output2.")
+    has_adapter = any(
+        value is not None for value in (adapter, front, anywhere, adapter2, front2, anywhere2)
+    )
+    if (
+        not any(
+            value is not None
+            for value in (
+                adapter,
+                front,
+                anywhere,
+                adapter2,
+                front2,
+                anywhere2,
+                quality_cutoff,
+                minimum_length,
+                maximum_length,
+                max_n,
+            )
+        )
+        and not discard_untrimmed
+    ):
+        raise MicrobiomeSuiteError(
+            "cutadapt requires at least one adapter or filtering option, such as "
+            "--adapter, --front, --quality-cutoff, --minimum-length, or --max-n."
+        )
+    if discard_untrimmed and not has_adapter:
+        raise MicrobiomeSuiteError(
+            "--discard-untrimmed requires at least one adapter option, such as "
+            "--adapter, --front, or --anywhere."
+        )
+
+    cutadapt = shutil.which("cutadapt")
+    if cutadapt is None:
+        raise MicrobiomeSuiteError(
+            "Cutadapt trimming requires the external 'cutadapt' command. "
+            "Install cutadapt and rerun this command."
+        )
+
+    ensure_input(read1)
+    if read2 is not None:
+        ensure_input(read2)
+    _prepare_outputs(output1, output2, json_report, force=force)
+
+    command = [cutadapt]
+    _add_optional(command, "-a", adapter)
+    _add_optional(command, "-g", front)
+    _add_optional(command, "-b", anywhere)
+    _add_optional(command, "-A", adapter2)
+    _add_optional(command, "-G", front2)
+    _add_optional(command, "-B", anywhere2)
+    _add_optional(command, "-q", quality_cutoff)
+    _add_optional(command, "-m", minimum_length)
+    _add_optional(command, "-M", maximum_length)
+    _add_optional(command, "--max-n", max_n)
+    if discard_untrimmed:
+        command.append("--discard-untrimmed")
+    if json_report is not None:
+        command.extend(["--json", str(json_report)])
+    command.extend(["-j", str(threads), "-o", str(output1)])
+    if read2 is not None and output2 is not None:
+        command.extend(["-p", str(output2)])
+    command.append(str(read1))
+    if read2 is not None:
+        command.append(str(read2))
+
+    result = subprocess.run(command, check=False, text=True, capture_output=True)
+    if result.returncode != 0:
+        message = result.stderr.strip() or result.stdout.strip() or "Cutadapt trimming failed."
+        raise MicrobiomeSuiteError(message)
+
+
+def _add_optional(command: list[str], option: str, value: str | None) -> None:
+    if value is not None:
+        command.extend([option, value])
+
+
+def _reject_options(backend: str, options: dict[str, object | None]) -> None:
+    rejected = [
+        option
+        for option, value in options.items()
+        if value is not None and value is not False and value != []
+    ]
+    if rejected:
+        raise MicrobiomeSuiteError(f"{', '.join(rejected)} not supported by --backend {backend}.")
+
+
+def trim_trimmomatic(
+    *,
+    read1: Path,
+    output1: Path,
+    read2: Path | None,
+    output2: Path | None,
+    unpaired1: Path | None,
+    unpaired2: Path | None,
+    steps: list[str],
+    threads: int,
+    force: bool,
+) -> None:
+    if not steps:
+        raise MicrobiomeSuiteError(
+            "trimmomatic requires at least one trimming step, such as SLIDINGWINDOW:4:20."
+        )
+    if read2 is not None and output2 is None:
+        raise MicrobiomeSuiteError("--output2 is required when --read2 is supplied.")
+    if output2 is not None and read2 is None:
+        raise MicrobiomeSuiteError("--read2 is required when --output2 is supplied.")
+    if read2 is not None and (unpaired1 is None or unpaired2 is None):
+        raise MicrobiomeSuiteError(
+            "--unpaired1 and --unpaired2 are required for paired-end Trimmomatic."
+        )
+    if read2 is None and (unpaired1 is not None or unpaired2 is not None):
+        raise MicrobiomeSuiteError("--unpaired outputs require --read2 and --output2.")
+
+    trimmomatic = shutil.which("trimmomatic")
+    if trimmomatic is None:
+        raise MicrobiomeSuiteError(
+            "Trimmomatic trimming requires the external 'trimmomatic' command. "
+            "Install Trimmomatic and rerun this command."
+        )
+    ensure_input(read1)
+    if read2 is not None:
+        ensure_input(read2)
+    _prepare_outputs(output1, output2, unpaired1, unpaired2, force=force)
+
+    command = [trimmomatic, "PE" if read2 is not None else "SE", "-threads", str(threads)]
+    if read2 is None:
+        command.extend([str(read1), str(output1)])
+    else:
+        command.extend(
+            [
+                str(read1),
+                str(read2),
+                str(output1),
+                str(unpaired1),
+                str(output2),
+                str(unpaired2),
+            ]
+        )
+    command.extend(steps)
+    _run(command, "Trimmomatic trimming failed.")
+
+
+def trim_galore(
+    *,
+    read1: Path,
+    output1: Path,
+    read2: Path | None,
+    output2: Path | None,
+    adapter: str | None,
+    adapter2: str | None,
+    quality_cutoff: str | None,
+    minimum_length: str | None,
+    basename: str | None,
+    threads: int,
+    force: bool,
+) -> None:
+    if read2 is not None and output2 is None:
+        raise MicrobiomeSuiteError("--output2 is required when --read2 is supplied.")
+    if output2 is not None and read2 is None:
+        raise MicrobiomeSuiteError("--read2 is required when --output2 is supplied.")
+    paired = read2 is not None
+    expected_output1 = _trim_galore_expected_output(output1.parent, read1, basename, paired=paired)
+    if output1 != expected_output1:
+        raise MicrobiomeSuiteError(
+            f"Trim Galore expected output1 path is {expected_output1}; got {output1}."
+        )
+    if read2 is not None and output2 is not None:
+        expected_output2 = _trim_galore_expected_output(
+            output1.parent, read2, basename, paired=True
+        )
+        if output2 != expected_output2:
+            raise MicrobiomeSuiteError(
+                f"Trim Galore expected output2 path is {expected_output2}; got {output2}."
+            )
+
+    trim_galore_cmd = shutil.which("trim_galore")
+    if trim_galore_cmd is None:
+        raise MicrobiomeSuiteError(
+            "Trim Galore trimming requires the external 'trim_galore' command. "
+            "Install Trim Galore and rerun this command."
+        )
+    ensure_input(read1)
+    if read2 is not None:
+        ensure_input(read2)
+    output_dir = output1.parent
+    _prepare_outputs(output1, output2, force=force)
+
+    command = [trim_galore_cmd]
+    if read2 is not None:
+        command.append("--paired")
+    _add_optional(command, "--adapter", adapter)
+    _add_optional(command, "--adapter2", adapter2)
+    _add_optional(command, "--quality", quality_cutoff)
+    _add_optional(command, "--length", minimum_length)
+    command.extend(["--cores", str(threads), "--output_dir", str(output_dir)])
+    _add_optional(command, "--basename", basename)
+    command.append(str(read1))
+    if read2 is not None:
+        command.append(str(read2))
+    _run(command, "Trim Galore trimming failed.")
+
+
+def _trim_galore_expected_output(
+    output_dir: Path, read: Path, basename: str | None, *, paired: bool
+) -> Path:
+    if basename is not None:
+        if paired:
+            suffix = "_val_2.fq.gz" if "_R2" in read.name or "_2" in read.name else "_val_1.fq.gz"
+            return output_dir / f"{basename}{suffix}"
+        return output_dir / f"{basename}.fq.gz"
+    stem = read.name
+    for suffix in (".fastq.gz", ".fq.gz", ".fastq", ".fq"):
+        if stem.endswith(suffix):
+            stem = stem[: -len(suffix)]
+            break
+    if paired:
+        suffix = "_val_2.fq.gz" if "_R2" in read.name or "_2" in read.name else "_val_1.fq.gz"
+    else:
+        suffix = "_trimmed.fq.gz"
+    return output_dir / f"{stem}{suffix}"
+
+
+def _run(command: list[str], failure_message: str) -> None:
+    result = subprocess.run(command, check=False, text=True, capture_output=True)
+    if result.returncode != 0:
+        message = result.stderr.strip() or result.stdout.strip() or failure_message
         raise MicrobiomeSuiteError(message)
 
 

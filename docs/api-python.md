@@ -27,6 +27,10 @@ alpha_diversity(adata, metric="shannon")
 beta_diversity(adata, metric="bray-curtis")
 pcoa(distance_matrix)
 qc(backend="fastqc", inputs=[path], output_dir=qc_dir)
+trim(backend="cutadapt", read1=read, output1=trimmed, adapter=adapter)
+trim(backend="trimmomatic", read1=read, output1=trimmed, trimmomatic_steps=steps)
+trim(backend="trim-galore", read1=read, output1=trimmed, adapter=adapter)
+denoise(backend="dada2-r", demux=reads_dir, output_table=table, output_rep_seqs=rep_seqs, output_stats=stats)
 qc_filter(backend="qiime2-filter-reads", demux=demux, database=index, output=filtered)
 decontam(backend="qiime2-decontam", table=table, metadata=metadata, output=scores)
 evaluate(backend="qiime2-taxonomy", expected_taxa=expected, observed_taxa=observed, output=viz)
@@ -55,6 +59,61 @@ qc(
     output_dir=Path("qc"),
     threads=4,
     extract=True,
+)
+```
+
+Cutadapt example:
+
+```python
+from pathlib import Path
+
+from microsuite.api import trim
+
+trim(
+    backend="cutadapt",
+    read1=Path("sample_R1.fastq.gz"),
+    output1=Path("trimmed_R1.fastq.gz"),
+    adapter="AGATCGGAAGAGC",
+    quality_cutoff="20",
+    minimum_length="100",
+    json_report=Path("cutadapt.json"),
+    threads=4,
+)
+```
+
+Trimmomatic example:
+
+```python
+from pathlib import Path
+
+from microsuite.api import trim
+
+trim(
+    backend="trimmomatic",
+    read1=Path("sample_R1.fastq.gz"),
+    output1=Path("trimmed_R1.fastq.gz"),
+    trimmomatic_steps=["SLIDINGWINDOW:4:20", "MINLEN:100"],
+    threads=4,
+)
+```
+
+R/DADA2 example:
+
+```python
+from pathlib import Path
+
+from microsuite.api import denoise
+
+denoise(
+    backend="dada2-r",
+    demux=Path("trimmed-fastq"),
+    output_table=Path("table.tsv"),
+    output_rep_seqs=Path("rep-seqs.fasta"),
+    output_stats=Path("stats.tsv"),
+    paired=True,
+    trunc_len_f=151,
+    trunc_len_r=149,
+    threads=4,
 )
 ```
 

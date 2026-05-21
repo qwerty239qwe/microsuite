@@ -43,7 +43,9 @@ Demo data attribution and citation details are in
 | Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `fastp` | User env | partial | `microsuite trim --backend fastp` | `trim(backend="fastp", read1=..., output1=...)` | External `fastp`; container planned | Fast all-in-one preprocessing; primer-specific trimming is less explicit than Cutadapt. | Adapter trimming, quality filtering, HTML/JSON reports. |
-| `cutadapt` | Planned | planned | `microsuite trim --backend cutadapt` | planned | Image not added yet | Precise primer/adaptor trimming; more parameters to expose. | Adapter/primer trimming. |
+| `cutadapt` | Cutadapt >=4.x user env | partial | `microsuite trim --backend cutadapt` | `trim(backend="cutadapt", read1=..., output1=..., adapter=...)` | External `cutadapt` on `PATH`; container planned | Precise primer/adaptor trimming with explicit adapter control; requires users to choose primer/adapter sequences. | Adapter/primer trimming and read filtering. |
+| `trimmomatic` | Trimmomatic >=0.39 user env | partial | `microsuite trim --backend trimmomatic` | `trim(backend="trimmomatic", read1=..., output1=..., trimmomatic_steps=[...])` | External `trimmomatic` on `PATH`; container planned | Mature Java trimmer with explicit step pipeline; paired mode requires unpaired output files. | Sliding-window, length, quality, and adapter trimming. |
+| `trim-galore` | Trim Galore >=0.6 user env | partial | `microsuite trim --backend trim-galore` | `trim(backend="trim-galore", read1=..., output1=..., adapter=...)` | External `trim_galore` on `PATH`; container planned | Convenient Cutadapt/FastQC wrapper; output names are mostly tool-controlled. | Adapter/quality trimming with integrated QC conventions. |
 | `qiime2-cutadapt` | QIIME 2 2024.10 | planned | `microsuite trim --backend qiime2-cutadapt` | planned | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Fits QIIME artifact workflows; less convenient for raw FASTQ-only runs. | QIIME 2 Cutadapt wrapper. |
 
 ### Denoising And Clustering
@@ -52,7 +54,7 @@ Demo data attribution and citation details are in
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `qiime2-dada2` | QIIME 2 2024.10 | partial | `microsuite denoise --backend qiime2-dada2` | `denoise(backend="qiime2-dada2", demux=..., output_table=...)` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Strong amplicon default; needs careful truncation choices. | DADA2 ASV inference from demultiplexed reads. |
 | `qiime2-deblur` | QIIME 2 2024.10 | partial | `microsuite denoise --backend qiime2-deblur` | `denoise(backend="qiime2-deblur", demux=..., output_table=...)` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Reproducible fixed-error model; mainly 16S-oriented. | Deblur ASV inference from demultiplexed reads. |
-| `dada2-r` | Planned | planned | `microsuite denoise --backend dada2-r` | planned | [R diffab](containers/r-diffab/Dockerfile) or dedicated DADA2 image later | Direct R ecosystem access; needs a dedicated DADA2 runtime. | R/DADA2 denoising. |
+| `dada2-r` | DADA2 R user env | partial | `microsuite denoise --backend dada2-r` | `denoise(backend="dada2-r", demux=reads_dir, output_table=...)` | External `Rscript` with R package `dada2`; dedicated DADA2 image later | Direct R ecosystem access; currently expects a FASTQ directory and writes TSV/FASTA outputs. | R/DADA2 ASV inference from raw or trimmed FASTQ files. |
 | `vsearch` | QIIME 2 2024.10 | partial | `microsuite cluster --backend vsearch` | `cluster(backend="vsearch", table=..., rep_seqs=...)` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Useful for OTU workflows; less ASV-centric. | QIIME 2 VSEARCH de novo feature clustering. |
 
 ### Taxonomy And Phylogeny

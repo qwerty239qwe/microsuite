@@ -91,6 +91,26 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
         '`trim(backend="fastp", read1=..., output1=...)` |'
     ) in text
     assert (
+        "| `cutadapt` | Cutadapt >=4.x user env | partial | "
+        "`microsuite trim --backend cutadapt` | "
+        '`trim(backend="cutadapt", read1=..., output1=..., adapter=...)` |'
+    ) in text
+    assert (
+        "| `trimmomatic` | Trimmomatic >=0.39 user env | partial | "
+        "`microsuite trim --backend trimmomatic` | "
+        '`trim(backend="trimmomatic", read1=..., output1=..., trimmomatic_steps=[...])` |'
+    ) in text
+    assert (
+        "| `trim-galore` | Trim Galore >=0.6 user env | partial | "
+        "`microsuite trim --backend trim-galore` | "
+        '`trim(backend="trim-galore", read1=..., output1=..., adapter=...)` |'
+    ) in text
+    assert (
+        "| `dada2-r` | DADA2 R user env | partial | "
+        "`microsuite denoise --backend dada2-r` | "
+        '`denoise(backend="dada2-r", demux=reads_dir, output_table=...)` |'
+    ) in text
+    assert (
         "| `ancombc` | R 4.4.0 image; ANCOMBC via "
         "Bioconductor | partial | `microsuite diff_abundance --backend ancombc` | "
         '`diff_abundance(backend="ancombc", table=..., group=..., output=...)` |'
