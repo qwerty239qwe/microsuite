@@ -160,7 +160,7 @@ def test_cli_new_method_help_and_runtime(tmp_path: Path, monkeypatch: pytest.Mon
     monkeypatch.setattr("subprocess.run", fake_success)
     runner = CliRunner()
 
-    help_result = runner.invoke(app, ["metadata_tabulate", "--help"])
+    help_result = runner.invoke(app, ["metadata_tabulate", "--help"], terminal_width=160)
     assert help_result.exit_code == 0
     assert "--backend" in help_result.stdout
     assert "--run-dir" in help_result.stdout
