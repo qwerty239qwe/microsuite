@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import shutil
-import subprocess
 from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
 SUPPORTED_BACKENDS = ("fastp", "cutadapt", "trimmomatic", "trim-galore", "qiime2-cutadapt")
 PLANNED_BACKENDS = ("qiime2-cutadapt",)
@@ -35,10 +35,14 @@ def trim(
     discard_untrimmed: bool = False,
     trimmomatic_steps: list[str] | None = None,
     basename: str | None = None,
-    threads: int = 1,
+    trim_galore_version: str = "auto",
+    threads: int | str = 1,
     force: bool = False,
+    run_dir: Path | None = None,
+    timeout: float | None = None,
 ) -> None:
     backend = backend.lower()
+    resolved_threads = resolve_threads(threads)
     if backend == "fastp":
         if (
             any(
@@ -66,8 +70,10 @@ def trim(
             output2=output2,
             html=html,
             json_report=json_report,
-            threads=threads,
+            threads=resolved_threads,
             force=force,
+            run_dir=run_dir,
+            timeout=timeout,
         )
         return
     if backend == "cutadapt":
@@ -91,8 +97,10 @@ def trim(
             maximum_length=maximum_length,
             max_n=max_n,
             discard_untrimmed=discard_untrimmed,
-            threads=threads,
+            threads=resolved_threads,
             force=force,
+            run_dir=run_dir,
+            timeout=timeout,
         )
         return
     if backend == "trimmomatic":
@@ -123,8 +131,10 @@ def trim(
             unpaired1=unpaired1,
             unpaired2=unpaired2,
             steps=trimmomatic_steps or [],
-            threads=threads,
+            threads=resolved_threads,
             force=force,
+            run_dir=run_dir,
+            timeout=timeout,
         )
         return
     if backend == "trim-galore":
@@ -155,8 +165,11 @@ def trim(
             quality_cutoff=quality_cutoff,
             minimum_length=minimum_length,
             basename=basename,
-            threads=threads,
+            trim_galore_version=trim_galore_version,
+            threads=resolved_threads,
             force=force,
+            run_dir=run_dir,
+            timeout=timeout,
         )
         return
     if backend in PLANNED_BACKENDS:
@@ -178,6 +191,8 @@ def trim_fastp(
     json_report: Path | None,
     threads: int,
     force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
 ) -> None:
     if read2 is not None and output2 is None:
         raise MicrobiomeSuiteError("--output2 is required when --read2 is supplied.")
@@ -204,10 +219,7 @@ def trim_fastp(
         command.extend(["--json", str(json_report)])
     command.extend(["--thread", str(threads)])
 
-    result = subprocess.run(command, check=False, text=True, capture_output=True)
-    if result.returncode != 0:
-        message = result.stderr.strip() or result.stdout.strip() or "fastp trimming failed."
-        raise MicrobiomeSuiteError(message)
+    _run(command, "fastp trimming failed.", run_dir=run_dir, timeout=timeout, backend="fastp")
 
 
 def trim_cutadapt(
@@ -233,6 +245,8 @@ def trim_cutadapt(
     discard_untrimmed: bool,
     threads: int,
     force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
 ) -> None:
     if unpaired1 is not None or unpaired2 is not None:
         raise MicrobiomeSuiteError(
@@ -313,10 +327,7 @@ def trim_cutadapt(
     if read2 is not None:
         command.append(str(read2))
 
-    result = subprocess.run(command, check=False, text=True, capture_output=True)
-    if result.returncode != 0:
-        message = result.stderr.strip() or result.stdout.strip() or "Cutadapt trimming failed."
-        raise MicrobiomeSuiteError(message)
+    _run(command, "Cutadapt trimming failed.", run_dir=run_dir, timeout=timeout, backend="cutadapt")
 
 
 def _add_optional(command: list[str], option: str, value: str | None) -> None:
@@ -345,6 +356,8 @@ def trim_trimmomatic(
     steps: list[str],
     threads: int,
     force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
 ) -> None:
     if not steps:
         raise MicrobiomeSuiteError(
@@ -387,7 +400,13 @@ def trim_trimmomatic(
             ]
         )
     command.extend(steps)
-    _run(command, "Trimmomatic trimming failed.")
+    _run(
+        command,
+        "Trimmomatic trimming failed.",
+        run_dir=run_dir,
+        timeout=timeout,
+        backend="trimmomatic",
+    )
 
 
 def trim_galore(
@@ -401,9 +420,14 @@ def trim_galore(
     quality_cutoff: str | None,
     minimum_length: str | None,
     basename: str | None,
+    trim_galore_version: str,
     threads: int,
     force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
 ) -> None:
+    if trim_galore_version not in {"auto", "legacy", "v2"}:
+        raise MicrobiomeSuiteError("--trim-galore-version must be one of: auto, legacy, v2.")
     if read2 is not None and output2 is None:
         raise MicrobiomeSuiteError("--output2 is required when --read2 is supplied.")
     if output2 is not None and read2 is None:
@@ -444,10 +468,18 @@ def trim_galore(
     _add_optional(command, "--length", minimum_length)
     command.extend(["--cores", str(threads), "--output_dir", str(output_dir)])
     _add_optional(command, "--basename", basename)
+    if trim_galore_version == "v2":
+        command.extend(["--engine", "v2"])
     command.append(str(read1))
     if read2 is not None:
         command.append(str(read2))
-    _run(command, "Trim Galore trimming failed.")
+    _run(
+        command,
+        "Trim Galore trimming failed.",
+        run_dir=run_dir,
+        timeout=timeout,
+        backend="trim-galore",
+    )
 
 
 def _trim_galore_expected_output(
@@ -470,11 +502,21 @@ def _trim_galore_expected_output(
     return output_dir / f"{stem}{suffix}"
 
 
-def _run(command: list[str], failure_message: str) -> None:
-    result = subprocess.run(command, check=False, text=True, capture_output=True)
-    if result.returncode != 0:
-        message = result.stderr.strip() or result.stdout.strip() or failure_message
-        raise MicrobiomeSuiteError(message)
+def _run(
+    command: list[str],
+    failure_message: str,
+    *,
+    run_dir: Path | None,
+    timeout: float | None,
+    backend: str,
+) -> None:
+    run_command(
+        command,
+        failure_message,
+        run_dir=run_dir,
+        timeout=timeout,
+        log=CommandLog(task="trim", backend=backend),
+    )
 
 
 def _prepare_outputs(*outputs: Path | None, force: bool) -> None:

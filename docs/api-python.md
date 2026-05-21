@@ -29,7 +29,7 @@ pcoa(distance_matrix)
 qc(backend="fastqc", inputs=[path], output_dir=qc_dir)
 trim(backend="cutadapt", read1=read, output1=trimmed, adapter=adapter)
 trim(backend="trimmomatic", read1=read, output1=trimmed, trimmomatic_steps=steps)
-trim(backend="trim-galore", read1=read, output1=trimmed, adapter=adapter)
+trim(backend="trim-galore", read1=read, output1=trimmed, trim_galore_version="auto")
 denoise(backend="dada2-r", demux=reads_dir, output_table=table, output_rep_seqs=rep_seqs, output_stats=stats)
 qc_filter(backend="qiime2-filter-reads", demux=demux, database=index, output=filtered)
 decontam(backend="qiime2-decontam", table=table, metadata=metadata, output=scores)
@@ -46,6 +46,12 @@ It does not install or activate QIIME 2, DADA2, Kraken2, R, containers, or
 Nextflow execution environments; those tools must already be available in the
 runtime environment.
 
+External-tool methods accept optional `run_dir` and `timeout` arguments. When
+`run_dir` is supplied, microsuite writes `command.txt`, `stdout.log`,
+`stderr.log`, `events.jsonl`, and `run.json` for debugging and provenance.
+Threaded methods accept a positive integer, and the method-oriented wrappers
+also accept `threads="auto"` where the backend supports threading.
+
 FastQC example:
 
 ```python
@@ -59,6 +65,7 @@ qc(
     output_dir=Path("qc"),
     threads=4,
     extract=True,
+    run_dir=Path("runs/fastqc/sample"),
 )
 ```
 

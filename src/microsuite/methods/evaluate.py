@@ -17,6 +17,8 @@ def evaluate(
     feature_table: Path | None = None,
     depth: int = 7,
     force: bool = False,
+    run_dir: Path | None = None,
+    timeout: float | None = None,
 ) -> None:
     backend = backend.lower()
     if backend != "qiime2-taxonomy":
@@ -31,6 +33,8 @@ def evaluate(
         output=output,
         depth=depth,
         force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -42,6 +46,8 @@ def evaluate_qiime2_taxonomy(
     output: Path,
     depth: int,
     force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
 ) -> None:
     qiime = require_qiime("QIIME 2 quality-control evaluate-taxonomy")
     ensure_inputs(expected_taxa, observed_taxa, feature_table)
@@ -66,4 +72,11 @@ def evaluate_qiime2_taxonomy(
             str(output),
         ]
     )
-    run_qiime(command, "QIIME 2 quality-control evaluate-taxonomy failed.")
+    run_qiime(
+        command,
+        "QIIME 2 quality-control evaluate-taxonomy failed.",
+        run_dir=run_dir,
+        timeout=timeout,
+        task="evaluate",
+        backend="qiime2-taxonomy",
+    )

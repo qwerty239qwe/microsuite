@@ -1,18 +1,35 @@
 # microsuite
 
-`microsuite` is a multi-environment microbiome toolbox with three APIs:
+`microsuite` is a microbiome analysis toolbox for running the same methods
+across different compute environments. It is meant to sit below notebooks,
+CLIs, Nextflow workflows, containers, and eventually a GUI/backend service for
+research groups that need reproducible microbiome pipelines without committing
+to one runtime.
 
-- Nextflow API for reproducible full workflows.
-- CLI API for ergonomic one-step task commands.
-- Python SDK for programmatic table/statistics functions.
+The project has three public surfaces:
 
-- run built-in workflows from feature tables or QIIME 2 artifacts
-- run method-oriented tasks such as taxonomy classification
-- import TSV, BIOM, or QIIME 2-compatible `.qza` feature tables into AnnData
-- compute alpha and beta diversity
-- run PCoA
-- draw taxonomy barplots
-- fetch and run demo datasets
+- **Nextflow workflows** for reproducible multi-step pipelines on local,
+  containerized, HPC, or cloud resources.
+- **Method-oriented CLI commands** for one-step tasks such as QC, trimming,
+  denoising, taxonomy classification, diversity, and differential abundance.
+- **Python SDK functions** for table handling, native statistics, notebooks,
+  and backend services that need to call microsuite directly.
+
+Python powers the CLI and SDK, but this repository is not Python-only. R
+scripts, Dockerfiles, Nextflow modules, and external tool wrappers are
+first-class project assets. The default data object for native downstream
+analysis is AnnData, while QIIME 2 artifacts, FASTQ files, and external-tool
+formats remain supported at the workflow/method boundaries.
+
+Current 0.1.0 focus:
+
+- method-oriented commands with explicit `--backend` selection
+- lightweight runtime logs for external commands
+- native feature-table analysis on AnnData
+- wrappers for common microbiome tools such as FastQC, Cutadapt, DADA2, Deblur,
+  VSEARCH, QIIME 2, and ANCOM-BC
+- small demo data and example workflows
+- container definitions and Nextflow scaffolding for portable execution
 
 See [docs/three-api-roadmap.md](docs/three-api-roadmap.md) for the architecture.
 Demo data attribution and citation details are in
@@ -45,7 +62,7 @@ Demo data attribution and citation details are in
 | `fastp` | User env | partial | `microsuite trim --backend fastp` | `trim(backend="fastp", read1=..., output1=...)` | External `fastp`; container planned | Fast all-in-one preprocessing; primer-specific trimming is less explicit than Cutadapt. | Adapter trimming, quality filtering, HTML/JSON reports. |
 | `cutadapt` | Cutadapt >=4.x user env | partial | `microsuite trim --backend cutadapt` | `trim(backend="cutadapt", read1=..., output1=..., adapter=...)` | External `cutadapt` on `PATH`; container planned | Precise primer/adaptor trimming with explicit adapter control; requires users to choose primer/adapter sequences. | Adapter/primer trimming and read filtering. |
 | `trimmomatic` | Trimmomatic >=0.39 user env | partial | `microsuite trim --backend trimmomatic` | `trim(backend="trimmomatic", read1=..., output1=..., trimmomatic_steps=[...])` | External `trimmomatic` on `PATH`; container planned | Mature Java trimmer with explicit step pipeline; paired mode requires unpaired output files. | Sliding-window, length, quality, and adapter trimming. |
-| `trim-galore` | Trim Galore >=0.6 user env | partial | `microsuite trim --backend trim-galore` | `trim(backend="trim-galore", read1=..., output1=..., adapter=...)` | External `trim_galore` on `PATH`; container planned | Convenient Cutadapt/FastQC wrapper; output names are mostly tool-controlled. | Adapter/quality trimming with integrated QC conventions. |
+| `trim-galore` | Trim Galore 0.6.x or v2.x user env | partial | `microsuite trim --backend trim-galore` | `trim(backend="trim-galore", read1=..., output1=..., trim_galore_version="auto")` | External `trim_galore` on `PATH`; container planned | Lets users keep tool-default behavior or explicitly select the v2 mode; output names are tool-controlled and validated. | Adapter/quality trimming with integrated QC conventions. |
 | `qiime2-cutadapt` | QIIME 2 2024.10 | planned | `microsuite trim --backend qiime2-cutadapt` | planned | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Fits QIIME artifact workflows; less convenient for raw FASTQ-only runs. | QIIME 2 Cutadapt wrapper. |
 
 ### Denoising And Clustering
@@ -122,16 +139,49 @@ Demo data attribution and citation details are in
 
 ## Install
 
+`microsuite` targets Python 3.11 and 3.12. Use `uv` for the Python CLI/SDK
+environment:
+
 ```bash
 uv sync --extra dev
+uv run microsuite --help
 ```
 
-Optional compatibility extras:
+Optional Python extras:
 
 ```bash
 uv sync --extra biom --extra dev
 uv sync --extra qza --extra dev
 uv sync --extra all --extra dev
+```
+
+These extras cover Python-side file compatibility such as BIOM/QIIME-style
+table import. They do not install external microbiome tools.
+
+External backends must be installed in the runtime environment where you run
+the command. For example:
+
+| Backend family | Expected runtime |
+| --- | --- |
+| FastQC / MultiQC | `fastqc` or `multiqc` on `PATH`, or the corresponding container |
+| Trimming | `fastp`, `cutadapt`, `trimmomatic`, or `trim_galore` on `PATH` |
+| QIIME 2 methods | Activated QIIME 2 environment with the needed plugins |
+| R methods | `Rscript` plus required R/Bioconductor packages |
+| Kraken2-style profiling | Tool binary and database available to the process |
+
+Container definitions live in [containers/](containers/) and are documented in
+[docs/containers.md](docs/containers.md). Build from the repository root:
+
+```bash
+docker build -f containers/microsuite/Dockerfile -t microsuite:local .
+docker build -f containers/fastqc/Dockerfile -t microsuite-fastqc:local .
+```
+
+Nextflow workflows are intended for complete pipelines and should own
+container/profile selection:
+
+```bash
+nextflow run workflows/nextflow/main.nf -profile docker --help
 ```
 
 ## CLI
@@ -202,6 +252,30 @@ Use method-oriented commands such as `tax_classify` when you know the task you
 want to run. Use `workflow` commands for complete pipelines. Use `import`,
 `diversity`, `ordination`, `viz`, and `qiime` as lower-level building blocks.
 Commands overwrite outputs only when `--force` is supplied.
+
+## Runtime Logs
+
+External-tool commands can write a minimal provenance bundle with `--run-dir`:
+
+```bash
+microsuite qc \
+  --backend fastqc \
+  --input sample_R1.fastq.gz \
+  --output-dir qc/fastqc \
+  --threads auto \
+  --run-dir runs/fastqc/sample_R1
+```
+
+The run directory contains:
+
+- `command.txt`: shell-quoted command line
+- `stdout.log` and `stderr.log`: captured process streams
+- `events.jsonl`: command start/end/timeout events
+- `run.json`: structured task, backend, command, timing, and exit metadata
+
+Commands that expose `--threads` accept a positive integer; method-oriented
+external wrappers also accept `--threads auto` where the backend supports
+threading. `auto` uses the detected CPU count minus one reserved core.
 
 ## Development
 

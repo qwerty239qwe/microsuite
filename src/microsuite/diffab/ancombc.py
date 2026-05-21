@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import shutil
-import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -10,11 +9,19 @@ import pandas as pd
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite.diversity._matrix import dense_counts
+from microsuite.runtime.runner import CommandLog, run_command
 
 ANCOMBC_SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "r" / "ancombc.R"
 
 
-def run_ancombc(adata: ad.AnnData, *, group: str, output: Path) -> None:
+def run_ancombc(
+    adata: ad.AnnData,
+    *,
+    group: str,
+    output: Path,
+    run_dir: Path | None = None,
+    timeout: float | None = None,
+) -> None:
     if group not in adata.obs.columns:
         raise MicrobiomeSuiteError(f"Group column not found in sample metadata: {group}")
     rscript = shutil.which("Rscript")
@@ -34,7 +41,7 @@ def run_ancombc(adata: ad.AnnData, *, group: str, output: Path) -> None:
         )
         pd.DataFrame(adata.obs).to_csv(metadata_path, sep="\t")
 
-        result = subprocess.run(
+        run_command(
             [
                 rscript,
                 str(ANCOMBC_SCRIPT),
@@ -43,10 +50,13 @@ def run_ancombc(adata: ad.AnnData, *, group: str, output: Path) -> None:
                 group,
                 str(output),
             ],
-            check=False,
-            text=True,
-            capture_output=True,
+            failure_message="ANCOM-BC failed.",
+            run_dir=run_dir,
+            log=CommandLog(
+                task="diff_abundance",
+                backend="ancombc",
+                inputs={"group": group},
+                outputs={"output": str(output)},
+            ),
+            timeout=timeout,
         )
-    if result.returncode != 0:
-        message = result.stderr.strip() or result.stdout.strip() or "ANCOM-BC failed."
-        raise MicrobiomeSuiteError(message)

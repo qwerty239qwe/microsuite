@@ -24,10 +24,17 @@ Conventions:
 - command name = biological or analytical task
 - `--backend` = tool or execution engine
 - `--method` = statistical or transform method when needed
+- `--run-dir` = optional runtime log directory for external-tool methods
+- `--timeout` = optional external command timeout in seconds
+- `--threads auto` = use detected CPU count minus one reserved core when supported
 - external backends must fail clearly when executables are unavailable
 
 The CLI is not responsible for large workflow scheduling. Use the Nextflow API
 for full reproducible pipelines.
+
+Runtime log directories contain `command.txt`, `stdout.log`, `stderr.log`,
+`events.jsonl`, and `run.json`. These files are intended for debugging local
+runs and for higher-level workflow systems that need lightweight provenance.
 
 Deprecated compatibility commands may remain temporarily. For example,
 `microsuite diffab ancombc` is kept as a compatibility alias for the preferred

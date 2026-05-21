@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import shutil
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
 
 @dataclass(frozen=True)
@@ -57,6 +57,8 @@ def diversity_calc(
     phylogeny: Path | None = None,
     threads: str = "1",
     force: bool = False,
+    run_dir: Path | None = None,
+    timeout: float | None = None,
 ) -> None:
     backend = backend.lower()
     if backend != "qiime2":
@@ -71,6 +73,8 @@ def diversity_calc(
         output=output,
         threads=threads,
         force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -82,6 +86,8 @@ def diversity_calc_qiime2(
     phylogeny: Path | None,
     threads: str,
     force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
 ) -> None:
     metric_spec = QIIME2_DIVERSITY_METRICS.get(metric.lower())
     if metric_spec is None:
@@ -116,9 +122,12 @@ def diversity_calc_qiime2(
     if phylogeny is not None:
         command.extend(["--i-phylogeny", str(phylogeny)])
     if metric_spec.thread_option is not None:
-        command.extend([metric_spec.thread_option, threads])
+        command.extend([metric_spec.thread_option, str(resolve_threads(threads))])
 
-    result = subprocess.run(command, check=False, text=True, capture_output=True)
-    if result.returncode != 0:
-        message = result.stderr.strip() or result.stdout.strip() or "QIIME 2 diversity failed."
-        raise MicrobiomeSuiteError(message)
+    run_command(
+        command,
+        "QIIME 2 diversity failed.",
+        run_dir=run_dir,
+        timeout=timeout,
+        log=CommandLog(task="diversity_calc", backend="qiime2"),
+    )

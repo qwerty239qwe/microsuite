@@ -18,6 +18,18 @@ def ancombc(
     group: Annotated[str, typer.Option("--group", help="obs column defining groups.")],
     output: Annotated[Path, typer.Option("--output", "-o", help="Output TSV.")],
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
+    run_dir: Annotated[
+        Path | None, typer.Option("--run-dir", help="Write runtime logs here.")
+    ] = None,
+    timeout: Annotated[
+        float | None, typer.Option("--timeout", help="Command timeout in seconds.")
+    ] = None,
 ) -> None:
     adata = read_h5ad(ensure_input(table))
-    run_ancombc(adata, group=group, output=prepare_output(output, force=force))
+    run_ancombc(
+        adata,
+        group=group,
+        output=prepare_output(output, force=force),
+        run_dir=run_dir,
+        timeout=timeout,
+    )

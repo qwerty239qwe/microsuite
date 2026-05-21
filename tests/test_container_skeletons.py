@@ -101,9 +101,9 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
         '`trim(backend="trimmomatic", read1=..., output1=..., trimmomatic_steps=[...])` |'
     ) in text
     assert (
-        "| `trim-galore` | Trim Galore >=0.6 user env | partial | "
+        "| `trim-galore` | Trim Galore 0.6.x or v2.x user env | partial | "
         "`microsuite trim --backend trim-galore` | "
-        '`trim(backend="trim-galore", read1=..., output1=..., adapter=...)` |'
+        '`trim(backend="trim-galore", read1=..., output1=..., trim_galore_version="auto")` |'
     ) in text
     assert (
         "| `dada2-r` | DADA2 R user env | partial | "

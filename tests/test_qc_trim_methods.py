@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -40,6 +41,66 @@ def test_qc_fastqc_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     qc(backend="fastqc", inputs=[read], output_dir=tmp_path / "qc", threads=2)
 
     assert calls == [["fastqc", "--outdir", str(tmp_path / "qc"), "--threads", "2", str(read)]]
+
+
+def test_qc_fastqc_auto_threads_builds_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    read = touch(tmp_path / "sample_R1.fastq.gz")
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr("os.cpu_count", lambda: 8)
+    monkeypatch.setattr("shutil.which", lambda name: "fastqc" if name == "fastqc" else None)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        ),
+    )
+
+    qc(backend="fastqc", inputs=[read], output_dir=tmp_path / "qc", threads="auto")
+
+    assert calls == [["fastqc", "--outdir", str(tmp_path / "qc"), "--threads", "7", str(read)]]
+
+
+def test_cli_qc_fastqc_run_dir_writes_runtime_logs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    read = touch(tmp_path / "sample_R1.fastq.gz")
+    run_dir = tmp_path / "run"
+
+    monkeypatch.setattr("os.cpu_count", lambda: 8)
+    monkeypatch.setattr("shutil.which", lambda name: "fastqc" if name == "fastqc" else None)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 0, "ok\n", ""),
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "qc",
+            "--backend",
+            "fastqc",
+            "--input",
+            str(read),
+            "--output-dir",
+            str(tmp_path / "qc"),
+            "--threads",
+            "auto",
+            "--run-dir",
+            str(run_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    command_text = (run_dir / "command.txt").read_text(encoding="utf-8")
+    assert command_text.startswith("fastqc --outdir ")
+    assert "--threads 7" in command_text
+    assert (run_dir / "stdout.log").read_text(encoding="utf-8") == "ok\n"
+    run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    assert run["task"] == "qc"
+    assert run["backend"] == "fastqc"
 
 
 def test_qc_fastqc_extract_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -456,6 +517,58 @@ def test_trim_trim_galore_single_builds_command(
             str(read),
         ]
     ]
+
+
+def test_trim_trim_galore_v2_version_flag_builds_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    read = touch(tmp_path / "sample_R1.fastq.gz")
+    calls: list[list[str]] = []
+    monkeypatch.setattr(
+        "shutil.which", lambda name: "trim_galore" if name == "trim_galore" else None
+    )
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, *, check, text, capture_output: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        ),
+    )
+
+    trim(
+        backend="trim-galore",
+        read1=read,
+        output1=tmp_path / "trim_galore" / "sample_trimmed.fq.gz",
+        basename="sample_trimmed",
+        trim_galore_version="v2",
+        threads=4,
+    )
+
+    assert calls == [
+        [
+            "trim_galore",
+            "--cores",
+            "4",
+            "--output_dir",
+            str(tmp_path / "trim_galore"),
+            "--basename",
+            "sample_trimmed",
+            "--engine",
+            "v2",
+            str(read),
+        ]
+    ]
+
+
+def test_trim_trim_galore_rejects_unknown_version(tmp_path: Path) -> None:
+    read = touch(tmp_path / "sample_R1.fastq.gz")
+
+    with pytest.raises(MicrobiomeSuiteError, match="trim-galore-version"):
+        trim(
+            backend="trim-galore",
+            read1=read,
+            output1=tmp_path / "sample_trimmed.fq.gz",
+            trim_galore_version="classic",
+        )
 
 
 def test_trim_trim_galore_requires_output_basename_match(tmp_path: Path) -> None:

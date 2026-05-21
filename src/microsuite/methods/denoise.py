@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import shutil
-import subprocess
 from importlib.resources import files
 from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
 SUPPORTED_BACKENDS = ("qiime2-dada2", "qiime2-deblur", "dada2-r")
 PLANNED_BACKENDS: tuple[str, ...] = ()
@@ -27,10 +27,13 @@ def denoise(
     trunc_len_f: int = 0,
     trim_left_r: int = 0,
     trunc_len_r: int = 0,
-    threads: int = 1,
+    threads: int | str = 1,
     force: bool = False,
+    run_dir: Path | None = None,
+    timeout: float | None = None,
 ) -> None:
     backend = backend.lower()
+    resolved_threads = resolve_threads(threads)
     if backend == "qiime2-dada2":
         denoise_qiime2_dada2(
             demux=demux,
@@ -44,8 +47,10 @@ def denoise(
             trunc_len_f=trunc_len_f,
             trim_left_r=trim_left_r,
             trunc_len_r=trunc_len_r,
-            threads=threads,
+            threads=resolved_threads,
             force=force,
+            run_dir=run_dir,
+            timeout=timeout,
         )
         return
     if backend == "qiime2-deblur":
@@ -56,8 +61,10 @@ def denoise(
             output_stats=output_stats,
             trim_left=trim_left,
             trunc_len=trunc_len,
-            threads=threads,
+            threads=resolved_threads,
             force=force,
+            run_dir=run_dir,
+            timeout=timeout,
         )
         return
     if backend == "dada2-r":
@@ -73,8 +80,10 @@ def denoise(
             trunc_len_f=trunc_len_f,
             trim_left_r=trim_left_r,
             trunc_len_r=trunc_len_r,
-            threads=threads,
+            threads=resolved_threads,
             force=force,
+            run_dir=run_dir,
+            timeout=timeout,
         )
         return
     if backend in PLANNED_BACKENDS:
@@ -102,6 +111,8 @@ def denoise_qiime2_dada2(
     trunc_len_r: int,
     threads: int,
     force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
 ) -> None:
     qiime = _require_qiime("QIIME 2 DADA2 denoising")
     ensure_input(demux)
@@ -143,7 +154,13 @@ def denoise_qiime2_dada2(
             str(threads),
         ]
     )
-    _run(command, "QIIME 2 DADA2 denoising failed.")
+    _run(
+        command,
+        "QIIME 2 DADA2 denoising failed.",
+        run_dir=run_dir,
+        timeout=timeout,
+        backend="qiime2-dada2",
+    )
 
 
 def denoise_qiime2_deblur(
@@ -156,6 +173,8 @@ def denoise_qiime2_deblur(
     trunc_len: int,
     threads: int,
     force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
 ) -> None:
     if trunc_len < 1:
         raise MicrobiomeSuiteError(
@@ -184,7 +203,13 @@ def denoise_qiime2_deblur(
         "--o-stats",
         str(output_stats),
     ]
-    _run(command, "QIIME 2 Deblur denoising failed.")
+    _run(
+        command,
+        "QIIME 2 Deblur denoising failed.",
+        run_dir=run_dir,
+        timeout=timeout,
+        backend="qiime2-deblur",
+    )
 
 
 def denoise_dada2_r(
@@ -202,6 +227,8 @@ def denoise_dada2_r(
     trunc_len_r: int,
     threads: int,
     force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
 ) -> None:
     rscript = shutil.which("Rscript")
     if rscript is None:
@@ -243,7 +270,7 @@ def denoise_dada2_r(
         )
     else:
         command.extend(["--trim-left", str(trim_left), "--trunc-len", str(trunc_len)])
-    _run(command, "R/DADA2 denoising failed.")
+    _run(command, "R/DADA2 denoising failed.", run_dir=run_dir, timeout=timeout, backend="dada2-r")
 
 
 def _require_qiime(task: str) -> str:
@@ -261,8 +288,18 @@ def _prepare_outputs(*outputs: Path, force: bool) -> None:
         prepare_output(output, force=force)
 
 
-def _run(command: list[str], failure_message: str) -> None:
-    result = subprocess.run(command, check=False, text=True, capture_output=True)
-    if result.returncode != 0:
-        message = result.stderr.strip() or result.stdout.strip() or failure_message
-        raise MicrobiomeSuiteError(message)
+def _run(
+    command: list[str],
+    failure_message: str,
+    *,
+    run_dir: Path | None,
+    timeout: float | None,
+    backend: str,
+) -> None:
+    run_command(
+        command,
+        failure_message,
+        run_dir=run_dir,
+        timeout=timeout,
+        log=CommandLog(task="denoise", backend=backend),
+    )

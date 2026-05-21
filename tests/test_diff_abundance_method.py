@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import shutil
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -9,7 +11,6 @@ from typer.testing import CliRunner
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite.cli.app import app
-from microsuite.diffab import ancombc
 from microsuite.io.h5ad import write_h5ad
 from microsuite.io.tsv import read_tsv
 from microsuite.methods.diff_abundance import diff_abundance
@@ -61,7 +62,7 @@ def test_ancombc_invokes_external_script_path(
         commands.append(command)
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr(ancombc.subprocess, "run", fake_run)
+    monkeypatch.setattr("subprocess.run", fake_run)
 
     diff_abundance(
         backend="ancombc",
@@ -75,6 +76,36 @@ def test_ancombc_invokes_external_script_path(
     assert command[0] == "Rscript"
     assert command[1] == str(ROOT / "scripts" / "r" / "ancombc.R")
     assert command[-2:] == ["treatment", str(tmp_path / "diff.tsv")]
+
+
+def test_diff_abundance_writes_runtime_logs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    table = fixture_table(tmp_path)
+    run_dir = tmp_path / "run"
+
+    monkeypatch.setattr(shutil, "which", lambda name: "Rscript")
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 0, "ok\n", ""),
+    )
+
+    diff_abundance(
+        backend="ancombc",
+        table=table,
+        group="treatment",
+        output=tmp_path / "diff.tsv",
+        run_dir=run_dir,
+    )
+
+    assert (run_dir / "command.txt").read_text(encoding="utf-8").startswith("Rscript ")
+    assert (run_dir / "stdout.log").read_text(encoding="utf-8") == "ok\n"
+    assert (run_dir / "stderr.log").read_text(encoding="utf-8") == ""
+    run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    assert run["task"] == "diff_abundance"
+    assert run["backend"] == "ancombc"
+    assert run["inputs"] == {"group": "treatment"}
+    assert run["outputs"] == {"output": str(tmp_path / "diff.tsv")}
 
 
 def test_diff_abundance_planned_backend_message(tmp_path: Path) -> None:

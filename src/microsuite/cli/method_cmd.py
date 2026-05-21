@@ -106,11 +106,17 @@ def qc_cmd(
     output: Annotated[
         Path | None, typer.Option("--output", "-o", help="Output QIIME 2 visualization.")
     ] = None,
-    threads: Annotated[int, typer.Option("--threads", min=1)] = 1,
+    threads: Annotated[str, typer.Option("--threads", help="Thread count or 'auto'.")] = "1",
     extract: Annotated[
         bool, typer.Option("--extract", help="Extract FastQC zip output after analysis.")
     ] = False,
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
+    run_dir: Annotated[
+        Path | None, typer.Option("--run-dir", help="Write runtime logs here.")
+    ] = None,
+    timeout: Annotated[
+        float | None, typer.Option("--timeout", help="Command timeout in seconds.")
+    ] = None,
 ) -> None:
     qc(
         backend=backend,
@@ -122,6 +128,8 @@ def qc_cmd(
         threads=threads,
         extract=extract,
         force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -167,13 +175,19 @@ def qc_filter_cmd(
     perc_query_aligned: Annotated[
         float, typer.Option("--perc-query-aligned", min=0.0, max=1.0)
     ] = 0.97,
-    threads: Annotated[int, typer.Option("--threads", min=1)] = 1,
+    threads: Annotated[str, typer.Option("--threads", help="Thread count or 'auto'.")] = "1",
     mode: Annotated[str, typer.Option("--mode", help="Bowtie2 alignment mode.")] = "local",
     sensitivity: Annotated[
         str, typer.Option("--sensitivity", help="Bowtie2 sensitivity preset.")
     ] = "sensitive",
     exclude: Annotated[bool, typer.Option("--exclude/--keep-matches")] = True,
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
+    run_dir: Annotated[
+        Path | None, typer.Option("--run-dir", help="Write runtime logs here.")
+    ] = None,
+    timeout: Annotated[
+        float | None, typer.Option("--timeout", help="Command timeout in seconds.")
+    ] = None,
 ) -> None:
     qc_filter(
         backend=backend,
@@ -193,6 +207,8 @@ def qc_filter_cmd(
         sensitivity=sensitivity,
         exclude=exclude,
         force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -257,8 +273,21 @@ def trim_cmd(
     basename: Annotated[
         str | None, typer.Option("--basename", help="Trim Galore output basename.")
     ] = None,
-    threads: Annotated[int, typer.Option("--threads", min=1)] = 1,
+    trim_galore_version: Annotated[
+        str,
+        typer.Option(
+            "--trim-galore-version",
+            help="Trim Galore compatibility mode: auto, legacy, or v2.",
+        ),
+    ] = "auto",
+    threads: Annotated[str, typer.Option("--threads", help="Thread count or 'auto'.")] = "1",
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
+    run_dir: Annotated[
+        Path | None, typer.Option("--run-dir", help="Write runtime logs here.")
+    ] = None,
+    timeout: Annotated[
+        float | None, typer.Option("--timeout", help="Command timeout in seconds.")
+    ] = None,
 ) -> None:
     trim(
         backend=backend,
@@ -283,8 +312,11 @@ def trim_cmd(
         discard_untrimmed=discard_untrimmed,
         trimmomatic_steps=trimmomatic_steps,
         basename=basename,
+        trim_galore_version=trim_galore_version,
         threads=threads,
         force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -308,8 +340,14 @@ def denoise_cmd(
     trunc_len_f: Annotated[int, typer.Option("--trunc-len-f", min=0)] = 0,
     trim_left_r: Annotated[int, typer.Option("--trim-left-r", min=0)] = 0,
     trunc_len_r: Annotated[int, typer.Option("--trunc-len-r", min=0)] = 0,
-    threads: Annotated[int, typer.Option("--threads", min=1)] = 1,
+    threads: Annotated[str, typer.Option("--threads", help="Thread count or 'auto'.")] = "1",
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
+    run_dir: Annotated[
+        Path | None, typer.Option("--run-dir", help="Write runtime logs here.")
+    ] = None,
+    timeout: Annotated[
+        float | None, typer.Option("--timeout", help="Command timeout in seconds.")
+    ] = None,
 ) -> None:
     denoise(
         backend=backend,
@@ -326,6 +364,8 @@ def denoise_cmd(
         trunc_len_r=trunc_len_r,
         threads=threads,
         force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -346,6 +386,12 @@ def cluster_cmd(
         float, typer.Option("--identity", min=0.0, max=1.0, help="Clustering identity threshold.")
     ] = 0.97,
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
+    run_dir: Annotated[
+        Path | None, typer.Option("--run-dir", help="Write runtime logs here.")
+    ] = None,
+    timeout: Annotated[
+        float | None, typer.Option("--timeout", help="Command timeout in seconds.")
+    ] = None,
 ) -> None:
     cluster(
         backend=backend,
@@ -355,6 +401,8 @@ def cluster_cmd(
         output_rep_seqs=output_rep_seqs,
         identity=identity,
         force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -375,8 +423,14 @@ def tax_classify_cmd(
     classifier: Annotated[
         Path | None, typer.Option("--classifier", help="Pretrained classifier for qiime2.")
     ] = None,
-    threads: Annotated[int, typer.Option("--threads", min=1)] = 1,
+    threads: Annotated[str, typer.Option("--threads", help="Thread count or 'auto'.")] = "1",
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
+    run_dir: Annotated[
+        Path | None, typer.Option("--run-dir", help="Write runtime logs here.")
+    ] = None,
+    timeout: Annotated[
+        float | None, typer.Option("--timeout", help="Command timeout in seconds.")
+    ] = None,
 ) -> None:
     tax_classify(
         backend=backend,
@@ -385,6 +439,8 @@ def tax_classify_cmd(
         output=output,
         threads=threads,
         force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -412,6 +468,12 @@ def diversity_calc_cmd(
     ] = None,
     threads: Annotated[str, typer.Option("--threads", help="Thread count or 'auto'.")] = "1",
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
+    run_dir: Annotated[
+        Path | None, typer.Option("--run-dir", help="Write runtime logs here.")
+    ] = None,
+    timeout: Annotated[
+        float | None, typer.Option("--timeout", help="Command timeout in seconds.")
+    ] = None,
 ) -> None:
     diversity_calc(
         backend=backend,
@@ -421,6 +483,8 @@ def diversity_calc_cmd(
         output=output,
         threads=threads,
         force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -517,6 +581,12 @@ def diff_abundance_cmd(
     output: Annotated[Path, typer.Option("--output", "-o", help="Output TSV.")],
     group: Annotated[str, typer.Option("--group", help="Sample metadata group column.")],
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
+    run_dir: Annotated[
+        Path | None, typer.Option("--run-dir", help="Write runtime logs here.")
+    ] = None,
+    timeout: Annotated[
+        float | None, typer.Option("--timeout", help="Command timeout in seconds.")
+    ] = None,
 ) -> None:
     diff_abundance(
         backend=backend,
@@ -524,6 +594,8 @@ def diff_abundance_cmd(
         group=group,
         output=output,
         force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -548,6 +620,12 @@ def decontam_cmd(
         typer.Option("--freq-concentration-column", help="Sample concentration metadata column."),
     ] = None,
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
+    run_dir: Annotated[
+        Path | None, typer.Option("--run-dir", help="Write runtime logs here.")
+    ] = None,
+    timeout: Annotated[
+        float | None, typer.Option("--timeout", help="Command timeout in seconds.")
+    ] = None,
 ) -> None:
     decontam(
         backend=backend,
@@ -559,6 +637,8 @@ def decontam_cmd(
         prev_control_indicator=prev_control_indicator,
         freq_concentration_column=freq_concentration_column,
         force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -577,6 +657,12 @@ def evaluate_cmd(
     ] = None,
     depth: Annotated[int, typer.Option("--depth", min=1)] = 7,
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
+    run_dir: Annotated[
+        Path | None, typer.Option("--run-dir", help="Write runtime logs here.")
+    ] = None,
+    timeout: Annotated[
+        float | None, typer.Option("--timeout", help="Command timeout in seconds.")
+    ] = None,
 ) -> None:
     evaluate(
         backend=backend,
@@ -586,6 +672,8 @@ def evaluate_cmd(
         output=output,
         depth=depth,
         force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 

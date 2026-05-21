@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import shutil
-import subprocess
 from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
 SUPPORTED_BACKENDS = ("fastqc", "multiqc", "qiime2-demux")
 
@@ -18,32 +18,49 @@ def qc(
     demux: Path | None = None,
     output_dir: Path | None = None,
     output: Path | None = None,
-    threads: int = 1,
+    threads: int | str = 1,
     extract: bool = False,
     force: bool = False,
+    run_dir: Path | None = None,
+    timeout: float | None = None,
 ) -> None:
     backend = backend.lower()
     if backend == "fastqc":
         qc_fastqc(
             inputs=inputs or [],
             output_dir=output_dir,
-            threads=threads,
+            threads=resolve_threads(threads),
             extract=extract,
             force=force,
+            run_dir=run_dir,
+            timeout=timeout,
         )
         return
     if backend == "multiqc":
-        qc_multiqc(input_dir=input_dir, output_dir=output_dir, force=force)
+        qc_multiqc(
+            input_dir=input_dir,
+            output_dir=output_dir,
+            force=force,
+            run_dir=run_dir,
+            timeout=timeout,
+        )
         return
     if backend == "qiime2-demux":
-        qc_qiime2_demux(demux=demux, output=output, force=force)
+        qc_qiime2_demux(demux=demux, output=output, force=force, run_dir=run_dir, timeout=timeout)
         return
     backends = ", ".join(SUPPORTED_BACKENDS)
     raise MicrobiomeSuiteError(f"Unsupported QC backend '{backend}'. Choose one of: {backends}")
 
 
 def qc_fastqc(
-    *, inputs: list[Path], output_dir: Path | None, threads: int, extract: bool, force: bool
+    *,
+    inputs: list[Path],
+    output_dir: Path | None,
+    threads: int,
+    extract: bool,
+    force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
 ) -> None:
     if not inputs:
         raise MicrobiomeSuiteError("--input is required for --backend fastqc.")
@@ -58,10 +75,17 @@ def qc_fastqc(
     if extract:
         command.append("--extract")
     command.extend(str(path) for path in inputs)
-    _run(command, "FastQC failed.")
+    _run(command, "FastQC failed.", run_dir=run_dir, timeout=timeout, backend="fastqc")
 
 
-def qc_multiqc(*, input_dir: Path | None, output_dir: Path | None, force: bool) -> None:
+def qc_multiqc(
+    *,
+    input_dir: Path | None,
+    output_dir: Path | None,
+    force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
+) -> None:
     if input_dir is None:
         raise MicrobiomeSuiteError("--input-dir is required for --backend multiqc.")
     if output_dir is None:
@@ -74,10 +98,17 @@ def qc_multiqc(*, input_dir: Path | None, output_dir: Path | None, force: bool) 
     command = [multiqc, str(input_dir), "--outdir", str(output_dir)]
     if force:
         command.append("--force")
-    _run(command, "MultiQC failed.")
+    _run(command, "MultiQC failed.", run_dir=run_dir, timeout=timeout, backend="multiqc")
 
 
-def qc_qiime2_demux(*, demux: Path | None, output: Path | None, force: bool) -> None:
+def qc_qiime2_demux(
+    *,
+    demux: Path | None,
+    output: Path | None,
+    force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
+) -> None:
     if demux is None:
         raise MicrobiomeSuiteError("--demux is required for --backend qiime2-demux.")
     if output is None:
@@ -97,7 +128,13 @@ def qc_qiime2_demux(*, demux: Path | None, output: Path | None, force: bool) -> 
         "--o-visualization",
         str(output),
     ]
-    _run(command, "QIIME 2 demux summary failed.")
+    _run(
+        command,
+        "QIIME 2 demux summary failed.",
+        run_dir=run_dir,
+        timeout=timeout,
+        backend="qiime2-demux",
+    )
 
 
 def _require_tool(command: str, task: str) -> str:
@@ -118,8 +155,18 @@ def _prepare_dir(path: Path, *, force: bool) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def _run(command: list[str], failure_message: str) -> None:
-    result = subprocess.run(command, check=False, text=True, capture_output=True)
-    if result.returncode != 0:
-        message = result.stderr.strip() or result.stdout.strip() or failure_message
-        raise MicrobiomeSuiteError(message)
+def _run(
+    command: list[str],
+    failure_message: str,
+    *,
+    run_dir: Path | None,
+    timeout: float | None,
+    backend: str,
+) -> None:
+    run_command(
+        command,
+        failure_message,
+        run_dir=run_dir,
+        timeout=timeout,
+        log=CommandLog(task="qc", backend=backend),
+    )

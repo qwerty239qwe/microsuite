@@ -19,6 +19,8 @@ def decontam(
     prev_control_indicator: str | None = None,
     freq_concentration_column: str | None = None,
     force: bool = False,
+    run_dir: Path | None = None,
+    timeout: float | None = None,
 ) -> None:
     backend = backend.lower()
     if backend != "qiime2-decontam":
@@ -35,6 +37,8 @@ def decontam(
         prev_control_indicator=prev_control_indicator,
         freq_concentration_column=freq_concentration_column,
         force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -48,6 +52,8 @@ def decontam_qiime2(
     prev_control_indicator: str | None,
     freq_concentration_column: str | None,
     force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
 ) -> None:
     if method in {"prevalence", "combined"} and (
         prev_control_column is None or prev_control_indicator is None
@@ -83,4 +89,11 @@ def decontam_qiime2(
     if freq_concentration_column is not None:
         command.extend(["--p-freq-concentration-column", freq_concentration_column])
     command.extend(["--o-decontam-scores", str(output)])
-    run_qiime(command, "QIIME 2 quality-control decontam-identify failed.")
+    run_qiime(
+        command,
+        "QIIME 2 quality-control decontam-identify failed.",
+        run_dir=run_dir,
+        timeout=timeout,
+        task="decontam",
+        backend="qiime2-decontam",
+    )

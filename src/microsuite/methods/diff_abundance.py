@@ -18,6 +18,8 @@ def diff_abundance(
     group: str,
     output: Path,
     force: bool = False,
+    run_dir: Path | None = None,
+    timeout: float | None = None,
 ) -> None:
     backend = backend.lower()
     if backend in PLANNED_BACKENDS:
@@ -32,4 +34,10 @@ def diff_abundance(
         )
 
     adata = read_h5ad(ensure_input(table))
-    run_ancombc(adata, group=group, output=prepare_output(output, force=force))
+    run_ancombc(
+        adata,
+        group=group,
+        output=prepare_output(output, force=force),
+        run_dir=run_dir,
+        timeout=timeout,
+    )
