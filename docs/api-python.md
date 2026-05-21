@@ -27,6 +27,9 @@ alpha_diversity(adata, metric="shannon")
 beta_diversity(adata, metric="bray-curtis")
 pcoa(distance_matrix)
 qc(backend="fastqc", inputs=[path], output_dir=qc_dir)
+qc_filter(backend="qiime2-filter-reads", demux=demux, database=index, output=filtered)
+decontam(backend="qiime2-decontam", table=table, metadata=metadata, output=scores)
+evaluate(backend="qiime2-taxonomy", expected_taxa=expected, observed_taxa=observed, output=viz)
 ```
 
 `read_table` and `write_table` currently support `.h5ad` files only. TSV, BIOM,
@@ -52,5 +55,21 @@ qc(
     output_dir=Path("qc"),
     threads=4,
     extract=True,
+)
+```
+
+QIIME 2 quality-control example:
+
+```python
+from pathlib import Path
+
+from microsuite.api import qc_filter
+
+qc_filter(
+    backend="qiime2-filter-reads",
+    demux=Path("demux.qza"),
+    database=Path("human-bowtie2-index.qza"),
+    output=Path("filtered.qza"),
+    threads=8,
 )
 ```

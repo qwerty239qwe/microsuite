@@ -63,7 +63,18 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
         "| `qiime2-demux-summarize` | QIIME 2 2024.10 | partial | "
         "`microsuite qc --backend qiime2-demux` | `microsuite.methods.qc.qc` |"
     ) in text
-    assert "| `qiime2-quality-control-exclude-seqs` | QIIME 2 2024.10 | planned |" in text
+    assert (
+        "| `qiime2-exclude-seqs` | QIIME 2 2026.4 API | partial | "
+        "`microsuite qc_filter --backend qiime2-exclude-seqs` | `microsuite.api.qc_filter` |"
+    ) in text
+    assert (
+        "| `qiime2-bowtie2-build` | QIIME 2 2026.4 API | partial | "
+        "`microsuite qc_filter --backend qiime2-bowtie2-build` | `microsuite.api.qc_filter` |"
+    ) in text
+    assert (
+        "| `qiime2-decontam` | QIIME 2 2026.4 API | partial | "
+        "`microsuite decontam --backend qiime2-decontam` | `microsuite.api.decontam` |"
+    ) in text
     assert (
         "| `fastp` | User env | partial | "
         "`microsuite trim --backend fastp` | `microsuite.methods.trim.trim` |"

@@ -9,16 +9,22 @@ from microsuite.methods.abundance import SUPPORTED_BACKENDS as ABUNDANCE_BACKEND
 from microsuite.methods.abundance import abundance
 from microsuite.methods.cluster import SUPPORTED_BACKENDS as CLUSTER_BACKENDS
 from microsuite.methods.cluster import cluster
+from microsuite.methods.decontam import SUPPORTED_BACKENDS as DECONTAM_BACKENDS
+from microsuite.methods.decontam import decontam
 from microsuite.methods.denoise import SUPPORTED_BACKENDS as DENOISE_BACKENDS
 from microsuite.methods.denoise import denoise
 from microsuite.methods.diff_abundance import SUPPORTED_BACKENDS as DIFF_ABUNDANCE_BACKENDS
 from microsuite.methods.diff_abundance import diff_abundance
 from microsuite.methods.diversity_calc import SUPPORTED_METHODS as DIVERSITY_METHODS
 from microsuite.methods.diversity_calc import diversity_calc
+from microsuite.methods.evaluate import SUPPORTED_BACKENDS as EVALUATE_BACKENDS
+from microsuite.methods.evaluate import evaluate
 from microsuite.methods.normalize import SUPPORTED_BACKENDS as NORMALIZE_BACKENDS
 from microsuite.methods.normalize import normalize
 from microsuite.methods.qc import SUPPORTED_BACKENDS as QC_BACKENDS
 from microsuite.methods.qc import qc
+from microsuite.methods.qc_filter import SUPPORTED_BACKENDS as QC_FILTER_BACKENDS
+from microsuite.methods.qc_filter import qc_filter
 from microsuite.methods.rarefy import SUPPORTED_BACKENDS as RAREFY_BACKENDS
 from microsuite.methods.rarefy import rarefy
 from microsuite.methods.report import SUPPORTED_BACKENDS as REPORT_BACKENDS
@@ -36,6 +42,9 @@ app = typer.Typer(help="Method-oriented microbiome operations.", no_args_is_help
 def methods() -> None:
     typer.echo("qc")
     for backend in QC_BACKENDS:
+        typer.echo(f"  - {backend}")
+    typer.echo("qc_filter")
+    for backend in QC_FILTER_BACKENDS:
         typer.echo(f"  - {backend}")
     typer.echo("trim")
     for backend in TRIM_BACKENDS:
@@ -66,6 +75,12 @@ def methods() -> None:
         typer.echo(f"  - {backend}")
     typer.echo("diff_abundance")
     for backend in DIFF_ABUNDANCE_BACKENDS:
+        typer.echo(f"  - {backend}")
+    typer.echo("decontam")
+    for backend in DECONTAM_BACKENDS:
+        typer.echo(f"  - {backend}")
+    typer.echo("evaluate")
+    for backend in EVALUATE_BACKENDS:
         typer.echo(f"  - {backend}")
     typer.echo("report")
     for backend in REPORT_BACKENDS:
@@ -106,6 +121,77 @@ def qc_cmd(
         output=output,
         threads=threads,
         extract=extract,
+        force=force,
+    )
+
+
+@app.command("qc_filter")
+def qc_filter_cmd(
+    backend: Annotated[str, typer.Option("--backend", help="QC filtering backend.")],
+    demux: Annotated[
+        Path | None, typer.Option("--demux", help="QIIME 2 demultiplexed reads artifact.")
+    ] = None,
+    database: Annotated[
+        Path | None, typer.Option("--database", help="QIIME 2 Bowtie2 index artifact.")
+    ] = None,
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output artifact for bowtie2-build or filtered demultiplexed reads.",
+        ),
+    ] = None,
+    sequences: Annotated[
+        Path | None,
+        typer.Option("--sequences", help="Reference sequences for qiime2-bowtie2-build."),
+    ] = None,
+    query_sequences: Annotated[
+        Path | None, typer.Option("--query-sequences", help="QIIME 2 query sequences artifact.")
+    ] = None,
+    reference_sequences: Annotated[
+        Path | None,
+        typer.Option("--reference-sequences", help="QIIME 2 reference sequences artifact."),
+    ] = None,
+    sequence_hits: Annotated[
+        Path | None, typer.Option("--sequence-hits", help="Output sequences matching reference.")
+    ] = None,
+    sequence_misses: Annotated[
+        Path | None,
+        typer.Option("--sequence-misses", help="Output sequences not matching reference."),
+    ] = None,
+    method: Annotated[str, typer.Option("--method", help="Alignment method for exclude-seqs.")] = (
+        "blast"
+    ),
+    perc_identity: Annotated[float, typer.Option("--perc-identity", min=0.0, max=1.0)] = 0.97,
+    perc_query_aligned: Annotated[
+        float, typer.Option("--perc-query-aligned", min=0.0, max=1.0)
+    ] = 0.97,
+    threads: Annotated[int, typer.Option("--threads", min=1)] = 1,
+    mode: Annotated[str, typer.Option("--mode", help="Bowtie2 alignment mode.")] = "local",
+    sensitivity: Annotated[
+        str, typer.Option("--sensitivity", help="Bowtie2 sensitivity preset.")
+    ] = "sensitive",
+    exclude: Annotated[bool, typer.Option("--exclude/--keep-matches")] = True,
+    force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
+) -> None:
+    qc_filter(
+        backend=backend,
+        demux=demux,
+        database=database,
+        output=output,
+        sequences=sequences,
+        query_sequences=query_sequences,
+        reference_sequences=reference_sequences,
+        sequence_hits=sequence_hits,
+        sequence_misses=sequence_misses,
+        method=method,
+        perc_identity=perc_identity,
+        perc_query_aligned=perc_query_aligned,
+        threads=threads,
+        mode=mode,
+        sensitivity=sensitivity,
+        exclude=exclude,
         force=force,
     )
 
@@ -372,6 +458,68 @@ def diff_abundance_cmd(
         table=table,
         group=group,
         output=output,
+        force=force,
+    )
+
+
+@app.command("decontam")
+def decontam_cmd(
+    backend: Annotated[str, typer.Option("--backend", help="Contaminant detection backend.")],
+    table: Annotated[Path, typer.Option("--table", help="QIIME 2 feature table artifact.")],
+    metadata: Annotated[Path, typer.Option("--metadata", help="Sample metadata TSV.")],
+    output: Annotated[Path, typer.Option("--output", "-o", help="Output decontam score artifact.")],
+    method: Annotated[
+        str, typer.Option("--method", help="prevalence, frequency, or combined.")
+    ] = "prevalence",
+    prev_control_column: Annotated[
+        str | None, typer.Option("--prev-control-column", help="Negative-control metadata column.")
+    ] = None,
+    prev_control_indicator: Annotated[
+        str | None,
+        typer.Option("--prev-control-indicator", help="Negative-control metadata value."),
+    ] = None,
+    freq_concentration_column: Annotated[
+        str | None,
+        typer.Option("--freq-concentration-column", help="Sample concentration metadata column."),
+    ] = None,
+    force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
+) -> None:
+    decontam(
+        backend=backend,
+        table=table,
+        metadata=metadata,
+        output=output,
+        method=method,
+        prev_control_column=prev_control_column,
+        prev_control_indicator=prev_control_indicator,
+        freq_concentration_column=freq_concentration_column,
+        force=force,
+    )
+
+
+@app.command("evaluate")
+def evaluate_cmd(
+    backend: Annotated[str, typer.Option("--backend", help="Evaluation backend.")],
+    expected_taxa: Annotated[
+        Path, typer.Option("--expected-taxa", help="Expected taxonomy artifact.")
+    ],
+    observed_taxa: Annotated[
+        Path, typer.Option("--observed-taxa", help="Observed taxonomy artifact.")
+    ],
+    output: Annotated[Path, typer.Option("--output", "-o", help="Output visualization.")],
+    feature_table: Annotated[
+        Path | None, typer.Option("--feature-table", help="Optional feature table artifact.")
+    ] = None,
+    depth: Annotated[int, typer.Option("--depth", min=1)] = 7,
+    force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
+) -> None:
+    evaluate(
+        backend=backend,
+        expected_taxa=expected_taxa,
+        observed_taxa=observed_taxa,
+        feature_table=feature_table,
+        output=output,
+        depth=depth,
         force=force,
     )
 
