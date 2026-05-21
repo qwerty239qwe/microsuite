@@ -46,8 +46,12 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
     assert "### Quality Filtering" in text
     assert "### Differential Abundance" in text
     assert "| Subtopic |" not in text
+    assert "Python function name" not in text
+    assert "microsuite.api." not in text
+    assert "microsuite.methods." not in text
+    assert "microsuite.viz." not in text
     assert (
-        "| Backend | Version | Status | CLI command | Python function name | "
+        "| Backend | Version | Status | CLI command | Python invocation | "
         "Image / environment | Operational tradeoff | Purpose |"
     ) in text
     assert "[microsuite Python](containers/microsuite/Dockerfile)" in text
@@ -57,32 +61,39 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
     assert "[Kraken2](containers/kraken2/Dockerfile)" in text
     assert (
         "| `fastqc` | FastQC 0.12.1 | ready | "
-        "`microsuite qc --backend fastqc` | `microsuite.api.qc` |"
+        "`microsuite qc --backend fastqc` | "
+        '`qc(backend="fastqc", inputs=[...], output_dir=...)` |'
     ) in text
     assert (
         "| `qiime2-demux-summarize` | QIIME 2 2024.10 | partial | "
-        "`microsuite qc --backend qiime2-demux` | `microsuite.methods.qc.qc` |"
+        "`microsuite qc --backend qiime2-demux` | "
+        '`qc(backend="qiime2-demux", demux=..., output=...)` |'
     ) in text
     assert (
         "| `qiime2-exclude-seqs` | QIIME 2 2026.4 API | partial | "
-        "`microsuite qc_filter --backend qiime2-exclude-seqs` | `microsuite.api.qc_filter` |"
+        "`microsuite qc_filter --backend qiime2-exclude-seqs` | "
+        '`qc_filter(backend="qiime2-exclude-seqs", query_sequences=..., '
+        "reference_sequences=...)` |"
     ) in text
     assert (
         "| `qiime2-bowtie2-build` | QIIME 2 2026.4 API | partial | "
-        "`microsuite qc_filter --backend qiime2-bowtie2-build` | `microsuite.api.qc_filter` |"
+        "`microsuite qc_filter --backend qiime2-bowtie2-build` | "
+        '`qc_filter(backend="qiime2-bowtie2-build", sequences=..., output=...)` |'
     ) in text
     assert (
         "| `qiime2-decontam` | QIIME 2 2026.4 API | partial | "
-        "`microsuite decontam --backend qiime2-decontam` | `microsuite.api.decontam` |"
+        "`microsuite decontam --backend qiime2-decontam` | "
+        '`decontam(backend="qiime2-decontam", table=..., metadata=..., output=...)` |'
     ) in text
     assert (
         "| `fastp` | User env | partial | "
-        "`microsuite trim --backend fastp` | `microsuite.methods.trim.trim` |"
+        "`microsuite trim --backend fastp` | "
+        '`trim(backend="fastp", read1=..., output1=...)` |'
     ) in text
     assert (
         "| `ancombc` | R 4.4.0 image; ANCOMBC via "
         "Bioconductor | partial | `microsuite diff_abundance --backend ancombc` | "
-        "`microsuite.methods.diff_abundance.diff_abundance` |"
+        '`diff_abundance(backend="ancombc", table=..., group=..., output=...)` |'
     ) in text
 
 
