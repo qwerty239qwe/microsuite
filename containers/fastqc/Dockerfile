@@ -11,6 +11,9 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       ca-certificates \
       curl \
+      libfontconfig1 \
+      libfreetype6 \
+      libharfbuzz0b \
       openjdk-21-jre-headless \
       perl \
       unzip && \

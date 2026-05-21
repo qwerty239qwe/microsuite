@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTAINERS = ROOT / "containers"
@@ -52,7 +57,7 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
     assert "[Kraken2](containers/kraken2/Dockerfile)" in text
     assert (
         "| `fastqc` | FastQC 0.12.1 | ready | "
-        "`microsuite qc --backend fastqc` | `microsuite.methods.qc.qc` |"
+        "`microsuite qc --backend fastqc` | `microsuite.api.qc` |"
     ) in text
     assert (
         "| `qiime2-demux-summarize` | QIIME 2 2024.10 | partial | "
@@ -68,3 +73,55 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
         "Bioconductor | partial | `microsuite diff_abundance --backend ancombc` | "
         "`microsuite.methods.diff_abundance.diff_abundance` |"
     ) in text
+
+
+@pytest.mark.skipif(
+    os.environ.get("MICROSUITE_RUN_DOCKER_TESTS") != "1",
+    reason="set MICROSUITE_RUN_DOCKER_TESTS=1 to run Docker-backed integration tests",
+)
+def test_fastqc_container_runs_tiny_fastq_end_to_end(tmp_path: Path) -> None:
+    if shutil.which("docker") is None:
+        pytest.skip("docker is not installed")
+
+    image = "microsuite/fastqc:ci"
+    image_check = subprocess.run(
+        ["docker", "image", "inspect", image],
+        check=False,
+        text=True,
+        capture_output=True,
+        timeout=30,
+    )
+    if image_check.returncode != 0:
+        pytest.skip(f"Docker image is not available locally: {image}")
+
+    fixture = ROOT / "tests" / "fixtures" / "fastq" / "tiny.fastq"
+    output_dir = tmp_path / "fastqc"
+    output_dir.mkdir()
+
+    command = [
+        "docker",
+        "run",
+        "--rm",
+        "-v",
+        f"{fixture.parent.resolve()}:/input:ro",
+        "-v",
+        f"{output_dir.resolve()}:/output",
+        image,
+        "--outdir",
+        "/output",
+        "/input/tiny.fastq",
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            check=False,
+            text=True,
+            capture_output=True,
+            timeout=90,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise AssertionError(f"FastQC container timed out: {' '.join(command)}") from exc
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert (output_dir / "tiny_fastqc.html").exists()
+    assert (output_dir / "tiny_fastqc.zip").exists()

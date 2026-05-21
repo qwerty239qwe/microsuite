@@ -149,6 +149,29 @@ jobs:
         if: ${{ matrix.image == 'fastqc' }}
         run: docker run --rm microsuite/${{ matrix.image }}:ci --version
 
+      - name: Set up Python for FastQC integration test
+        if: ${{ matrix.image == 'fastqc' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv for FastQC integration test
+        if: ${{ matrix.image == 'fastqc' }}
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python test dependencies for FastQC integration test
+        if: ${{ matrix.image == 'fastqc' }}
+        run: uv sync --extra dev --locked
+
+      - name: Run FastQC container integration test
+        if: ${{ matrix.image == 'fastqc' }}
+        env:
+          MICROSUITE_RUN_DOCKER_TESTS: "1"
+        run: uv run pytest tests/test_container_skeletons.py::test_fastqc_container_runs_tiny_fastq_end_to_end
+
       - name: Smoke test kraken2 image
         if: ${{ matrix.image == 'kraken2' }}
         run: docker run --rm --entrypoint kraken2 microsuite/${{ matrix.image }}:ci --version

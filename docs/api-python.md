@@ -26,11 +26,31 @@ rarefy_table(adata, depth=10000)
 alpha_diversity(adata, metric="shannon")
 beta_diversity(adata, metric="bray-curtis")
 pcoa(distance_matrix)
+qc(backend="fastqc", inputs=[path], output_dir=qc_dir)
 ```
 
 `read_table` and `write_table` currently support `.h5ad` files only. TSV, BIOM,
 and QIIME 2 artifact import are available through the CLI and lower-level I/O
 modules while the SDK surface stabilizes.
 
-The SDK owns native table/statistics logic. It does not manage QIIME2, DADA2,
-Kraken2, R, containers, or Nextflow execution environments.
+The SDK owns native table/statistics logic and can launch selected external
+tool methods, such as FastQC, through the same backend names used by the CLI.
+It does not install or activate QIIME 2, DADA2, Kraken2, R, containers, or
+Nextflow execution environments; those tools must already be available in the
+runtime environment.
+
+FastQC example:
+
+```python
+from pathlib import Path
+
+from microsuite.api import qc
+
+qc(
+    backend="fastqc",
+    inputs=[Path("sample.fastq.gz")],
+    output_dir=Path("qc"),
+    threads=4,
+    extract=True,
+)
+```

@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
+import microsuite.api as api
+from microsuite._errors import MicrobiomeSuiteError
 from microsuite.api import (
     abundance_table,
     alpha_diversity,
     beta_diversity,
     normalize_table,
     pcoa,
+    qc,
     rarefy_table,
     read_table,
     shared_taxa_table,
@@ -52,3 +57,54 @@ def test_python_sdk_facade_table_roundtrip_and_ecology(tmp_path: Path) -> None:
         "PC1_variance",
         "PC2_variance",
     ]
+
+
+def test_python_sdk_facade_public_exports_include_qc() -> None:
+    assert "qc" in api.__all__
+
+
+def test_python_sdk_facade_exposes_fastqc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    read = tmp_path / "sample_R1.fastq.gz"
+    read.touch()
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr("shutil.which", lambda name: "fastqc" if name == "fastqc" else None)
+
+    def fake_run(
+        command: list[str], *, check: bool, text: bool, capture_output: bool
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    qc(
+        backend="fastqc",
+        inputs=[read],
+        output_dir=tmp_path / "qc",
+        threads=4,
+        extract=True,
+    )
+
+    assert calls == [
+        [
+            "fastqc",
+            "--outdir",
+            str(tmp_path / "qc"),
+            "--threads",
+            "4",
+            "--extract",
+            str(read),
+        ]
+    ]
+
+
+def test_python_sdk_facade_fastqc_reports_missing_binary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    read = tmp_path / "sample_R1.fastq.gz"
+    read.touch()
+    monkeypatch.setattr("shutil.which", lambda name: None)
+
+    with pytest.raises(MicrobiomeSuiteError, match="FastQC requires"):
+        qc(backend="fastqc", inputs=[read], output_dir=tmp_path / "qc")
