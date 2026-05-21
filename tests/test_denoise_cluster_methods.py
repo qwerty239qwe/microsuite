@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -84,6 +85,52 @@ def test_denoise_qiime2_deblur_requires_positive_trim_length(tmp_path: Path) -> 
             output_rep_seqs=tmp_path / "rep-seqs.qza",
             output_stats=tmp_path / "stats.qza",
         )
+
+
+def test_cli_denoise_qiime2_run_dir_writes_runtime_logs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    demux = touch(tmp_path / "demux.qza")
+    run_dir = tmp_path / "run"
+
+    monkeypatch.setattr("shutil.which", lambda name: "qiime" if name == "qiime" else None)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 0, "ok\n", ""),
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "denoise",
+            "--backend",
+            "qiime2-dada2",
+            "--demux",
+            str(demux),
+            "--output-table",
+            str(tmp_path / "table.qza"),
+            "--output-rep-seqs",
+            str(tmp_path / "rep-seqs.qza"),
+            "--output-stats",
+            str(tmp_path / "stats.qza"),
+            "--trunc-len",
+            "150",
+            "--run-dir",
+            str(run_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    assert run["task"] == "denoise"
+    assert run["backend"] == "qiime2-dada2"
+    assert "dada2" in run["command"]
+    assert (run_dir / "command.txt").exists()
+    assert (run_dir / "stdout.log").read_text(encoding="utf-8") == "ok\n"
+    assert (run_dir / "stderr.log").read_text(encoding="utf-8") == ""
+    events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+    assert "command_start" in events
+    assert "command_end" in events
 
 
 def test_denoise_qiime2_dada2_paired_builds_command(

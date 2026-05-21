@@ -103,6 +103,48 @@ def test_cli_qc_fastqc_run_dir_writes_runtime_logs(
     assert run["backend"] == "fastqc"
 
 
+def test_cli_trim_cutadapt_run_dir_writes_runtime_logs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    read = touch(tmp_path / "sample_R1.fastq.gz")
+    run_dir = tmp_path / "run"
+
+    monkeypatch.setattr("shutil.which", lambda name: "cutadapt" if name == "cutadapt" else None)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 0, "ok\n", ""),
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "trim",
+            "--backend",
+            "cutadapt",
+            "--read1",
+            str(read),
+            "--output1",
+            str(tmp_path / "trimmed_R1.fastq.gz"),
+            "--adapter",
+            "AGATCGGAAGAGC",
+            "--run-dir",
+            str(run_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    assert run["task"] == "trim"
+    assert run["backend"] == "cutadapt"
+    assert "cutadapt" in run["command"]
+    assert (run_dir / "command.txt").exists()
+    assert (run_dir / "stdout.log").read_text(encoding="utf-8") == "ok\n"
+    assert (run_dir / "stderr.log").read_text(encoding="utf-8") == ""
+    events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+    assert "command_start" in events
+    assert "command_end" in events
+
+
 def test_qc_fastqc_extract_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     read = touch(tmp_path / "sample_R1.fastq.gz")
     calls: list[list[str]] = []

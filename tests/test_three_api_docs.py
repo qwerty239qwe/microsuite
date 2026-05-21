@@ -37,7 +37,29 @@ def test_existing_docs_reflect_three_api_model() -> None:
     nextflow = (DOCS / "api-nextflow.md").read_text(encoding="utf-8")
     assert "Current status" in nextflow
     assert "module files are placeholders" in nextflow
+    assert "Manifest contract" in nextflow
+    for column in ["`sample_id`", "`read1`", "`read2`", "`platform`", "`layout`"]:
+        assert column in nextflow
+    for rule in [
+        "paths may be absolute or relative to the manifest file",
+        "`sample_id` values must be unique",
+        "single-end rows must not set `read2`",
+        "paired-end rows must set both `read1` and `read2`",
+        "metadata files must use the same sample IDs as the manifest",
+    ]:
+        assert rule in nextflow
 
     python_api = (DOCS / "api-python.md").read_text(encoding="utf-8")
     assert "read_table" in python_api
     assert ".h5ad" in python_api
+
+
+def test_readme_names_backend_validation_levels() -> None:
+    readme = (DOCS.parent / "README.md").read_text(encoding="utf-8")
+
+    assert "Backend Validation Status" in readme
+    assert "CI smoke-tested" in readme
+    assert "Unit-tested wrapper" in readme
+    assert "Static only" in readme
+    assert "User environment" in readme
+    assert "API status" in readme

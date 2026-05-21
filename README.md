@@ -35,6 +35,30 @@ See [docs/three-api-roadmap.md](docs/three-api-roadmap.md) for the architecture.
 Demo data attribution and citation details are in
 [docs/data-attribution.md](docs/data-attribution.md).
 
+## Backend Validation Status
+
+The method surface below separates biological task support from runtime
+validation. The `Status` column in the method tables describes API maturity:
+`ready`, `partial`, or `planned`. Runtime validation is tracked separately:
+
+| Level | Meaning |
+| --- | --- |
+| CI smoke-tested | The command or container is exercised in GitHub Actions with a lightweight smoke test. |
+| Unit-tested wrapper | Command construction, validation, and error handling are covered by Python tests, but the external tool is not executed in CI. |
+| Static only | Files, docs, or container skeletons are checked, but the backend is not runnable as part of the default test suite. |
+| User environment | The backend requires tools, plugins, databases, R packages, or QIIME 2 environments supplied by the user. |
+| Planned | Listed to reserve API shape, but not implemented for 0.1.0. |
+
+| Backend family | API status | Validation level | Notes |
+| --- | --- | --- | --- |
+| Native table/statistics/report methods | ready | CI smoke-tested | Covered by unit and CLI workflow tests. |
+| FastQC | ready | CI smoke-tested | CLI wrapper and container are smoke-tested. |
+| MultiQC, fastp, Cutadapt, Trimmomatic, Trim Galore | partial | Unit-tested wrapper + user environment | Command construction and log capture are tested; binaries are user supplied. |
+| QIIME 2 method wrappers | partial | Unit-tested wrapper + user environment | Command construction is tested; QIIME 2/plugin version validation is user supplied until the image pin is finalized. |
+| ANCOM-BC | partial | Unit-tested wrapper + user environment | Python wrapper and runtime logs are tested; R/Bioconductor runtime is user supplied or containerized manually. |
+| Nextflow workflows | partial | Static only | Workflow files and docs are checked; full execution remains manual for 0.1.0. |
+| Kraken2, Bracken, MetaPhlAn, ALDEx2, MaAsLin2, LEfSe | planned | Planned | API placeholders only unless explicitly stated otherwise below. |
+
 ## Method Surface
 
 ### Quality Reports
@@ -49,10 +73,10 @@ Demo data attribution and citation details are in
 
 | Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `qiime2-exclude-seqs` | QIIME 2 2026.4 API | partial | `microsuite qc_filter --backend qiime2-exclude-seqs` | `qc_filter(backend="qiime2-exclude-seqs", query_sequences=..., reference_sequences=...)` | External QIIME 2 with `q2-quality-control`; [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) pin update pending | Strong contaminant/non-target sequence filtering; needs reference sequences and threshold choices. | Exclude or retain feature sequences by alignment to reference sequences. |
-| `qiime2-filter-reads` | QIIME 2 2026.4 API | partial | `microsuite qc_filter --backend qiime2-filter-reads` | `qc_filter(backend="qiime2-filter-reads", demux=..., database=..., output=...)` | External QIIME 2 with `q2-quality-control`; [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) pin update pending | Useful for host/contaminant read removal; requires a Bowtie2 index. | Filter demultiplexed reads by alignment to a reference database. |
-| `qiime2-bowtie2-build` | QIIME 2 2026.4 API | partial | `microsuite qc_filter --backend qiime2-bowtie2-build` | `qc_filter(backend="qiime2-bowtie2-build", sequences=..., output=...)` | External QIIME 2 with `q2-quality-control`; [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) pin update pending | Completes the filter-reads setup path; still requires suitable reference sequences. | Build a Bowtie2 index artifact for read filtering. |
-| `qiime2-decontam` | QIIME 2 2026.4 API | partial | `microsuite decontam --backend qiime2-decontam` | `decontam(backend="qiime2-decontam", table=..., metadata=..., output=...)` | External QIIME 2 with `q2-quality-control`; [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) pin update pending | Useful contamination screening; requires negative controls or concentration metadata. | Identify likely contaminant features with decontam. |
+| `qiime2-exclude-seqs` | QIIME 2 user env | partial | `microsuite qc_filter --backend qiime2-exclude-seqs` | `qc_filter(backend="qiime2-exclude-seqs", query_sequences=..., reference_sequences=...)` | External QIIME 2 with `q2-quality-control`; [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) pin validation pending | Strong contaminant/non-target sequence filtering; needs reference sequences and threshold choices. | Exclude or retain feature sequences by alignment to reference sequences. |
+| `qiime2-filter-reads` | QIIME 2 user env | partial | `microsuite qc_filter --backend qiime2-filter-reads` | `qc_filter(backend="qiime2-filter-reads", demux=..., database=..., output=...)` | External QIIME 2 with `q2-quality-control`; [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) pin validation pending | Useful for host/contaminant read removal; requires a Bowtie2 index. | Filter demultiplexed reads by alignment to a reference database. |
+| `qiime2-bowtie2-build` | QIIME 2 user env | partial | `microsuite qc_filter --backend qiime2-bowtie2-build` | `qc_filter(backend="qiime2-bowtie2-build", sequences=..., output=...)` | External QIIME 2 with `q2-quality-control`; [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) pin validation pending | Completes the filter-reads setup path; still requires suitable reference sequences. | Build a Bowtie2 index artifact for read filtering. |
+| `qiime2-decontam` | QIIME 2 user env | partial | `microsuite decontam --backend qiime2-decontam` | `decontam(backend="qiime2-decontam", table=..., metadata=..., output=...)` | External QIIME 2 with `q2-quality-control`; [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) pin validation pending | Useful contamination screening; requires negative controls or concentration metadata. | Identify likely contaminant features with decontam. |
 | `qiime2-quality-filter-q-score` | QIIME 2 2024.10 | planned | planned | planned | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Native QIIME quality-score filtering; mainly useful before downstream QIIME artifact workflows. | Filter demultiplexed reads by quality scores. |
 
 ### Trimming
@@ -79,7 +103,7 @@ Demo data attribution and citation details are in
 | Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `qiime2` | QIIME 2 2024.10 | partial | `microsuite tax_classify --backend qiime2` | `tax_classify(backend="qiime2", rep_seqs=..., classifier=..., output=...)` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Strong classifier ecosystem; requires trained classifier artifacts. | QIIME 2 taxonomy classification. |
-| `qiime2-taxonomy` | QIIME 2 2026.4 API | partial | `microsuite evaluate --backend qiime2-taxonomy` | `evaluate(backend="qiime2-taxonomy", expected_taxa=..., observed_taxa=...)` | External QIIME 2 with `q2-quality-control`; [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) pin update pending | Best for mock-community or known-composition validation; needs expected taxonomy. | Evaluate observed taxonomy against expected assignments. |
+| `qiime2-taxonomy` | QIIME 2 user env | partial | `microsuite evaluate --backend qiime2-taxonomy` | `evaluate(backend="qiime2-taxonomy", expected_taxa=..., observed_taxa=...)` | External QIIME 2 with `q2-quality-control`; [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) pin validation pending | Best for mock-community or known-composition validation; needs expected taxonomy. | Evaluate observed taxonomy against expected assignments. |
 | `kraken2` | Kraken2 2.1.3 | planned | `microsuite tax_classify --backend kraken2` | planned | [Kraken2](containers/kraken2/Dockerfile) | Fast profiling; requires large databases. | Taxonomic profiling/classification. |
 | `bracken` | Planned | planned | `microsuite tax_classify --backend bracken` | planned | [Kraken2](containers/kraken2/Dockerfile), Bracken planned | Improves abundance estimates; depends on Kraken2 database setup. | Abundance re-estimation from Kraken2 output. |
 | `metaphlan` | Planned | planned | `microsuite tax_classify --backend metaphlan` | planned | Image not added yet | Good marker-gene profiling; separate database/runtime needed. | Marker-gene taxonomic profiling. |

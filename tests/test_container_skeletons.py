@@ -70,18 +70,18 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
         '`qc(backend="qiime2-demux", demux=..., output=...)` |'
     ) in text
     assert (
-        "| `qiime2-exclude-seqs` | QIIME 2 2026.4 API | partial | "
+        "| `qiime2-exclude-seqs` | QIIME 2 user env | partial | "
         "`microsuite qc_filter --backend qiime2-exclude-seqs` | "
         '`qc_filter(backend="qiime2-exclude-seqs", query_sequences=..., '
         "reference_sequences=...)` |"
     ) in text
     assert (
-        "| `qiime2-bowtie2-build` | QIIME 2 2026.4 API | partial | "
+        "| `qiime2-bowtie2-build` | QIIME 2 user env | partial | "
         "`microsuite qc_filter --backend qiime2-bowtie2-build` | "
         '`qc_filter(backend="qiime2-bowtie2-build", sequences=..., output=...)` |'
     ) in text
     assert (
-        "| `qiime2-decontam` | QIIME 2 2026.4 API | partial | "
+        "| `qiime2-decontam` | QIIME 2 user env | partial | "
         "`microsuite decontam --backend qiime2-decontam` | "
         '`decontam(backend="qiime2-decontam", table=..., metadata=..., output=...)` |'
     ) in text

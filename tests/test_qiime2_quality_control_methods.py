@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -108,6 +109,47 @@ def test_qc_filter_qiime2_filter_reads_keep_matches_flag(
 
     assert "--p-no-exclude-seqs" in calls[0]
     assert "--p-exclude-seqs" not in calls[0]
+
+
+def test_cli_qc_filter_qiime2_run_dir_writes_runtime_logs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    demux = touch(tmp_path / "demux.qza")
+    database = touch(tmp_path / "human-bowtie2-index.qza")
+    run_dir = tmp_path / "run"
+
+    monkeypatch.setattr("shutil.which", qiime_only)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 0, "ok\n", ""),
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "qc_filter",
+            "--backend",
+            "qiime2-filter-reads",
+            "--demux",
+            str(demux),
+            "--database",
+            str(database),
+            "-o",
+            str(tmp_path / "filtered.qza"),
+            "--run-dir",
+            str(run_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    assert run["task"] == "qc_filter"
+    assert run["backend"] == "qiime2-filter-reads"
+    assert "quality-control" in run["command"]
+    assert (run_dir / "command.txt").exists()
+    assert (run_dir / "stdout.log").read_text(encoding="utf-8") == "ok\n"
+    assert (run_dir / "stderr.log").read_text(encoding="utf-8") == ""
+    assert "command_end" in (run_dir / "events.jsonl").read_text(encoding="utf-8")
 
 
 def test_qc_filter_qiime2_exclude_seqs_builds_command(
