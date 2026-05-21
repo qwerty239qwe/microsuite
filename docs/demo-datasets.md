@@ -24,7 +24,7 @@ Fetch the tiny bundled fixture:
 microsuite data fetch moving-pictures -o data/moving-pictures
 ```
 
-Fetch the real public tutorial artifacts:
+Fetch the real public tutorial inputs and artifacts:
 
 ```bash
 microsuite data fetch moving-pictures -o data/moving-pictures-real --full
@@ -33,8 +33,24 @@ microsuite data fetch moving-pictures -o data/moving-pictures-real --full
 The full download writes:
 
 - `sample-metadata.tsv`
+- `emp-single-end-sequences.zip`
+- `85_otus.qza`
+- `ref-taxonomy.qza`
 - `table.qza`
 - `taxonomy.qza`
+
+`emp-single-end-sequences.zip`, `85_otus.qza`, and `ref-taxonomy.qza` are used
+by the raw-read QIIME 2 parity workflow:
+
+```bash
+microsuite workflow moving-pictures-qiime2 \
+  --out runs/moving-pictures-qiime2 \
+  --force
+```
+
+This workflow expects `qiime` to be available from an activated QIIME 2
+amplicon environment. It keeps downloaded tutorial files local; do not commit
+them to the repository.
 
 Import the real feature table with taxonomy:
 

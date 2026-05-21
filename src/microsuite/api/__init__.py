@@ -15,6 +15,21 @@ from microsuite.methods.denoise import denoise
 from microsuite.methods.evaluate import evaluate
 from microsuite.methods.qc import qc
 from microsuite.methods.qc_filter import qc_filter
+from microsuite.methods.qiime2_wrappers import (
+    demux,
+    diversity_core,
+    diversity_test,
+    feature_filter,
+    feature_summarize,
+    metadata_tabulate,
+    ordination_plot,
+    phylogeny,
+    qiime_import,
+    rarefaction,
+    tax_barplot,
+    tax_collapse,
+    tax_train,
+)
 from microsuite.methods.trim import trim
 
 __all__ = [
@@ -24,13 +39,26 @@ __all__ = [
     "decontam",
     "denoise",
     "evaluate",
+    "demux",
+    "diversity_core",
+    "diversity_test",
+    "feature_filter",
+    "feature_summarize",
+    "metadata_tabulate",
     "normalize_table",
     "pcoa",
+    "ordination_plot",
+    "phylogeny",
     "qc",
     "qc_filter",
+    "qiime_import",
+    "rarefaction",
     "rarefy_table",
     "read_table",
     "shared_taxa_table",
+    "tax_barplot",
+    "tax_collapse",
     "trim",
+    "tax_train",
     "write_table",
 ]

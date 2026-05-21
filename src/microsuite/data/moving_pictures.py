@@ -11,6 +11,13 @@ REMOTE_FILES = {
     "sample-metadata.tsv": (
         "https://data.qiime2.org/2024.10/tutorials/moving-pictures/sample_metadata.tsv"
     ),
+    "emp-single-end-sequences.zip": (
+        "https://data.qiime2.org/2024.10/tutorials/moving-pictures/emp-single-end-sequences.zip"
+    ),
+    "85_otus.qza": "https://data.qiime2.org/2024.10/tutorials/moving-pictures/85_otus.qza",
+    "ref-taxonomy.qza": (
+        "https://data.qiime2.org/2024.10/tutorials/moving-pictures/ref-taxonomy.qza"
+    ),
     "table.qza": "https://docs.qiime2.org/2024.10/data/tutorials/moving-pictures/table.qza",
     "taxonomy.qza": "https://docs.qiime2.org/2024.10/data/tutorials/moving-pictures/taxonomy.qza",
 }

@@ -25,6 +25,23 @@ from microsuite.methods.qc import SUPPORTED_BACKENDS as QC_BACKENDS
 from microsuite.methods.qc import qc
 from microsuite.methods.qc_filter import SUPPORTED_BACKENDS as QC_FILTER_BACKENDS
 from microsuite.methods.qc_filter import qc_filter
+from microsuite.methods.qiime2_wrappers import SUPPORTED_METHODS as QIIME2_WRAPPER_METHODS
+from microsuite.methods.qiime2_wrappers import (
+    demux,
+    diff_viz,
+    diversity_core,
+    diversity_test,
+    feature_filter,
+    feature_summarize,
+    metadata_tabulate,
+    ordination_plot,
+    phylogeny,
+    qiime_import,
+    rarefaction,
+    tax_barplot,
+    tax_collapse,
+    tax_train,
+)
 from microsuite.methods.rarefy import SUPPORTED_BACKENDS as RAREFY_BACKENDS
 from microsuite.methods.rarefy import rarefy
 from microsuite.methods.report import SUPPORTED_BACKENDS as REPORT_BACKENDS
@@ -85,6 +102,10 @@ def methods() -> None:
     typer.echo("report")
     for backend in REPORT_BACKENDS:
         typer.echo(f"  - {backend}")
+    for method, backends in QIIME2_WRAPPER_METHODS.items():
+        typer.echo(method)
+        for backend in backends:
+            typer.echo(f"  - {backend}")
 
 
 @app.command("qc")
@@ -130,6 +151,55 @@ def qc_cmd(
         force=force,
         run_dir=run_dir,
         timeout=timeout,
+    )
+
+
+@app.command("metadata_tabulate")
+def metadata_tabulate_cmd(
+    backend: Annotated[str, typer.Option("--backend", help="Backend.")],
+    input_file: Annotated[Path | None, typer.Option("--input-file")] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    force: Annotated[bool, typer.Option("--force")] = False,
+    run_dir: Annotated[Path | None, typer.Option("--run-dir")] = None,
+    timeout: Annotated[float | None, typer.Option("--timeout")] = None,
+) -> None:
+    metadata_tabulate(
+        backend=backend, input_file=input_file, output=output, force=force,
+        run_dir=run_dir, timeout=timeout,
+    )
+
+
+@app.command("qiime_import")
+def qiime_import_cmd(
+    backend: Annotated[str, typer.Option("--backend", help="Backend.")],
+    input_path: Annotated[Path | None, typer.Option("--input-path")] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    force: Annotated[bool, typer.Option("--force")] = False,
+    run_dir: Annotated[Path | None, typer.Option("--run-dir")] = None,
+    timeout: Annotated[float | None, typer.Option("--timeout")] = None,
+) -> None:
+    qiime_import(
+        backend=backend, input_path=input_path, output=output, force=force,
+        run_dir=run_dir, timeout=timeout,
+    )
+
+
+@app.command("demux")
+def demux_cmd(
+    backend: Annotated[str, typer.Option("--backend", help="Backend.")],
+    seqs: Annotated[Path | None, typer.Option("--seqs")] = None,
+    metadata: Annotated[Path | None, typer.Option("--metadata", "-m")] = None,
+    barcode_column: Annotated[str | None, typer.Option("--barcode-column")] = None,
+    output_demux: Annotated[Path | None, typer.Option("--output-demux")] = None,
+    output_details: Annotated[Path | None, typer.Option("--output-details")] = None,
+    force: Annotated[bool, typer.Option("--force")] = False,
+    run_dir: Annotated[Path | None, typer.Option("--run-dir")] = None,
+    timeout: Annotated[float | None, typer.Option("--timeout")] = None,
+) -> None:
+    demux(
+        backend=backend, seqs=seqs, metadata=metadata, barcode_column=barcode_column,
+        output_demux=output_demux, output_details=output_details, force=force,
+        run_dir=run_dir, timeout=timeout,
     )
 
 
@@ -333,6 +403,13 @@ def denoise_cmd(
     output_stats: Annotated[
         Path, typer.Option("--output-stats", help="Output denoising stats artifact.")
     ],
+    output_base_transition_stats: Annotated[
+        Path | None,
+        typer.Option(
+            "--output-base-transition-stats",
+            help="Optional DADA2 base transition stats.",
+        ),
+    ] = None,
     paired: Annotated[bool, typer.Option("--paired", help="Use paired-end DADA2 mode.")] = False,
     trim_left: Annotated[int, typer.Option("--trim-left", min=0)] = 0,
     trunc_len: Annotated[int, typer.Option("--trunc-len", min=0)] = 0,
@@ -355,6 +432,7 @@ def denoise_cmd(
         output_table=output_table,
         output_rep_seqs=output_rep_seqs,
         output_stats=output_stats,
+        output_base_transition_stats=output_base_transition_stats,
         paired=paired,
         trim_left=trim_left,
         trunc_len=trunc_len,
@@ -488,6 +566,206 @@ def diversity_calc_cmd(
     )
 
 
+@app.command("feature_summarize")
+def feature_summarize_cmd(
+    backend: Annotated[str, typer.Option("--backend", help="Backend.")],
+    mode: Annotated[str, typer.Option("--mode", help="summarize or tabulate-seqs")],
+    table: Annotated[Path | None, typer.Option("--table")] = None,
+    rep_seqs: Annotated[Path | None, typer.Option("--rep-seqs")] = None,
+    metadata: Annotated[Path | None, typer.Option("--metadata", "-m")] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    force: Annotated[bool, typer.Option("--force")] = False,
+    run_dir: Annotated[Path | None, typer.Option("--run-dir")] = None,
+    timeout: Annotated[float | None, typer.Option("--timeout")] = None,
+) -> None:
+    feature_summarize(
+        backend=backend, mode=mode, table=table, rep_seqs=rep_seqs, metadata=metadata,
+        output=output, force=force, run_dir=run_dir, timeout=timeout,
+    )
+
+
+@app.command("phylogeny")
+def phylogeny_cmd(
+    backend: Annotated[str, typer.Option("--backend", help="Backend.")],
+    rep_seqs: Annotated[Path | None, typer.Option("--rep-seqs")] = None,
+    output_aligned: Annotated[Path | None, typer.Option("--output-aligned")] = None,
+    output_masked: Annotated[Path | None, typer.Option("--output-masked")] = None,
+    output_tree: Annotated[Path | None, typer.Option("--output-tree")] = None,
+    output_rooted_tree: Annotated[Path | None, typer.Option("--output-rooted-tree")] = None,
+    threads: Annotated[str, typer.Option("--threads")] = "1",
+    force: Annotated[bool, typer.Option("--force")] = False,
+    run_dir: Annotated[Path | None, typer.Option("--run-dir")] = None,
+    timeout: Annotated[float | None, typer.Option("--timeout")] = None,
+) -> None:
+    phylogeny(
+        backend=backend, rep_seqs=rep_seqs, output_aligned=output_aligned,
+        output_masked=output_masked, output_tree=output_tree,
+        output_rooted_tree=output_rooted_tree, threads=threads, force=force,
+        run_dir=run_dir, timeout=timeout,
+    )
+
+
+@app.command("diversity_core")
+def diversity_core_cmd(
+    backend: Annotated[str, typer.Option("--backend", help="Backend.")],
+    table: Annotated[Path | None, typer.Option("--table")] = None,
+    phylogeny_path: Annotated[Path | None, typer.Option("--phylogeny")] = None,
+    metadata: Annotated[Path | None, typer.Option("--metadata", "-m")] = None,
+    sampling_depth: Annotated[int, typer.Option("--sampling-depth", min=1)] = 1103,
+    output_dir: Annotated[Path | None, typer.Option("--output-dir")] = None,
+    force: Annotated[bool, typer.Option("--force")] = False,
+    run_dir: Annotated[Path | None, typer.Option("--run-dir")] = None,
+    timeout: Annotated[float | None, typer.Option("--timeout")] = None,
+) -> None:
+    diversity_core(
+        backend=backend, table=table, phylogeny_path=phylogeny_path, metadata=metadata,
+        sampling_depth=sampling_depth, output_dir=output_dir, force=force,
+        run_dir=run_dir, timeout=timeout,
+    )
+
+
+@app.command("diversity_test")
+def diversity_test_cmd(
+    backend: Annotated[str, typer.Option("--backend", help="Backend.")],
+    alpha_diversity: Annotated[Path | None, typer.Option("--alpha-diversity")] = None,
+    distance_matrix: Annotated[Path | None, typer.Option("--distance-matrix")] = None,
+    metadata: Annotated[Path | None, typer.Option("--metadata", "-m")] = None,
+    metadata_column: Annotated[str | None, typer.Option("--metadata-column")] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    method: Annotated[str, typer.Option("--method")] = "permanova",
+    pairwise: Annotated[bool, typer.Option("--pairwise")] = False,
+    force: Annotated[bool, typer.Option("--force")] = False,
+    run_dir: Annotated[Path | None, typer.Option("--run-dir")] = None,
+    timeout: Annotated[float | None, typer.Option("--timeout")] = None,
+) -> None:
+    diversity_test(
+        backend=backend, alpha_diversity=alpha_diversity, distance_matrix=distance_matrix,
+        metadata=metadata, metadata_column=metadata_column, output=output, method=method,
+        pairwise=pairwise, force=force, run_dir=run_dir, timeout=timeout,
+    )
+
+
+@app.command("ordination_plot")
+def ordination_plot_cmd(
+    backend: Annotated[str, typer.Option("--backend", help="Backend.")],
+    pcoa: Annotated[Path | None, typer.Option("--pcoa")] = None,
+    metadata: Annotated[Path | None, typer.Option("--metadata", "-m")] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    force: Annotated[bool, typer.Option("--force")] = False,
+    run_dir: Annotated[Path | None, typer.Option("--run-dir")] = None,
+    timeout: Annotated[float | None, typer.Option("--timeout")] = None,
+) -> None:
+    ordination_plot(
+        backend=backend, pcoa=pcoa, metadata=metadata, output=output,
+        force=force, run_dir=run_dir, timeout=timeout,
+    )
+
+
+@app.command("rarefaction")
+def rarefaction_cmd(
+    backend: Annotated[str, typer.Option("--backend", help="Backend.")],
+    table: Annotated[Path | None, typer.Option("--table")] = None,
+    phylogeny_path: Annotated[Path | None, typer.Option("--phylogeny")] = None,
+    metadata: Annotated[Path | None, typer.Option("--metadata", "-m")] = None,
+    max_depth: Annotated[int, typer.Option("--max-depth", min=1)] = 4000,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    force: Annotated[bool, typer.Option("--force")] = False,
+    run_dir: Annotated[Path | None, typer.Option("--run-dir")] = None,
+    timeout: Annotated[float | None, typer.Option("--timeout")] = None,
+) -> None:
+    rarefaction(
+        backend=backend, table=table, phylogeny_path=phylogeny_path, metadata=metadata,
+        max_depth=max_depth, output=output, force=force, run_dir=run_dir, timeout=timeout,
+    )
+
+
+@app.command("tax_train")
+def tax_train_cmd(
+    backend: Annotated[str, typer.Option("--backend", help="Backend.")],
+    ref_seqs: Annotated[Path | None, typer.Option("--ref-seqs")] = None,
+    ref_taxonomy: Annotated[Path | None, typer.Option("--ref-taxonomy")] = None,
+    f_primer: Annotated[str | None, typer.Option("--f-primer")] = None,
+    r_primer: Annotated[str | None, typer.Option("--r-primer")] = None,
+    trunc_len: Annotated[int, typer.Option("--trunc-len", min=0)] = 0,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    threads: Annotated[str, typer.Option("--threads")] = "1",
+    force: Annotated[bool, typer.Option("--force")] = False,
+    run_dir: Annotated[Path | None, typer.Option("--run-dir")] = None,
+    timeout: Annotated[float | None, typer.Option("--timeout")] = None,
+) -> None:
+    tax_train(
+        backend=backend, ref_seqs=ref_seqs, ref_taxonomy=ref_taxonomy, f_primer=f_primer,
+        r_primer=r_primer, trunc_len=trunc_len, output=output, threads=threads,
+        force=force, run_dir=run_dir, timeout=timeout,
+    )
+
+
+@app.command("tax_barplot")
+def tax_barplot_cmd(
+    backend: Annotated[str, typer.Option("--backend", help="Backend.")],
+    table: Annotated[Path | None, typer.Option("--table")] = None,
+    taxonomy: Annotated[Path | None, typer.Option("--taxonomy")] = None,
+    metadata: Annotated[Path | None, typer.Option("--metadata", "-m")] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    force: Annotated[bool, typer.Option("--force")] = False,
+    run_dir: Annotated[Path | None, typer.Option("--run-dir")] = None,
+    timeout: Annotated[float | None, typer.Option("--timeout")] = None,
+) -> None:
+    tax_barplot(
+        backend=backend, table=table, taxonomy=taxonomy, metadata=metadata,
+        output=output, force=force, run_dir=run_dir, timeout=timeout,
+    )
+
+
+@app.command("feature_filter")
+def feature_filter_cmd(
+    backend: Annotated[str, typer.Option("--backend", help="Backend.")],
+    table: Annotated[Path | None, typer.Option("--table")] = None,
+    metadata: Annotated[Path | None, typer.Option("--metadata", "-m")] = None,
+    where: Annotated[str | None, typer.Option("--where")] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    force: Annotated[bool, typer.Option("--force")] = False,
+    run_dir: Annotated[Path | None, typer.Option("--run-dir")] = None,
+    timeout: Annotated[float | None, typer.Option("--timeout")] = None,
+) -> None:
+    feature_filter(
+        backend=backend, table=table, metadata=metadata, where=where,
+        output=output, force=force, run_dir=run_dir, timeout=timeout,
+    )
+
+
+@app.command("tax_collapse")
+def tax_collapse_cmd(
+    backend: Annotated[str, typer.Option("--backend", help="Backend.")],
+    table: Annotated[Path | None, typer.Option("--table")] = None,
+    taxonomy: Annotated[Path | None, typer.Option("--taxonomy")] = None,
+    level: Annotated[int, typer.Option("--level", min=1)] = 6,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    force: Annotated[bool, typer.Option("--force")] = False,
+    run_dir: Annotated[Path | None, typer.Option("--run-dir")] = None,
+    timeout: Annotated[float | None, typer.Option("--timeout")] = None,
+) -> None:
+    tax_collapse(
+        backend=backend, table=table, taxonomy=taxonomy, level=level,
+        output=output, force=force, run_dir=run_dir, timeout=timeout,
+    )
+
+
+@app.command("diff_viz")
+def diff_viz_cmd(
+    backend: Annotated[str, typer.Option("--backend", help="Backend.")],
+    data: Annotated[Path | None, typer.Option("--data")] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    force: Annotated[bool, typer.Option("--force")] = False,
+    run_dir: Annotated[Path | None, typer.Option("--run-dir")] = None,
+    timeout: Annotated[float | None, typer.Option("--timeout")] = None,
+) -> None:
+    diff_viz(
+        backend=backend, data=data, output=output, force=force,
+        run_dir=run_dir, timeout=timeout,
+    )
+
+
 @app.command("normalize")
 def normalize_cmd(
     backend: Annotated[str, typer.Option("--backend", help="Normalization backend.")],
@@ -580,6 +858,9 @@ def diff_abundance_cmd(
     table: Annotated[Path, typer.Option("--table", help="Input .h5ad table.")],
     output: Annotated[Path, typer.Option("--output", "-o", help="Output TSV.")],
     group: Annotated[str, typer.Option("--group", help="Sample metadata group column.")],
+    metadata: Annotated[
+        Path | None, typer.Option("--metadata", "-m", help="QIIME 2 sample metadata TSV.")
+    ] = None,
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
     run_dir: Annotated[
         Path | None, typer.Option("--run-dir", help="Write runtime logs here.")
@@ -593,6 +874,7 @@ def diff_abundance_cmd(
         table=table,
         group=group,
         output=output,
+        metadata=metadata,
         force=force,
         run_dir=run_dir,
         timeout=timeout,

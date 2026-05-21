@@ -30,6 +30,13 @@ WORKFLOWS = [
         status="ready",
     ),
     WorkflowSpec(
+        name="moving-pictures-qiime2",
+        summary="Run the QIIME 2 Moving Pictures tutorial from raw EMP reads.",
+        inputs="Downloaded raw EMP reads, sample metadata, and reference taxonomy artifacts.",
+        outputs="QIIME 2 artifacts/visualizations, per-step runtime logs, report.html, run.json.",
+        status="partial",
+    ),
+    WorkflowSpec(
         name="reads-to-table",
         summary="Raw FASTQ to feature table orchestration placeholder for DADA2/Deblur/Kraken2.",
         inputs="FASTQ manifest and workflow profile.",

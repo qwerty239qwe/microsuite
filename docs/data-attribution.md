@@ -22,6 +22,13 @@ come from the QIIME 2 Moving Pictures tutorial data URLs. The QIIME 2 tutorial
 describes those data as a small subset of the Caporaso et al. study selected for
 quick tutorial runs.
 
+The 0.1.0 full fetcher uses the QIIME 2 2024.10 tutorial URL family for:
+
+- sample metadata
+- raw EMP single-end reads
+- reference sequences and taxonomy for Naive Bayes classifier training
+- precomputed feature table and taxonomy artifacts for quick demos
+
 The tiny fixture bundled under
 `src/microsuite/data/fixtures/moving_pictures_small/` is a miniature test
 fixture for CI and examples. It uses Moving Pictures-style sample identifiers and

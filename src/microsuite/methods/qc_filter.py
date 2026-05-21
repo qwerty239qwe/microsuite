@@ -6,7 +6,12 @@ from microsuite._errors import MicrobiomeSuiteError
 from microsuite.methods._qiime import ensure_inputs, prepare_outputs, require_qiime, run_qiime
 from microsuite.runtime.runner import resolve_threads
 
-SUPPORTED_BACKENDS = ("qiime2-bowtie2-build", "qiime2-filter-reads", "qiime2-exclude-seqs")
+SUPPORTED_BACKENDS = (
+    "qiime2-quality-filter-q-score",
+    "qiime2-bowtie2-build",
+    "qiime2-filter-reads",
+    "qiime2-exclude-seqs",
+)
 
 
 def qc_filter(
@@ -43,6 +48,16 @@ def qc_filter(
             timeout=timeout,
         )
         return
+    if backend == "qiime2-quality-filter-q-score":
+        qc_filter_qiime2_quality_filter_q_score(
+            demux=demux,
+            output=output,
+            sequence_hits=sequence_hits,
+            force=force,
+            run_dir=run_dir,
+            timeout=timeout,
+        )
+        return
     if backend == "qiime2-filter-reads":
         qc_filter_qiime2_filter_reads(
             demux=demux,
@@ -74,6 +89,51 @@ def qc_filter(
         return
     raise MicrobiomeSuiteError(
         f"Unsupported QC filter backend '{backend}'. Choose one of: {', '.join(SUPPORTED_BACKENDS)}"
+    )
+
+
+def qc_filter_qiime2_quality_filter_q_score(
+    *,
+    demux: Path | None,
+    output: Path | None,
+    sequence_hits: Path | None,
+    force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
+) -> None:
+    if demux is None:
+        raise MicrobiomeSuiteError(
+            "--demux is required for --backend qiime2-quality-filter-q-score."
+        )
+    if output is None:
+        raise MicrobiomeSuiteError(
+            "--output is required for --backend qiime2-quality-filter-q-score."
+        )
+    if sequence_hits is None:
+        raise MicrobiomeSuiteError(
+            "--sequence-hits is required for --backend qiime2-quality-filter-q-score."
+        )
+    qiime = require_qiime("QIIME 2 quality-filter q-score")
+    ensure_inputs(demux)
+    prepare_outputs(output, sequence_hits, force=force)
+    command = [
+        qiime,
+        "quality-filter",
+        "q-score",
+        "--i-demux",
+        str(demux),
+        "--o-filtered-sequences",
+        str(output),
+        "--o-filter-stats",
+        str(sequence_hits),
+    ]
+    run_qiime(
+        command,
+        "QIIME 2 quality-filter q-score failed.",
+        run_dir=run_dir,
+        timeout=timeout,
+        task="qc_filter",
+        backend="qiime2-quality-filter-q-score",
     )
 
 

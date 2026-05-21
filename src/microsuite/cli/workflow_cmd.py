@@ -7,6 +7,7 @@ import typer
 
 from microsuite.data.moving_pictures import copy_small_fixture
 from microsuite.workflows.catalog import WORKFLOWS
+from microsuite.workflows.moving_pictures_qiime2 import run_moving_pictures_qiime2
 from microsuite.workflows.table_summary import run_table_summary
 
 app = typer.Typer(help="Workflow-oriented toolbox commands.", no_args_is_help=True)
@@ -76,4 +77,27 @@ def moving_pictures(
         taxonomy=data_dir / "taxonomy.tsv",
         input_format="tsv",
         force=force,
+    )
+
+
+@app.command("moving-pictures-qiime2")
+def moving_pictures_qiime2(
+    output: Annotated[Path, typer.Option("--out", "-o", help="Output run directory.")],
+    force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
+    threads: Annotated[str, typer.Option("--threads", help="Thread count or 'auto'.")] = "auto",
+    timeout: Annotated[float | None, typer.Option("--timeout")] = None,
+    qiime_command: Annotated[str, typer.Option("--qiime-command")] = "qiime",
+    include_deblur: Annotated[bool, typer.Option("--include-deblur/--skip-deblur")] = False,
+    sampling_depth: Annotated[int, typer.Option("--sampling-depth", min=1)] = 1103,
+    classifier_mode: Annotated[str, typer.Option("--classifier-mode")] = "train",
+) -> None:
+    run_moving_pictures_qiime2(
+        output=output,
+        force=force,
+        threads=threads,
+        timeout=timeout,
+        qiime_command=qiime_command,
+        include_deblur=include_deblur,
+        sampling_depth=sampling_depth,
+        classifier_mode=classifier_mode,
     )

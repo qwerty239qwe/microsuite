@@ -77,7 +77,7 @@ validation. The `Status` column in the method tables describes API maturity:
 | `qiime2-filter-reads` | QIIME 2 user env | partial | `microsuite qc_filter --backend qiime2-filter-reads` | `qc_filter(backend="qiime2-filter-reads", demux=..., database=..., output=...)` | External QIIME 2 with `q2-quality-control`; [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) pin validation pending | Useful for host/contaminant read removal; requires a Bowtie2 index. | Filter demultiplexed reads by alignment to a reference database. |
 | `qiime2-bowtie2-build` | QIIME 2 user env | partial | `microsuite qc_filter --backend qiime2-bowtie2-build` | `qc_filter(backend="qiime2-bowtie2-build", sequences=..., output=...)` | External QIIME 2 with `q2-quality-control`; [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) pin validation pending | Completes the filter-reads setup path; still requires suitable reference sequences. | Build a Bowtie2 index artifact for read filtering. |
 | `qiime2-decontam` | QIIME 2 user env | partial | `microsuite decontam --backend qiime2-decontam` | `decontam(backend="qiime2-decontam", table=..., metadata=..., output=...)` | External QIIME 2 with `q2-quality-control`; [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) pin validation pending | Useful contamination screening; requires negative controls or concentration metadata. | Identify likely contaminant features with decontam. |
-| `qiime2-quality-filter-q-score` | QIIME 2 2024.10 | planned | planned | planned | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Native QIIME quality-score filtering; mainly useful before downstream QIIME artifact workflows. | Filter demultiplexed reads by quality scores. |
+| `qiime2-quality-filter-q-score` | QIIME 2 2024.10 | partial | `microsuite qc_filter --backend qiime2-quality-filter-q-score` | `qc_filter(backend="qiime2-quality-filter-q-score", demux=..., output=..., sequence_hits=...)` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Native QIIME quality-score filtering; mainly useful before downstream QIIME artifact workflows. | Filter demultiplexed reads by quality scores. |
 
 ### Trimming
 
@@ -107,7 +107,7 @@ validation. The `Status` column in the method tables describes API maturity:
 | `kraken2` | Kraken2 2.1.3 | planned | `microsuite tax_classify --backend kraken2` | planned | [Kraken2](containers/kraken2/Dockerfile) | Fast profiling; requires large databases. | Taxonomic profiling/classification. |
 | `bracken` | Planned | planned | `microsuite tax_classify --backend bracken` | planned | [Kraken2](containers/kraken2/Dockerfile), Bracken planned | Improves abundance estimates; depends on Kraken2 database setup. | Abundance re-estimation from Kraken2 output. |
 | `metaphlan` | Planned | planned | `microsuite tax_classify --backend metaphlan` | planned | Image not added yet | Good marker-gene profiling; separate database/runtime needed. | Marker-gene taxonomic profiling. |
-| `qiime2-phylogeny` | QIIME 2 2024.10 | partial | planned | planned | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Integrated with QIIME artifacts; heavier runtime. | Alignment, masking, tree construction, and rooting. |
+| `qiime2-phylogeny` | QIIME 2 2024.10 | partial | `microsuite phylogeny --backend qiime2-mafft-fasttree` | `phylogeny(backend="qiime2-mafft-fasttree", rep_seqs=...)` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Integrated with QIIME artifacts; heavier runtime. | Alignment, masking, tree construction, and rooting. |
 | `mafft-fasttree` | Planned | planned | planned | planned | Image not added yet | Lightweight standalone path; more file-format handling needed. | Standalone MAFFT/FastTree phylogeny. |
 
 ### Table Transforms And Summaries
@@ -118,6 +118,8 @@ validation. The `Status` column in the method tables describes API maturity:
 | `native-abundance` | microsuite 0.1.0 | ready | `microsuite abundance --backend native` | `abundance_table(adata, level="genus")` | [microsuite Python](containers/microsuite/Dockerfile) | Simple summary output; depends on taxonomy quality. | Summarize abundance at taxonomy levels. |
 | `native-shared-taxa` | microsuite 0.1.0 | ready | `microsuite shared_taxa --backend native` | `shared_taxa_table(adata, level="genus", group=...)` | [microsuite Python](containers/microsuite/Dockerfile) | Easy group comparison; descriptive rather than inferential. | Compare shared taxa across sample groups. |
 | `native-rarefy` | microsuite 0.1.0 | ready | `microsuite rarefy --backend native` | `rarefy_table(adata, depth=...)` | [microsuite Python](containers/microsuite/Dockerfile) | Reproducible with seeds; discards reads by design. | Rarefy feature tables to a fixed depth. |
+| `qiime2-feature-table` | QIIME 2 2024.10 | partial | `microsuite feature_summarize --backend qiime2 --mode summarize` | `feature_summarize(backend="qiime2", mode="summarize", table=...)` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Keeps QIIME-native summaries and sequence tabulation in artifact form. | Feature-table summary and representative-sequence visualization. |
+| `qiime2-taxa` | QIIME 2 2024.10 | partial | `microsuite tax_barplot --backend qiime2`; `microsuite tax_collapse --backend qiime2` | `tax_barplot(...)`; `tax_collapse(...)` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Artifact-native taxonomy visualization and collapse. | Taxa barplots and taxonomy-level table collapse. |
 
 ### Diversity And Ecological Statistics
 
@@ -125,7 +127,8 @@ validation. The `Status` column in the method tables describes API maturity:
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `native` | microsuite 0.1.0 | ready | lower-level `microsuite diversity ...` | `alpha_diversity(adata, metric=...)` or `beta_diversity(adata, metric=...)` | [microsuite Python](containers/microsuite/Dockerfile) | Lightweight and Windows-friendly; phylogenetic metrics are limited. | Native alpha/beta diversity. |
 | `qiime2-diversity-lib` | QIIME 2 2024.10 | partial | `microsuite diversity_calc --backend qiime2` | `diversity_calc(backend="qiime2", metric=..., table=..., output=...)` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Broader metric coverage; requires QIIME artifacts. | QIIME 2 diversity-lib metrics. |
-| `qiime2-beta-significance` | QIIME 2 2024.10 | planned | planned | planned | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Established PERMANOVA workflow; artifact-based. | PERMANOVA and beta-diversity tests. |
+| `qiime2-core-metrics-phylogenetic` | QIIME 2 2024.10 | partial | `microsuite diversity_core --backend qiime2-core-metrics-phylogenetic` | `diversity_core(...)` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Matches the Moving Pictures core diversity path. | Core phylogenetic diversity metrics. |
+| `qiime2-alpha/beta-significance` | QIIME 2 2024.10 | partial | `microsuite diversity_test --backend qiime2-beta-group-significance` | `diversity_test(...)` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Established group-significance workflow; artifact-based. | Alpha group tests and PERMANOVA beta-diversity tests. |
 | `native-beta-significance` | Planned | planned | planned | planned | [microsuite Python](containers/microsuite/Dockerfile) | Easier SDK/web integration; needs statistical validation. | Native beta-diversity tests. |
 | `mantel` | Planned | planned | planned | planned | [microsuite Python](containers/microsuite/Dockerfile) or R image later | Useful distance association; sensitive to design assumptions. | Mantel association testing. |
 | `rda` | Planned | planned | planned | planned | R image later | Interpretable constrained ordination; needs careful preprocessing. | Redundancy analysis. |
@@ -140,6 +143,7 @@ validation. The `Status` column in the method tables describes API maturity:
 | Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `ancombc` | R 4.4.0 image; ANCOMBC via Bioconductor | partial | `microsuite diff_abundance --backend ancombc` | `diff_abundance(backend="ancombc", table=..., group=..., output=...)` | [R diffab](containers/r-diffab/Dockerfile) | Strong compositional method; R/Bioconductor install is heavier. | ANCOM-BC differential abundance. |
+| `qiime2-ancombc` | QIIME 2 2024.10 | partial | `microsuite diff_abundance --backend qiime2-ancombc --metadata sample-metadata.tsv` | `diff_abundance(backend="qiime2-ancombc", table=..., metadata=..., group=...)` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Keeps composition results in QIIME artifact form. | QIIME composition ANCOM-BC. |
 | `aldex2` | Planned | planned | `microsuite diff_abundance --backend aldex2` | planned | [R diffab](containers/r-diffab/Dockerfile) | Good compositional alternative; R wrapper pending. | ALDEx2 differential abundance. |
 | `maaslin2` | Planned | planned | `microsuite diff_abundance --backend maaslin2` | planned | [R diffab](containers/r-diffab/Dockerfile) | Flexible covariate modeling; more complex formula interface. | MaAsLin2 multivariable association testing. |
 | `lefse` | Planned | planned | `microsuite diff_abundance --backend lefse` | planned | Image not added yet | Familiar legacy workflow; weaker modern compositional assumptions. | LEfSe legacy differential abundance. |
@@ -213,6 +217,9 @@ nextflow run workflows/nextflow/main.nf -profile docker --help
 ```bash
 microsuite workflow list
 microsuite workflow moving-pictures --out runs/moving-pictures --force
+microsuite workflow moving-pictures-qiime2 \
+  --out runs/moving-pictures-qiime2 \
+  --force
 microsuite workflow table-summary \
   --format tsv \
   --table table.tsv \
@@ -276,6 +283,12 @@ Use method-oriented commands such as `tax_classify` when you know the task you
 want to run. Use `workflow` commands for complete pipelines. Use `import`,
 `diversity`, `ordination`, `viz`, and `qiime` as lower-level building blocks.
 Commands overwrite outputs only when `--force` is supplied.
+
+The full `moving-pictures-qiime2` workflow requires an activated QIIME 2
+amplicon environment. It downloads raw EMP single-end reads, imports and
+demultiplexes them, runs DADA2, trains the Naive Bayes classifier, classifies
+features, and runs the tutorial diversity/taxonomy/composition steps. See
+[docs/moving-pictures-qiime2-parity.md](docs/moving-pictures-qiime2-parity.md).
 
 ## Runtime Logs
 

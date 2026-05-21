@@ -20,6 +20,7 @@ def denoise(
     output_table: Path,
     output_rep_seqs: Path,
     output_stats: Path,
+    output_base_transition_stats: Path | None = None,
     paired: bool = False,
     trim_left: int = 0,
     trunc_len: int = 0,
@@ -40,6 +41,7 @@ def denoise(
             output_table=output_table,
             output_rep_seqs=output_rep_seqs,
             output_stats=output_stats,
+            output_base_transition_stats=output_base_transition_stats,
             paired=paired,
             trim_left=trim_left,
             trunc_len=trunc_len,
@@ -102,6 +104,7 @@ def denoise_qiime2_dada2(
     output_table: Path,
     output_rep_seqs: Path,
     output_stats: Path,
+    output_base_transition_stats: Path | None,
     paired: bool,
     trim_left: int,
     trunc_len: int,
@@ -117,6 +120,8 @@ def denoise_qiime2_dada2(
     qiime = _require_qiime("QIIME 2 DADA2 denoising")
     ensure_input(demux)
     _prepare_outputs(output_table, output_rep_seqs, output_stats, force=force)
+    if output_base_transition_stats is not None:
+        _prepare_outputs(output_base_transition_stats, force=force)
 
     command = [qiime, "dada2", "denoise-paired" if paired else "denoise-single"]
     command.extend(["--i-demultiplexed-seqs", str(demux)])
@@ -154,6 +159,8 @@ def denoise_qiime2_dada2(
             str(threads),
         ]
     )
+    if output_base_transition_stats is not None:
+        command.extend(["--o-base-transition-stats", str(output_base_transition_stats)])
     _run(
         command,
         "QIIME 2 DADA2 denoising failed.",
