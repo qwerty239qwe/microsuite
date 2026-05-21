@@ -164,8 +164,12 @@ def metadata_tabulate_cmd(
     timeout: Annotated[float | None, typer.Option("--timeout")] = None,
 ) -> None:
     metadata_tabulate(
-        backend=backend, input_file=input_file, output=output, force=force,
-        run_dir=run_dir, timeout=timeout,
+        backend=backend,
+        input_file=input_file,
+        output=output,
+        force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -179,8 +183,12 @@ def qiime_import_cmd(
     timeout: Annotated[float | None, typer.Option("--timeout")] = None,
 ) -> None:
     qiime_import(
-        backend=backend, input_path=input_path, output=output, force=force,
-        run_dir=run_dir, timeout=timeout,
+        backend=backend,
+        input_path=input_path,
+        output=output,
+        force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -197,9 +205,15 @@ def demux_cmd(
     timeout: Annotated[float | None, typer.Option("--timeout")] = None,
 ) -> None:
     demux(
-        backend=backend, seqs=seqs, metadata=metadata, barcode_column=barcode_column,
-        output_demux=output_demux, output_details=output_details, force=force,
-        run_dir=run_dir, timeout=timeout,
+        backend=backend,
+        seqs=seqs,
+        metadata=metadata,
+        barcode_column=barcode_column,
+        output_demux=output_demux,
+        output_details=output_details,
+        force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -579,8 +593,15 @@ def feature_summarize_cmd(
     timeout: Annotated[float | None, typer.Option("--timeout")] = None,
 ) -> None:
     feature_summarize(
-        backend=backend, mode=mode, table=table, rep_seqs=rep_seqs, metadata=metadata,
-        output=output, force=force, run_dir=run_dir, timeout=timeout,
+        backend=backend,
+        mode=mode,
+        table=table,
+        rep_seqs=rep_seqs,
+        metadata=metadata,
+        output=output,
+        force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -598,10 +619,16 @@ def phylogeny_cmd(
     timeout: Annotated[float | None, typer.Option("--timeout")] = None,
 ) -> None:
     phylogeny(
-        backend=backend, rep_seqs=rep_seqs, output_aligned=output_aligned,
-        output_masked=output_masked, output_tree=output_tree,
-        output_rooted_tree=output_rooted_tree, threads=threads, force=force,
-        run_dir=run_dir, timeout=timeout,
+        backend=backend,
+        rep_seqs=rep_seqs,
+        output_aligned=output_aligned,
+        output_masked=output_masked,
+        output_tree=output_tree,
+        output_rooted_tree=output_rooted_tree,
+        threads=threads,
+        force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -618,9 +645,15 @@ def diversity_core_cmd(
     timeout: Annotated[float | None, typer.Option("--timeout")] = None,
 ) -> None:
     diversity_core(
-        backend=backend, table=table, phylogeny_path=phylogeny_path, metadata=metadata,
-        sampling_depth=sampling_depth, output_dir=output_dir, force=force,
-        run_dir=run_dir, timeout=timeout,
+        backend=backend,
+        table=table,
+        phylogeny_path=phylogeny_path,
+        metadata=metadata,
+        sampling_depth=sampling_depth,
+        output_dir=output_dir,
+        force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -639,9 +672,17 @@ def diversity_test_cmd(
     timeout: Annotated[float | None, typer.Option("--timeout")] = None,
 ) -> None:
     diversity_test(
-        backend=backend, alpha_diversity=alpha_diversity, distance_matrix=distance_matrix,
-        metadata=metadata, metadata_column=metadata_column, output=output, method=method,
-        pairwise=pairwise, force=force, run_dir=run_dir, timeout=timeout,
+        backend=backend,
+        alpha_diversity=alpha_diversity,
+        distance_matrix=distance_matrix,
+        metadata=metadata,
+        metadata_column=metadata_column,
+        output=output,
+        method=method,
+        pairwise=pairwise,
+        force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -656,8 +697,13 @@ def ordination_plot_cmd(
     timeout: Annotated[float | None, typer.Option("--timeout")] = None,
 ) -> None:
     ordination_plot(
-        backend=backend, pcoa=pcoa, metadata=metadata, output=output,
-        force=force, run_dir=run_dir, timeout=timeout,
+        backend=backend,
+        pcoa=pcoa,
+        metadata=metadata,
+        output=output,
+        force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -674,8 +720,15 @@ def rarefaction_cmd(
     timeout: Annotated[float | None, typer.Option("--timeout")] = None,
 ) -> None:
     rarefaction(
-        backend=backend, table=table, phylogeny_path=phylogeny_path, metadata=metadata,
-        max_depth=max_depth, output=output, force=force, run_dir=run_dir, timeout=timeout,
+        backend=backend,
+        table=table,
+        phylogeny_path=phylogeny_path,
+        metadata=metadata,
+        max_depth=max_depth,
+        output=output,
+        force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -694,9 +747,17 @@ def tax_train_cmd(
     timeout: Annotated[float | None, typer.Option("--timeout")] = None,
 ) -> None:
     tax_train(
-        backend=backend, ref_seqs=ref_seqs, ref_taxonomy=ref_taxonomy, f_primer=f_primer,
-        r_primer=r_primer, trunc_len=trunc_len, output=output, threads=threads,
-        force=force, run_dir=run_dir, timeout=timeout,
+        backend=backend,
+        ref_seqs=ref_seqs,
+        ref_taxonomy=ref_taxonomy,
+        f_primer=f_primer,
+        r_primer=r_primer,
+        trunc_len=trunc_len,
+        output=output,
+        threads=threads,
+        force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -712,8 +773,14 @@ def tax_barplot_cmd(
     timeout: Annotated[float | None, typer.Option("--timeout")] = None,
 ) -> None:
     tax_barplot(
-        backend=backend, table=table, taxonomy=taxonomy, metadata=metadata,
-        output=output, force=force, run_dir=run_dir, timeout=timeout,
+        backend=backend,
+        table=table,
+        taxonomy=taxonomy,
+        metadata=metadata,
+        output=output,
+        force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -729,8 +796,14 @@ def feature_filter_cmd(
     timeout: Annotated[float | None, typer.Option("--timeout")] = None,
 ) -> None:
     feature_filter(
-        backend=backend, table=table, metadata=metadata, where=where,
-        output=output, force=force, run_dir=run_dir, timeout=timeout,
+        backend=backend,
+        table=table,
+        metadata=metadata,
+        where=where,
+        output=output,
+        force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -746,8 +819,14 @@ def tax_collapse_cmd(
     timeout: Annotated[float | None, typer.Option("--timeout")] = None,
 ) -> None:
     tax_collapse(
-        backend=backend, table=table, taxonomy=taxonomy, level=level,
-        output=output, force=force, run_dir=run_dir, timeout=timeout,
+        backend=backend,
+        table=table,
+        taxonomy=taxonomy,
+        level=level,
+        output=output,
+        force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 
@@ -761,8 +840,12 @@ def diff_viz_cmd(
     timeout: Annotated[float | None, typer.Option("--timeout")] = None,
 ) -> None:
     diff_viz(
-        backend=backend, data=data, output=output, force=force,
-        run_dir=run_dir, timeout=timeout,
+        backend=backend,
+        data=data,
+        output=output,
+        force=force,
+        run_dir=run_dir,
+        timeout=timeout,
     )
 
 

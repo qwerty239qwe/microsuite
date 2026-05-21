@@ -114,9 +114,7 @@ def test_demux_and_feature_summarize_commands(
     assert "--m-sample-metadata-file" in calls[1]
 
 
-def test_phylogeny_and_tax_train_commands(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_phylogeny_and_tax_train_commands(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     rep_seqs = touch(tmp_path / "rep-seqs.qza")
     ref_seqs = touch(tmp_path / "85_otus.qza")
     ref_taxonomy = touch(tmp_path / "ref-taxonomy.qza")
