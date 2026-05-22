@@ -33,6 +33,10 @@ def test_github_actions_ci_runs_project_quality_gate() -> None:
     assert "docker/build-push-action@v6" in text
     assert "containers/microsuite/Dockerfile" in text
     assert "containers/fastqc/Dockerfile" in text
+    assert "containers/fastp/Dockerfile" in text
+    assert "containers/cutadapt/Dockerfile" in text
+    assert "containers/trimmomatic/Dockerfile" in text
+    assert "containers/trim-galore/Dockerfile" in text
     assert "containers/kraken2/Dockerfile" in text
     assert "containers/qiime2-amplicon/Dockerfile" in text
     assert "containers/r-diffab/Dockerfile" in text
@@ -40,10 +44,14 @@ def test_github_actions_ci_runs_project_quality_gate() -> None:
     assert "Skipping heavy container image" in text
     assert "image: microsuite" in text
     assert "image: fastqc" in text
+    assert "image: fastp" in text
+    assert "image: cutadapt" in text
+    assert "image: trimmomatic" in text
+    assert "image: trim-galore" in text
     assert "image: kraken2" in text
     assert "image: qiime2-amplicon" in text
     assert "image: r-diffab" in text
-    assert text.count("heavy: false") == 3
+    assert text.count("heavy: false") == 7
     assert text.count("heavy: true") == 2
     assert "load: ${{ !matrix.heavy }}" in text
     assert "docker run --rm microsuite/${{ matrix.image }}:ci --help" in text

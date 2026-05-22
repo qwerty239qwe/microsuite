@@ -15,6 +15,10 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
     expected = {
         "microsuite": ["microsuite", "uv"],
         "fastqc": ["fastqc", "openjdk"],
+        "fastp": ["fastp"],
+        "cutadapt": ["cutadapt"],
+        "trimmomatic": ["trimmomatic", "openjdk"],
+        "trim-galore": ["trim_galore", "cutadapt"],
         "qiime2-amplicon": ["qiime", "QIIME 2"],
         "r-diffab": ["Rscript", "ANCOMBC"],
         "kraken2": ["kraken2", "Bracken support is planned"],

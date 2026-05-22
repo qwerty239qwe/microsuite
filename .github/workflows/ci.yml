@@ -110,6 +110,22 @@ jobs:
             dockerfile: containers/fastqc/Dockerfile
             context: .
             heavy: false
+          - image: fastp
+            dockerfile: containers/fastp/Dockerfile
+            context: .
+            heavy: false
+          - image: cutadapt
+            dockerfile: containers/cutadapt/Dockerfile
+            context: .
+            heavy: false
+          - image: trimmomatic
+            dockerfile: containers/trimmomatic/Dockerfile
+            context: .
+            heavy: false
+          - image: trim-galore
+            dockerfile: containers/trim-galore/Dockerfile
+            context: .
+            heavy: false
           - image: kraken2
             dockerfile: containers/kraken2/Dockerfile
             context: .
@@ -147,6 +163,22 @@ jobs:
 
       - name: Smoke test FastQC image
         if: ${{ matrix.image == 'fastqc' }}
+        run: docker run --rm microsuite/${{ matrix.image }}:ci --version
+
+      - name: Smoke test fastp image
+        if: ${{ matrix.image == 'fastp' }}
+        run: docker run --rm microsuite/${{ matrix.image }}:ci --version
+
+      - name: Smoke test Cutadapt image
+        if: ${{ matrix.image == 'cutadapt' }}
+        run: docker run --rm microsuite/${{ matrix.image }}:ci --version
+
+      - name: Smoke test Trimmomatic image
+        if: ${{ matrix.image == 'trimmomatic' }}
+        run: docker run --rm microsuite/${{ matrix.image }}:ci -version
+
+      - name: Smoke test Trim Galore image
+        if: ${{ matrix.image == 'trim-galore' }}
         run: docker run --rm microsuite/${{ matrix.image }}:ci --version
 
       - name: Set up Python for FastQC integration test
