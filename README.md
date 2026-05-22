@@ -148,7 +148,7 @@ validation. The `Status` column in the method tables describes API maturity:
 | `maaslin2` | Planned | planned | `microsuite diff_abundance --backend maaslin2` | planned | [R diffab](containers/r-diffab/Dockerfile) | Flexible covariate modeling; more complex formula interface. | MaAsLin2 multivariable association testing. |
 | `lefse` | Planned | planned | `microsuite diff_abundance --backend lefse` | planned | Image not added yet | Familiar legacy workflow; weaker modern compositional assumptions. | LEfSe legacy differential abundance. |
 
-### Networks, Function, Machine Learning, And Reporting
+### Networks
 
 | Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -156,12 +156,27 @@ validation. The `Status` column in the method tables describes API maturity:
 | `sparcc` | Planned | planned | planned | planned | Image not added yet | Compositional-aware; runtime/database setup pending. | SparCC association network analysis. |
 | `spieceasi` | Planned | planned | planned | planned | R image later | Strong ecological network method; R dependency and tuning burden. | SPIEC-EASI network inference. |
 | `flashweave` | Planned | planned | planned | planned | Image not added yet | Handles heterogeneous metadata; separate runtime needed. | FlashWeave network inference. |
+
+### Functional Profiling
+
+| Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
+| --- | --- | --- | --- | --- | --- | --- | --- |
 | `picrust2` | Planned | planned | planned | planned | Image not added yet | Popular marker-gene function prediction; reference-dependent. | Predict function from marker-gene profiles. |
 | `tax4fun2` | Planned | planned | planned | planned | Image not added yet | Alternative functional prediction; separate runtime needed. | Tax4Fun2 function prediction. |
 | `humann` | Planned | planned | planned | planned | Image not added yet | Strong metagenomic functional profiling; heavy databases. | Functional profiling from metagenomic data. |
+
+### Machine Learning And Longitudinal Analysis
+
+| Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
+| --- | --- | --- | --- | --- | --- | --- | --- |
 | `randomforest` | Planned | planned | planned | planned | [microsuite Python](containers/microsuite/Dockerfile) | Interpretable baseline ML; needs validation/splits. | Supervised sample classification. |
 | `xgboost` | Planned | planned | planned | planned | Image not added yet | Strong predictive model; optional dependency and tuning needed. | Optional XGBoost sample classification. |
 | `native-time-series` | Planned | planned | planned | planned | [microsuite Python](containers/microsuite/Dockerfile) | Web-friendly outputs; design choices still open. | Longitudinal microbiome analysis. |
+
+### Visualization And Reporting
+
+| Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
+| --- | --- | --- | --- | --- | --- | --- | --- |
 | `native-visualize` | microsuite 0.1.0 | ready | `microsuite viz ...` | `taxonomy_barplot(adata, level=..., output=...)` | [microsuite Python](containers/microsuite/Dockerfile) | Lightweight static figures; not an interactive dashboard. | Barplots, ordination plots, and heatmaps. |
 | `native-report` | microsuite 0.1.0 | ready | `microsuite report --backend native` | `report(backend="native", run_dir=..., output=...)` | [microsuite Python](containers/microsuite/Dockerfile) | Good provenance summary; not full narrative reporting yet. | HTML provenance reports from run metadata. |
 
