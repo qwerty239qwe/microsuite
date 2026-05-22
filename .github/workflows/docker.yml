@@ -149,7 +149,7 @@ jobs:
             -v "${PWD}/tests/fixtures/fastq:/input:ro" \
             -v "${PWD}/tmp/docker-trimmomatic:/output" \
             microsuite/${{ matrix.image }}:ci \
-            SE -threads 1 /input/tiny.fastq /output/tiny.fastq MINLEN:1
+            SE -phred33 -threads 1 /input/tiny.fastq /output/tiny.fastq MINLEN:1
           test -s tmp/docker-trimmomatic/tiny.fastq
 
       - name: Run Trim Galore tiny example
