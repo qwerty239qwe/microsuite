@@ -63,6 +63,10 @@ jobs:
             dockerfile: containers/trim-galore/Dockerfile
             context: .
             heavy: false
+          - image: vsearch
+            dockerfile: containers/vsearch/Dockerfile
+            context: .
+            heavy: false
           - image: usearch
             dockerfile: containers/usearch/Dockerfile
             context: .
@@ -185,6 +189,29 @@ jobs:
             -uc /output/clusters.uc
           test -s tmp/docker-usearch/output/centroids.fasta
           test -s tmp/docker-usearch/output/clusters.uc
+
+      - name: Run VSEARCH tiny example
+        if: ${{ matrix.image == 'vsearch' }}
+        run: |
+          mkdir -p tmp/docker-vsearch/input tmp/docker-vsearch/output
+          cat > tmp/docker-vsearch/input/tiny.fasta <<'EOF'
+          >seq1
+          ACGTACGTACGTACGT
+          >seq2
+          ACGTACGTACGTACGA
+          >seq3
+          TTTTACGTACGTACGT
+          EOF
+          docker run --rm \
+            -v "${PWD}/tmp/docker-vsearch/input:/input:ro" \
+            -v "${PWD}/tmp/docker-vsearch/output:/output" \
+            microsuite/${{ matrix.image }}:ci \
+            --cluster_fast /input/tiny.fasta \
+            --id 0.9 \
+            --centroids /output/centroids.fasta \
+            --uc /output/clusters.uc
+          test -s tmp/docker-vsearch/output/centroids.fasta
+          test -s tmp/docker-vsearch/output/clusters.uc
 
       - name: Smoke test kraken2 image
         if: ${{ matrix.image == 'kraken2' }}

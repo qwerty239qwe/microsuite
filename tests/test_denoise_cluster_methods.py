@@ -282,7 +282,7 @@ def test_denoise_dada2_r_missing_rscript(tmp_path: Path, monkeypatch: pytest.Mon
         )
 
 
-def test_cluster_vsearch_builds_qiime2_command(
+def test_cluster_qiime2_vsearch_builds_command(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     table = touch(tmp_path / "table.qza")
@@ -300,7 +300,7 @@ def test_cluster_vsearch_builds_qiime2_command(
     monkeypatch.setattr("subprocess.run", fake_run)
 
     cluster(
-        backend="vsearch",
+        backend="qiime2-vsearch",
         table=table,
         rep_seqs=rep_seqs,
         output_table=tmp_path / "clustered-table.qza",
@@ -327,7 +327,57 @@ def test_cluster_vsearch_builds_qiime2_command(
     ]
 
 
-def test_cluster_usearch_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cluster_vsearch_builds_table_from_uc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rep_seqs = touch(tmp_path / "reads.fasta")
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr("shutil.which", lambda name: "vsearch" if name == "vsearch" else None)
+
+    def fake_run(
+        command: list[str], *, check: bool, text: bool, capture_output: bool
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        Path(command[command.index("--uc") + 1]).write_text(
+            "S\t0\t20\t*\t*\t*\t*\t*\ts1_read1\t*\n"
+            "H\t0\t20\t99.0\t+\t0\t0\t20M\ts1_read2\ts1_read1\n"
+            "S\t1\t20\t*\t*\t*\t*\t*\ts2_read1\t*\n",
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    cluster(
+        backend="vsearch",
+        rep_seqs=rep_seqs,
+        output_table=tmp_path / "otu-table.tsv",
+        output_rep_seqs=tmp_path / "centroids.fasta",
+        identity=0.99,
+    )
+
+    assert calls == [
+        [
+            "vsearch",
+            "--cluster_fast",
+            str(rep_seqs),
+            "--id",
+            "0.99",
+            "--centroids",
+            str(tmp_path / "centroids.fasta"),
+            "--uc",
+            str(tmp_path / "otu-table.uc"),
+        ]
+    ]
+    assert (tmp_path / "otu-table.tsv").read_text(encoding="utf-8") == (
+        "feature-id\ts1\ts2\ns1_read1\t2\t0\ns2_read1\t0\t1\n"
+    )
+
+
+def test_cluster_usearch_builds_table_from_uc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     rep_seqs = touch(tmp_path / "rep-seqs.fasta")
     calls: list[list[str]] = []
 
@@ -337,6 +387,11 @@ def test_cluster_usearch_builds_command(tmp_path: Path, monkeypatch: pytest.Monk
         command: list[str], *, check: bool, text: bool, capture_output: bool
     ) -> subprocess.CompletedProcess[str]:
         calls.append(command)
+        Path(command[command.index("-uc") + 1]).write_text(
+            "S\t0\t20\t*\t*\t*\t*\t*\ts1_read1\t*\n"
+            "H\t0\t20\t99.0\t+\t0\t0\t20M\ts2_read1\ts1_read1\n",
+            encoding="utf-8",
+        )
         return subprocess.CompletedProcess(command, 0, "", "")
 
     monkeypatch.setattr("subprocess.run", fake_run)
@@ -344,7 +399,7 @@ def test_cluster_usearch_builds_command(tmp_path: Path, monkeypatch: pytest.Monk
     cluster(
         backend="usearch",
         rep_seqs=rep_seqs,
-        output_table=tmp_path / "clusters.uc",
+        output_table=tmp_path / "otu-table.tsv",
         output_rep_seqs=tmp_path / "centroids.fasta",
         identity=0.99,
     )
@@ -359,9 +414,12 @@ def test_cluster_usearch_builds_command(tmp_path: Path, monkeypatch: pytest.Monk
             "-centroids",
             str(tmp_path / "centroids.fasta"),
             "-uc",
-            str(tmp_path / "clusters.uc"),
+            str(tmp_path / "otu-table.uc"),
         ]
     ]
+    assert (tmp_path / "otu-table.tsv").read_text(encoding="utf-8") == (
+        "feature-id\ts1\ts2\ns1_read1\t1\t1\n"
+    )
 
 
 def test_cluster_usearch_missing_binary_reports_tool(
@@ -421,7 +479,7 @@ def test_cli_exposes_denoise_cluster_and_reports_missing_qiime(
         [
             "cluster",
             "--backend",
-            "vsearch",
+            "qiime2-vsearch",
             "--table",
             str(table),
             "--rep-seqs",

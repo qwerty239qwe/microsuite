@@ -12,6 +12,7 @@ containers/fastp/             fastp trimming and read filtering
 containers/cutadapt/          Cutadapt adapter and primer trimming
 containers/trimmomatic/       Trimmomatic read trimming
 containers/trim-galore/       Trim Galore wrapper around Cutadapt
+containers/vsearch/           VSEARCH sequence clustering
 containers/usearch/           USEARCH 12 sequence search and clustering
 containers/qiime2-amplicon/    QIIME 2 amplicon workflows
 containers/r-diffab/           R differential-abundance tools
@@ -26,6 +27,7 @@ containers/kraken2/            Kraken2 taxonomy profiling
 | `cutadapt` | Adapter and primer trimming | `cutadapt` | implemented |
 | `trimmomatic` | Sliding-window, length, quality, and adapter trimming | `trimmomatic` | implemented |
 | `trim-galore` | Trim Galore trimming wrapper | `trim_galore`, `cutadapt` | implemented |
+| `vsearch` | VSEARCH sequence clustering | `vsearch` | implemented |
 | `usearch` | USEARCH 12 sequence search and clustering | `usearch` | implemented |
 | `qiime2-amplicon` | QIIME 2 amplicon backend | `qiime` | skeleton |
 | `r-diffab` | R differential abundance backend | `Rscript`, `ANCOMBC` | skeleton |
@@ -53,6 +55,7 @@ containers/fastp/Dockerfile
 containers/cutadapt/Dockerfile
 containers/trimmomatic/Dockerfile
 containers/trim-galore/Dockerfile
+containers/vsearch/Dockerfile
 containers/usearch/Dockerfile
 containers/qiime2-amplicon/Dockerfile
 containers/r-diffab/Dockerfile
@@ -74,6 +77,7 @@ docker build -f containers/fastp/Dockerfile -t microsuite-fastp:local .
 docker build -f containers/cutadapt/Dockerfile -t microsuite-cutadapt:local .
 docker build -f containers/trimmomatic/Dockerfile -t microsuite-trimmomatic:local .
 docker build -f containers/trim-galore/Dockerfile -t microsuite-trim-galore:local .
+docker build -f containers/vsearch/Dockerfile -t microsuite-vsearch:local .
 docker build -f containers/usearch/Dockerfile -t microsuite-usearch:local .
 docker build -f containers/qiime2-amplicon/Dockerfile -t microsuite-qiime2-amplicon:local .
 docker build -f containers/r-diffab/Dockerfile -t microsuite-r-diffab:local .

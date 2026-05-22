@@ -45,6 +45,7 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "containers/cutadapt/Dockerfile" in text
     assert "containers/trimmomatic/Dockerfile" in text
     assert "containers/trim-galore/Dockerfile" in text
+    assert "containers/vsearch/Dockerfile" in text
     assert "containers/usearch/Dockerfile" in text
     assert "containers/kraken2/Dockerfile" in text
     assert "containers/qiime2-amplicon/Dockerfile" in text
@@ -57,11 +58,12 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "image: cutadapt" in text
     assert "image: trimmomatic" in text
     assert "image: trim-galore" in text
+    assert "image: vsearch" in text
     assert "image: usearch" in text
     assert "image: kraken2" in text
     assert "image: qiime2-amplicon" in text
     assert "image: r-diffab" in text
-    assert text.count("heavy: false") == 8
+    assert text.count("heavy: false") == 9
     assert text.count("heavy: true") == 2
     assert "load: ${{ !matrix.heavy }}" in text
     assert "Run FastQC tiny example" in text
@@ -69,7 +71,9 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "Run Cutadapt tiny example" in text
     assert "Run Trimmomatic tiny example" in text
     assert "Run Trim Galore tiny example" in text
+    assert "Run VSEARCH tiny example" in text
     assert "Run USEARCH tiny example" in text
+    assert "--cluster_fast /input/tiny.fasta" in text
     assert "-cluster_fast /input/tiny.fasta" in text
     assert "test -s tmp/docker-fastp/tiny.fastq" in text
     assert (

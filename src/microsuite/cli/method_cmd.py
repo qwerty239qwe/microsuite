@@ -478,8 +478,20 @@ def cluster_cmd(
     ] = 0.97,
     table: Annotated[
         Path | None,
-        typer.Option("--table", help="Input feature table artifact. Required for vsearch."),
+        typer.Option("--table", help="Input feature table artifact. Required for qiime2-vsearch."),
     ] = None,
+    output_uc: Annotated[
+        Path | None,
+        typer.Option("--output-uc", help="Optional USEARCH/VSEARCH .uc cluster mapping."),
+    ] = None,
+    sample_delimiter: Annotated[
+        str,
+        typer.Option("--sample-delimiter", help="Delimiter for sample IDs in sequence labels."),
+    ] = "_",
+    sample_field: Annotated[
+        int,
+        typer.Option("--sample-field", min=0, help="Zero-based sample ID field in labels."),
+    ] = 0,
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
     run_dir: Annotated[
         Path | None, typer.Option("--run-dir", help="Write runtime logs here.")
@@ -495,6 +507,9 @@ def cluster_cmd(
         output_rep_seqs=output_rep_seqs,
         table=table,
         identity=identity,
+        output_uc=output_uc,
+        sample_delimiter=sample_delimiter,
+        sample_field=sample_field,
         force=force,
         run_dir=run_dir,
         timeout=timeout,

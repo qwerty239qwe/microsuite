@@ -19,6 +19,7 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
         "cutadapt": ["cutadapt"],
         "trimmomatic": ["trimmomatic", "openjdk"],
         "trim-galore": ["trim_galore", "cutadapt"],
+        "vsearch": ["vsearch"],
         "usearch": ["usearch"],
         "qiime2-amplicon": ["qiime", "QIIME 2"],
         "r-diffab": ["Rscript", "ANCOMBC"],
@@ -66,12 +67,14 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
     assert "[QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile)" in text
     assert "[R diffab](containers/r-diffab/Dockerfile)" in text
     assert "[Kraken2](containers/kraken2/Dockerfile)" in text
+    assert "[VSEARCH](containers/vsearch/Dockerfile)" in text
     assert "[USEARCH 12](containers/usearch/Dockerfile)" in text
     assert "| Generate ASV table | `qiime2-dada2` |" in text
     assert "| Generate ASV table | `qiime2-deblur` |" in text
     assert "| Generate ASV table | `dada2-r` |" in text
     assert "| Generate OTU-style table | `vsearch` |" in text
-    assert "| Generate OTU clusters | `usearch` |" in text
+    assert "| Generate OTU-style table | `usearch` |" in text
+    assert "| Generate QIIME-clustered table | `qiime2-vsearch` |" in text
     assert "ASV tables contain inferred exact sequence variants" in text
     assert "OTU-style tables contain" in text
     assert "features clustered by sequence identity" in text
