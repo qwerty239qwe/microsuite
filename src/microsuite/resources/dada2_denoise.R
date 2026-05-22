@@ -98,9 +98,10 @@ if (paired) {
   )
 }
 
-write.table(seqtab.nochim, output_table, sep = "\t", quote = FALSE, col.names = NA)
-
 seqs <- colnames(seqtab.nochim)
 ids <- paste0("ASV", seq_along(seqs))
+asv_table <- t(seqtab.nochim)
+rownames(asv_table) <- ids
+write.table(asv_table, output_table, sep = "\t", quote = FALSE, col.names = NA)
 writeLines(as.vector(rbind(paste0(">", ids), seqs)), output_rep_seqs)
 write.table(track, output_stats, sep = "\t", quote = FALSE, col.names = NA)

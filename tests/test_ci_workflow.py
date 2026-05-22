@@ -49,6 +49,7 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "containers/usearch/Dockerfile" in text
     assert "containers/kraken2/Dockerfile" in text
     assert "containers/qiime2-amplicon/Dockerfile" in text
+    assert "containers/r-dada2/Dockerfile" in text
     assert "containers/r-diffab/Dockerfile" in text
     assert "build-heavy-containers" in text
     assert "Skipping heavy container image" in text
@@ -62,9 +63,10 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "image: usearch" in text
     assert "image: kraken2" in text
     assert "image: qiime2-amplicon" in text
+    assert "image: r-dada2" in text
     assert "image: r-diffab" in text
     assert text.count("heavy: false") == 9
-    assert text.count("heavy: true") == 2
+    assert text.count("heavy: true") == 3
     assert "load: ${{ !matrix.heavy }}" in text
     assert "Run FastQC tiny example" in text
     assert "Run fastp tiny example" in text
@@ -74,6 +76,7 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "Run VSEARCH tiny example" in text
     assert "Run USEARCH tiny example" in text
     assert "--cluster_fast /input/tiny.fasta" in text
+    assert "--minseqlength 1" in text
     assert "-cluster_fast /input/tiny.fasta" in text
     assert "test -s tmp/docker-fastp/tiny.fastq" in text
     assert (

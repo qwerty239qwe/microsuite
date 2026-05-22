@@ -15,6 +15,7 @@ containers/trim-galore/       Trim Galore wrapper around Cutadapt
 containers/vsearch/           VSEARCH sequence clustering
 containers/usearch/           USEARCH 12 sequence search and clustering
 containers/qiime2-amplicon/    QIIME 2 amplicon workflows
+containers/r-dada2/            R DADA2 ASV inference
 containers/r-diffab/           R differential-abundance tools
 containers/kraken2/            Kraken2 taxonomy profiling
 ```
@@ -30,13 +31,15 @@ containers/kraken2/            Kraken2 taxonomy profiling
 | `vsearch` | VSEARCH sequence clustering | `vsearch` | implemented |
 | `usearch` | USEARCH 12 sequence search and clustering | `usearch` | implemented |
 | `qiime2-amplicon` | QIIME 2 amplicon backend | `qiime` | skeleton |
+| `r-dada2` | R DADA2 ASV inference | `Rscript`, `dada2` | implemented |
 | `r-diffab` | R differential abundance backend | `Rscript`, `ANCOMBC` | skeleton |
 | `kraken2` | Kraken2 taxonomy profiling | `kraken2`; planned: `bracken` | skeleton |
 
 Default unit tests validate container files statically. The separate Docker
 GitHub Actions workflow builds the lighter `microsuite`, `fastqc`, trimming,
-USEARCH, and `kraken2` images when container files change or when it is run
-manually. Lightweight images run tiny mounted-input examples after they build.
+VSEARCH, USEARCH, and `kraken2` images when container files change or when it
+is run manually. Lightweight images run tiny mounted-input examples after they
+build.
 
 The CLI may check for external commands, but the Nextflow API should own
 container/profile selection for full workflows.
@@ -58,14 +61,15 @@ containers/trim-galore/Dockerfile
 containers/vsearch/Dockerfile
 containers/usearch/Dockerfile
 containers/qiime2-amplicon/Dockerfile
+containers/r-dada2/Dockerfile
 containers/r-diffab/Dockerfile
 containers/kraken2/Dockerfile
 ```
 
 Heavy images remain explicit validation steps because QIIME 2 and
 R/Bioconductor images can be large and network-sensitive. Use the manual
-GitHub Actions `build-heavy-containers=true` input to build `qiime2-amplicon`
-and `r-diffab` in CI.
+GitHub Actions `build-heavy-containers=true` input to build `qiime2-amplicon`,
+`r-dada2`, and `r-diffab` in CI.
 
 Build from the repository root so Dockerfiles that copy project files have the
 right context:
@@ -80,6 +84,7 @@ docker build -f containers/trim-galore/Dockerfile -t microsuite-trim-galore:loca
 docker build -f containers/vsearch/Dockerfile -t microsuite-vsearch:local .
 docker build -f containers/usearch/Dockerfile -t microsuite-usearch:local .
 docker build -f containers/qiime2-amplicon/Dockerfile -t microsuite-qiime2-amplicon:local .
+docker build -f containers/r-dada2/Dockerfile -t microsuite-r-dada2:local .
 docker build -f containers/r-diffab/Dockerfile -t microsuite-r-diffab:local .
 docker build -f containers/kraken2/Dockerfile -t microsuite-kraken2:local .
 ```

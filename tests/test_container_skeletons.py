@@ -22,6 +22,7 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
         "vsearch": ["vsearch"],
         "usearch": ["usearch"],
         "qiime2-amplicon": ["qiime", "QIIME 2"],
+        "r-dada2": ["Rscript", "dada2"],
         "r-diffab": ["Rscript", "ANCOMBC"],
         "kraken2": ["kraken2", "Bracken support is planned"],
     }
@@ -69,6 +70,7 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
     assert "[Kraken2](containers/kraken2/Dockerfile)" in text
     assert "[VSEARCH](containers/vsearch/Dockerfile)" in text
     assert "[USEARCH 12](containers/usearch/Dockerfile)" in text
+    assert "[R DADA2](containers/r-dada2/Dockerfile)" in text
     assert "| Generate ASV table | `qiime2-dada2` |" in text
     assert "| Generate ASV table | `qiime2-deblur` |" in text
     assert "| Generate ASV table | `dada2-r` |" in text
@@ -125,7 +127,7 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
         '`trim(backend="trim-galore", read1=..., output1=..., trim_galore_version="auto")` |'
     ) in text
     assert (
-        "| `dada2-r` | DADA2 R user env | partial | "
+        "| `dada2-r` | DADA2 R user env | ready | "
         "`microsuite denoise --backend dada2-r` | "
         '`denoise(backend="dada2-r", demux=reads_dir, output_table=...)` |'
     ) in text

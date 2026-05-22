@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       build-heavy-containers:
-        description: "Build heavy QIIME 2 and R differential-abundance images"
+        description: "Build heavy QIIME 2, R/DADA2, and R differential-abundance images"
         required: false
         default: "false"
         type: choice
@@ -77,6 +77,10 @@ jobs:
             heavy: false
           - image: qiime2-amplicon
             dockerfile: containers/qiime2-amplicon/Dockerfile
+            context: .
+            heavy: true
+          - image: r-dada2
+            dockerfile: containers/r-dada2/Dockerfile
             context: .
             heavy: true
           - image: r-diffab
@@ -208,6 +212,7 @@ jobs:
             microsuite/${{ matrix.image }}:ci \
             --cluster_fast /input/tiny.fasta \
             --id 0.9 \
+            --minseqlength 1 \
             --centroids /output/centroids.fasta \
             --uc /output/clusters.uc
           test -s tmp/docker-vsearch/output/centroids.fasta

@@ -267,6 +267,16 @@ def test_denoise_dada2_r_builds_rscript_command(
     assert "4" in command
 
 
+def test_dada2_r_script_writes_matching_asv_feature_ids() -> None:
+    script = Path("src/microsuite/resources/dada2_denoise.R").read_text(encoding="utf-8")
+
+    assert 'ids <- paste0("ASV", seq_along(seqs))' in script
+    assert "asv_table <- t(seqtab.nochim)" in script
+    assert "rownames(asv_table) <- ids" in script
+    assert "write.table(asv_table, output_table" in script
+    assert 'writeLines(as.vector(rbind(paste0(">", ids), seqs)), output_rep_seqs)' in script
+
+
 def test_denoise_dada2_r_missing_rscript(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     reads = tmp_path / "reads"
     reads.mkdir()
