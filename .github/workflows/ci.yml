@@ -126,6 +126,10 @@ jobs:
             dockerfile: containers/trim-galore/Dockerfile
             context: .
             heavy: false
+          - image: usearch
+            dockerfile: containers/usearch/Dockerfile
+            context: .
+            heavy: false
           - image: kraken2
             dockerfile: containers/kraken2/Dockerfile
             context: .
@@ -180,6 +184,10 @@ jobs:
       - name: Smoke test Trim Galore image
         if: ${{ matrix.image == 'trim-galore' }}
         run: docker run --rm microsuite/${{ matrix.image }}:ci --version
+
+      - name: Smoke test USEARCH image
+        if: ${{ matrix.image == 'usearch' }}
+        run: docker run --rm microsuite/${{ matrix.image }}:ci -version
 
       - name: Set up Python for FastQC integration test
         if: ${{ matrix.image == 'fastqc' }}

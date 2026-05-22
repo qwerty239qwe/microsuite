@@ -327,6 +327,58 @@ def test_cluster_vsearch_builds_qiime2_command(
     ]
 
 
+def test_cluster_usearch_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    rep_seqs = touch(tmp_path / "rep-seqs.fasta")
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr("shutil.which", lambda name: "usearch" if name == "usearch" else None)
+
+    def fake_run(
+        command: list[str], *, check: bool, text: bool, capture_output: bool
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    cluster(
+        backend="usearch",
+        rep_seqs=rep_seqs,
+        output_table=tmp_path / "clusters.uc",
+        output_rep_seqs=tmp_path / "centroids.fasta",
+        identity=0.99,
+    )
+
+    assert calls == [
+        [
+            "usearch",
+            "-cluster_fast",
+            str(rep_seqs),
+            "-id",
+            "0.99",
+            "-centroids",
+            str(tmp_path / "centroids.fasta"),
+            "-uc",
+            str(tmp_path / "clusters.uc"),
+        ]
+    ]
+
+
+def test_cluster_usearch_missing_binary_reports_tool(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rep_seqs = touch(tmp_path / "rep-seqs.fasta")
+    monkeypatch.setattr("shutil.which", lambda name: None)
+
+    with pytest.raises(MicrobiomeSuiteError, match="USEARCH clustering requires"):
+        cluster(
+            backend="usearch",
+            rep_seqs=rep_seqs,
+            output_table=tmp_path / "clusters.uc",
+            output_rep_seqs=tmp_path / "centroids.fasta",
+        )
+
+
 def test_cli_exposes_denoise_cluster_and_reports_missing_qiime(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -338,6 +390,7 @@ def test_cli_exposes_denoise_cluster_and_reports_missing_qiime(
     assert methods.exit_code == 0
     assert "denoise" in methods.stdout
     assert "cluster" in methods.stdout
+    assert "usearch" in methods.stdout
 
     result = runner.invoke(
         app,

@@ -19,6 +19,7 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
         "cutadapt": ["cutadapt"],
         "trimmomatic": ["trimmomatic", "openjdk"],
         "trim-galore": ["trim_galore", "cutadapt"],
+        "usearch": ["usearch"],
         "qiime2-amplicon": ["qiime", "QIIME 2"],
         "r-diffab": ["Rscript", "ANCOMBC"],
         "kraken2": ["kraken2", "Bracken support is planned"],
@@ -63,6 +64,7 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
     assert "[QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile)" in text
     assert "[R diffab](containers/r-diffab/Dockerfile)" in text
     assert "[Kraken2](containers/kraken2/Dockerfile)" in text
+    assert "[USEARCH 12](containers/usearch/Dockerfile)" in text
     assert (
         "| `fastqc` | FastQC 0.12.1 | ready | "
         "`microsuite qc --backend fastqc` | "

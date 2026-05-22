@@ -97,6 +97,7 @@ validation. The `Status` column in the method tables describes API maturity:
 | `qiime2-deblur` | QIIME 2 2024.10 | partial | `microsuite denoise --backend qiime2-deblur` | `denoise(backend="qiime2-deblur", demux=..., output_table=...)` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Reproducible fixed-error model; mainly 16S-oriented. | Deblur ASV inference from demultiplexed reads. |
 | `dada2-r` | DADA2 R user env | partial | `microsuite denoise --backend dada2-r` | `denoise(backend="dada2-r", demux=reads_dir, output_table=...)` | External `Rscript` with R package `dada2`; dedicated DADA2 image later | Direct R ecosystem access; currently expects a FASTQ directory and writes TSV/FASTA outputs. | R/DADA2 ASV inference from raw or trimmed FASTQ files. |
 | `vsearch` | QIIME 2 2024.10 | partial | `microsuite cluster --backend vsearch` | `cluster(backend="vsearch", table=..., rep_seqs=...)` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Useful for OTU workflows; less ASV-centric. | QIIME 2 VSEARCH de novo feature clustering. |
+| `usearch` | USEARCH 12 | partial | `microsuite cluster --backend usearch` | `cluster(backend="usearch", rep_seqs=..., output_table=..., output_rep_seqs=...)` | [USEARCH 12](containers/usearch/Dockerfile) or external `usearch` | Fast standalone centroid clustering; writes `.uc` cluster mappings and centroid FASTA, not QIIME feature tables. | USEARCH `cluster_fast` sequence clustering. |
 
 ### Taxonomy And Phylogeny
 

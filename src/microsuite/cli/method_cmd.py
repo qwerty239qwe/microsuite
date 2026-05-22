@@ -464,7 +464,6 @@ def denoise_cmd(
 @app.command("cluster")
 def cluster_cmd(
     backend: Annotated[str, typer.Option("--backend", help="Clustering backend.")],
-    table: Annotated[Path, typer.Option("--table", help="Input feature table artifact.")],
     rep_seqs: Annotated[
         Path, typer.Option("--rep-seqs", help="Input representative sequences artifact.")
     ],
@@ -477,6 +476,10 @@ def cluster_cmd(
     identity: Annotated[
         float, typer.Option("--identity", min=0.0, max=1.0, help="Clustering identity threshold.")
     ] = 0.97,
+    table: Annotated[
+        Path | None,
+        typer.Option("--table", help="Input feature table artifact. Required for vsearch."),
+    ] = None,
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
     run_dir: Annotated[
         Path | None, typer.Option("--run-dir", help="Write runtime logs here.")
@@ -487,10 +490,10 @@ def cluster_cmd(
 ) -> None:
     cluster(
         backend=backend,
-        table=table,
         rep_seqs=rep_seqs,
         output_table=output_table,
         output_rep_seqs=output_rep_seqs,
+        table=table,
         identity=identity,
         force=force,
         run_dir=run_dir,

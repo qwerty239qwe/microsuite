@@ -37,6 +37,7 @@ def test_github_actions_ci_runs_project_quality_gate() -> None:
     assert "containers/cutadapt/Dockerfile" in text
     assert "containers/trimmomatic/Dockerfile" in text
     assert "containers/trim-galore/Dockerfile" in text
+    assert "containers/usearch/Dockerfile" in text
     assert "containers/kraken2/Dockerfile" in text
     assert "containers/qiime2-amplicon/Dockerfile" in text
     assert "containers/r-diffab/Dockerfile" in text
@@ -48,10 +49,11 @@ def test_github_actions_ci_runs_project_quality_gate() -> None:
     assert "image: cutadapt" in text
     assert "image: trimmomatic" in text
     assert "image: trim-galore" in text
+    assert "image: usearch" in text
     assert "image: kraken2" in text
     assert "image: qiime2-amplicon" in text
     assert "image: r-diffab" in text
-    assert text.count("heavy: false") == 7
+    assert text.count("heavy: false") == 8
     assert text.count("heavy: true") == 2
     assert "load: ${{ !matrix.heavy }}" in text
     assert "docker run --rm microsuite/${{ matrix.image }}:ci --help" in text
