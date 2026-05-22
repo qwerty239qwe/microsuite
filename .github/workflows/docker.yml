@@ -196,11 +196,11 @@ jobs:
           mkdir -p tmp/docker-vsearch/input tmp/docker-vsearch/output
           cat > tmp/docker-vsearch/input/tiny.fasta <<'EOF'
           >seq1
-          ACGTACGTACGTACGT
+          ACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT
           >seq2
-          ACGTACGTACGTACGA
+          ACGTACGTACGTACGTACGTACGTACGTACGTACGTACGA
           >seq3
-          TTTTACGTACGTACGT
+          TTTTACGTACGTACGTACGTACGTACGTACGTACGTACGT
           EOF
           docker run --rm \
             -v "${PWD}/tmp/docker-vsearch/input:/input:ro" \
