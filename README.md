@@ -89,7 +89,20 @@ validation. The `Status` column in the method tables describes API maturity:
 | `trim-galore` | Trim Galore 0.6.x or v2.x user env | partial | `microsuite trim --backend trim-galore` | `trim(backend="trim-galore", read1=..., output1=..., trim_galore_version="auto")` | [Trim Galore](containers/trim-galore/Dockerfile) or external `trim_galore` | Lets users keep tool-default behavior or explicitly select the v2 mode; output names are tool-controlled and validated. | Adapter/quality trimming with integrated QC conventions. |
 | `qiime2-cutadapt` | QIIME 2 2024.10 | planned | `microsuite trim --backend qiime2-cutadapt` | planned | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Fits QIIME artifact workflows; less convenient for raw FASTQ-only runs. | QIIME 2 Cutadapt wrapper. |
 
-### Denoising And Clustering
+### Feature Table Generation
+
+ASV tables contain inferred exact sequence variants. OTU-style tables contain
+features clustered by sequence identity, commonly 97%.
+
+| Goal | Backend | Input | Output table type | Main outputs | Notes |
+| --- | --- | --- | --- | --- | --- |
+| Generate ASV table | `qiime2-dada2` | Demultiplexed QIIME 2 reads artifact | ASV feature table | `table.qza`, `rep-seqs.qza`, denoising stats | Main QIIME 2 ASV path. |
+| Generate ASV table | `qiime2-deblur` | Demultiplexed QIIME 2 reads artifact | ASV feature table | `table.qza`, `rep-seqs.qza`, Deblur stats | 16S-oriented Deblur path. |
+| Generate ASV table | `dada2-r` | FASTQ directory | ASV table | table TSV, representative-sequence FASTA, stats TSV | Direct R/DADA2 path; not a QIIME artifact workflow. |
+| Generate OTU-style table | `vsearch` | QIIME 2 feature table and representative sequences | Clustered QIIME 2 feature table | clustered table `.qza`, clustered representative sequences `.qza` | QIIME VSEARCH de novo clustering. |
+| Generate OTU clusters | `usearch` | FASTA representative sequences | Cluster mapping plus centroids | `.uc` cluster mapping, centroid FASTA | Standalone USEARCH clustering; not yet a count table. |
+
+### Denoising And Clustering Backends
 
 | Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
 | --- | --- | --- | --- | --- | --- | --- | --- |

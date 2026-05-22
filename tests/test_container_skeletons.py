@@ -49,6 +49,8 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
 
     assert "### Quality Reports" in text
     assert "### Quality Filtering" in text
+    assert "### Feature Table Generation" in text
+    assert "### Denoising And Clustering Backends" in text
     assert "### Differential Abundance" in text
     assert "| Subtopic |" not in text
     assert "Python function name" not in text
@@ -65,6 +67,14 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
     assert "[R diffab](containers/r-diffab/Dockerfile)" in text
     assert "[Kraken2](containers/kraken2/Dockerfile)" in text
     assert "[USEARCH 12](containers/usearch/Dockerfile)" in text
+    assert "| Generate ASV table | `qiime2-dada2` |" in text
+    assert "| Generate ASV table | `qiime2-deblur` |" in text
+    assert "| Generate ASV table | `dada2-r` |" in text
+    assert "| Generate OTU-style table | `vsearch` |" in text
+    assert "| Generate OTU clusters | `usearch` |" in text
+    assert "ASV tables contain inferred exact sequence variants" in text
+    assert "OTU-style tables contain" in text
+    assert "features clustered by sequence identity" in text
     assert (
         "| `fastqc` | FastQC 0.12.1 | ready | "
         "`microsuite qc --backend fastqc` | "
