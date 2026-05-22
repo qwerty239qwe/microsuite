@@ -31,9 +31,10 @@ containers/kraken2/            Kraken2 taxonomy profiling
 | `r-diffab` | R differential abundance backend | `Rscript`, `ANCOMBC` | skeleton |
 | `kraken2` | Kraken2 taxonomy profiling | `kraken2`; planned: `bracken` | skeleton |
 
-Default unit tests validate container files statically. GitHub Actions also
-builds the lighter `microsuite`, `fastqc`, trimming, and `kraken2` images on
-every push and pull request.
+Default unit tests validate container files statically. The separate Docker
+GitHub Actions workflow builds the lighter `microsuite`, `fastqc`, trimming,
+USEARCH, and `kraken2` images when container files change or when it is run
+manually. Lightweight images run tiny mounted-input examples after they build.
 
 The CLI may check for external commands, but the Nextflow API should own
 container/profile selection for full workflows.

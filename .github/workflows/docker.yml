@@ -1,0 +1,195 @@
+name: Docker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "containers/**"
+      - ".github/workflows/docker.yml"
+      - "tests/fixtures/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "containers/**"
+      - ".github/workflows/docker.yml"
+      - "tests/fixtures/**"
+  workflow_dispatch:
+    inputs:
+      build-heavy-containers:
+        description: "Build heavy QIIME 2 and R differential-abundance images"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docker-build:
+    name: Docker build (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: microsuite
+            dockerfile: containers/microsuite/Dockerfile
+            context: .
+            heavy: false
+          - image: fastqc
+            dockerfile: containers/fastqc/Dockerfile
+            context: .
+            heavy: false
+          - image: fastp
+            dockerfile: containers/fastp/Dockerfile
+            context: .
+            heavy: false
+          - image: cutadapt
+            dockerfile: containers/cutadapt/Dockerfile
+            context: .
+            heavy: false
+          - image: trimmomatic
+            dockerfile: containers/trimmomatic/Dockerfile
+            context: .
+            heavy: false
+          - image: trim-galore
+            dockerfile: containers/trim-galore/Dockerfile
+            context: .
+            heavy: false
+          - image: usearch
+            dockerfile: containers/usearch/Dockerfile
+            context: .
+            heavy: false
+          - image: kraken2
+            dockerfile: containers/kraken2/Dockerfile
+            context: .
+            heavy: false
+          - image: qiime2-amplicon
+            dockerfile: containers/qiime2-amplicon/Dockerfile
+            context: .
+            heavy: true
+          - image: r-diffab
+            dockerfile: containers/r-diffab/Dockerfile
+            context: .
+            heavy: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build container image
+        if: ${{ !matrix.heavy || github.event.inputs.build-heavy-containers == 'true' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          tags: microsuite/${{ matrix.image }}:ci
+          push: false
+          load: ${{ !matrix.heavy }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+      - name: Smoke test microsuite image
+        if: ${{ matrix.image == 'microsuite' }}
+        run: docker run --rm microsuite/${{ matrix.image }}:ci --help
+
+      - name: Run FastQC tiny example
+        if: ${{ matrix.image == 'fastqc' }}
+        run: |
+          mkdir -p tmp/docker-fastqc
+          docker run --rm \
+            -v "${PWD}/tests/fixtures/fastq:/input:ro" \
+            -v "${PWD}/tmp/docker-fastqc:/output" \
+            microsuite/${{ matrix.image }}:ci \
+            --outdir /output /input/tiny.fastq
+          test -s tmp/docker-fastqc/tiny_fastqc.html
+          test -s tmp/docker-fastqc/tiny_fastqc.zip
+
+      - name: Run fastp tiny example
+        if: ${{ matrix.image == 'fastp' }}
+        run: |
+          mkdir -p tmp/docker-fastp
+          docker run --rm \
+            -v "${PWD}/tests/fixtures/fastq:/input:ro" \
+            -v "${PWD}/tmp/docker-fastp:/output" \
+            microsuite/${{ matrix.image }}:ci \
+            -i /input/tiny.fastq \
+            -o /output/tiny.fastq \
+            --html /output/fastp.html \
+            --json /output/fastp.json
+          test -s tmp/docker-fastp/tiny.fastq
+          test -s tmp/docker-fastp/fastp.html
+          test -s tmp/docker-fastp/fastp.json
+
+      - name: Run Cutadapt tiny example
+        if: ${{ matrix.image == 'cutadapt' }}
+        run: |
+          mkdir -p tmp/docker-cutadapt
+          docker run --rm \
+            -v "${PWD}/tests/fixtures/fastq:/input:ro" \
+            -v "${PWD}/tmp/docker-cutadapt:/output" \
+            microsuite/${{ matrix.image }}:ci \
+            -a ACGT -o /output/tiny.fastq /input/tiny.fastq
+          test -s tmp/docker-cutadapt/tiny.fastq
+
+      - name: Run Trimmomatic tiny example
+        if: ${{ matrix.image == 'trimmomatic' }}
+        run: |
+          mkdir -p tmp/docker-trimmomatic
+          docker run --rm \
+            -v "${PWD}/tests/fixtures/fastq:/input:ro" \
+            -v "${PWD}/tmp/docker-trimmomatic:/output" \
+            microsuite/${{ matrix.image }}:ci \
+            SE -threads 1 /input/tiny.fastq /output/tiny.fastq MINLEN:1
+          test -s tmp/docker-trimmomatic/tiny.fastq
+
+      - name: Run Trim Galore tiny example
+        if: ${{ matrix.image == 'trim-galore' }}
+        run: |
+          mkdir -p tmp/docker-trim-galore
+          docker run --rm \
+            -v "${PWD}/tests/fixtures/fastq:/input:ro" \
+            -v "${PWD}/tmp/docker-trim-galore:/output" \
+            microsuite/${{ matrix.image }}:ci \
+            --output_dir /output /input/tiny.fastq
+          test -s tmp/docker-trim-galore/tiny_trimmed.fq
+
+      - name: Run USEARCH tiny example
+        if: ${{ matrix.image == 'usearch' }}
+        run: |
+          mkdir -p tmp/docker-usearch/input tmp/docker-usearch/output
+          cat > tmp/docker-usearch/input/tiny.fasta <<'EOF'
+          >seq1
+          ACGTACGTACGTACGT
+          >seq2
+          ACGTACGTACGTACGA
+          >seq3
+          TTTTACGTACGTACGT
+          EOF
+          docker run --rm \
+            -v "${PWD}/tmp/docker-usearch/input:/input:ro" \
+            -v "${PWD}/tmp/docker-usearch/output:/output" \
+            microsuite/${{ matrix.image }}:ci \
+            -cluster_fast /input/tiny.fasta \
+            -id 0.9 \
+            -centroids /output/centroids.fasta \
+            -uc /output/clusters.uc
+          test -s tmp/docker-usearch/output/centroids.fasta
+          test -s tmp/docker-usearch/output/clusters.uc
+
+      - name: Smoke test kraken2 image
+        if: ${{ matrix.image == 'kraken2' }}
+        run: docker run --rm --entrypoint kraken2 microsuite/${{ matrix.image }}:ci --version
+
+      - name: Skip heavy container image
+        if: ${{ matrix.heavy && github.event.inputs.build-heavy-containers != 'true' }}
+        run: echo "Skipping heavy container image ${{ matrix.image }}. Use workflow_dispatch with build-heavy-containers=true to build it."

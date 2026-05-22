@@ -28,6 +28,14 @@ def test_github_actions_ci_runs_project_quality_gate() -> None:
     assert 'version: "25.10.0"' in text
     assert "nextflow run workflows/nextflow/main.nf" in text
     assert "--outdir results/nextflow-smoke" in text
+    assert "docker-build:" not in text
+
+
+def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
+    workflow = ROOT / ".github" / "workflows" / "docker.yml"
+    assert workflow.exists()
+
+    text = workflow.read_text(encoding="utf-8")
     assert "docker-build:" in text
     assert "docker/setup-buildx-action@v3" in text
     assert "docker/build-push-action@v6" in text
@@ -56,8 +64,14 @@ def test_github_actions_ci_runs_project_quality_gate() -> None:
     assert text.count("heavy: false") == 8
     assert text.count("heavy: true") == 2
     assert "load: ${{ !matrix.heavy }}" in text
-    assert "docker run --rm microsuite/${{ matrix.image }}:ci --help" in text
-    assert "docker run --rm microsuite/${{ matrix.image }}:ci --version" in text
+    assert "Run FastQC tiny example" in text
+    assert "Run fastp tiny example" in text
+    assert "Run Cutadapt tiny example" in text
+    assert "Run Trimmomatic tiny example" in text
+    assert "Run Trim Galore tiny example" in text
+    assert "Run USEARCH tiny example" in text
+    assert "-cluster_fast /input/tiny.fasta" in text
+    assert "test -s tmp/docker-fastp/tiny.fastq" in text
     assert (
         "docker run --rm --entrypoint kraken2 microsuite/${{ matrix.image }}:ci --version" in text
     )
