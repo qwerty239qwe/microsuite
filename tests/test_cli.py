@@ -114,7 +114,7 @@ def test_cli_method_catalog() -> None:
     assert "qiime2" in result.stdout
 
 
-def test_cli_tax_classify_planned_method(tmp_path: Path) -> None:
+def test_cli_tax_classify_kraken2_requires_database(tmp_path: Path) -> None:
     rep_seqs = tmp_path / "rep-seqs.fastq"
     rep_seqs.write_text("placeholder", encoding="utf-8")
 
@@ -133,7 +133,7 @@ def test_cli_tax_classify_planned_method(tmp_path: Path) -> None:
 
     assert result.exit_code == 1
     assert result.exception is not None
-    assert "not implemented" in str(result.exception)
+    assert "--classifier" in str(result.exception)
 
 
 def test_cli_diversity_calc_requires_phylogeny_for_unifrac(tmp_path: Path) -> None:
@@ -179,7 +179,7 @@ def test_cli_method_alias_still_works(tmp_path: Path) -> None:
 
     assert result.exit_code == 1
     assert result.exception is not None
-    assert "not implemented" in str(result.exception)
+    assert "--classifier" in str(result.exception)
 
 
 def test_cli_table_ecology_commands(tmp_path: Path) -> None:

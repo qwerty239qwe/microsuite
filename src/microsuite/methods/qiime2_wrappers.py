@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -8,14 +9,14 @@ from microsuite import __version__
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
 from microsuite.methods._qiime import require_qiime, run_qiime
-from microsuite.runtime.runner import resolve_threads
+from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
 SUPPORTED_METHODS = {
     "metadata_tabulate": ("qiime2",),
     "qiime_import": ("qiime2-emp-single-end",),
     "demux": ("qiime2-emp-single",),
     "feature_summarize": ("qiime2",),
-    "phylogeny": ("qiime2-mafft-fasttree",),
+    "phylogeny": ("qiime2-mafft-fasttree", "mafft-fasttree"),
     "diversity_core": ("qiime2-core-metrics-phylogenetic",),
     "diversity_test": ("qiime2-alpha-group-significance", "qiime2-beta-group-significance"),
     "ordination_plot": ("qiime2-emperor",),
@@ -206,7 +207,21 @@ def phylogeny(
     run_dir: Path | None = None,
     timeout: float | None = None,
 ) -> None:
+    backend = backend.lower()
     _expect_backend("phylogeny", backend)
+    if backend == "mafft-fasttree":
+        phylogeny_mafft_fasttree(
+            rep_seqs=rep_seqs,
+            output_aligned=output_aligned,
+            output_masked=output_masked,
+            output_tree=output_tree,
+            output_rooted_tree=output_rooted_tree,
+            threads=threads,
+            force=force,
+            run_dir=run_dir,
+            timeout=timeout,
+        )
+        return
     rep_seqs = _required(rep_seqs, "--rep-seqs", backend)
     outputs = [
         _required(path, flag, backend)
@@ -239,6 +254,77 @@ def phylogeny(
         str(output_rooted_tree),
     ]
     _run(command, "QIIME 2 phylogeny failed.", run_dir, timeout, "phylogeny", backend)
+
+
+def phylogeny_mafft_fasttree(
+    *,
+    rep_seqs: Path | None,
+    output_aligned: Path | None,
+    output_masked: Path | None,
+    output_tree: Path | None,
+    output_rooted_tree: Path | None,
+    threads: int | str,
+    force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
+) -> None:
+    rep_seqs = _required(rep_seqs, "--rep-seqs", "mafft-fasttree")
+    output_aligned = _required(output_aligned, "--output-aligned", "mafft-fasttree")
+    output_tree = _required(output_tree, "--output-tree", "mafft-fasttree")
+    mafft = shutil.which("mafft")
+    fasttree = shutil.which("FastTree") or shutil.which("fasttree")
+    if mafft is None:
+        raise MicrobiomeSuiteError(
+            "Standalone phylogeny requires the external 'mafft' command. "
+            "Install MAFFT or use the microsuite/mafft-fasttree container."
+        )
+    if fasttree is None:
+        raise MicrobiomeSuiteError(
+            "Standalone phylogeny requires the external 'FastTree' command. "
+            "Install FastTree or use the microsuite/mafft-fasttree container."
+        )
+
+    ensure_input(rep_seqs)
+    for path in (output_aligned, output_masked, output_tree, output_rooted_tree):
+        if path is not None:
+            prepare_output(path, force=force)
+
+    mafft_command = [mafft, "--auto", "--thread", str(resolve_threads(threads)), str(rep_seqs)]
+    mafft_result = run_command(
+        mafft_command,
+        "MAFFT alignment failed.",
+        run_dir=run_dir / "mafft" if run_dir is not None else None,
+        timeout=timeout,
+        log=CommandLog(task="phylogeny", backend="mafft-fasttree"),
+    )
+    output_aligned.write_text(mafft_result.stdout, encoding="utf-8")
+    if output_masked is not None:
+        output_masked.write_text(mafft_result.stdout, encoding="utf-8")
+
+    fasttree_command = [fasttree, "-nt", str(output_aligned)]
+    fasttree_result = run_command(
+        fasttree_command,
+        "FastTree tree construction failed.",
+        run_dir=run_dir / "fasttree" if run_dir is not None else None,
+        timeout=timeout,
+        log=CommandLog(task="phylogeny", backend="mafft-fasttree"),
+    )
+    output_tree.write_text(fasttree_result.stdout, encoding="utf-8")
+    if output_rooted_tree is not None:
+        output_rooted_tree.write_text(fasttree_result.stdout, encoding="utf-8")
+    if run_dir is not None:
+        _write_summary_run(
+            run_dir,
+            "phylogeny",
+            "mafft-fasttree",
+            [mafft_command, fasttree_command],
+            {
+                "aligned": output_aligned,
+                "masked": output_masked or output_aligned,
+                "tree": output_tree,
+                "rooted_tree": output_rooted_tree or output_tree,
+            },
+        )
 
 
 def diversity_core(

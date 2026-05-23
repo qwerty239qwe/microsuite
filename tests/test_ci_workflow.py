@@ -48,6 +48,7 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "containers/trim-galore/Dockerfile" in text
     assert "containers/vsearch/Dockerfile" in text
     assert "containers/usearch/Dockerfile" in text
+    assert "containers/mafft-fasttree/Dockerfile" in text
     assert "containers/kraken2/Dockerfile" in text
     assert "containers/qiime2-amplicon/Dockerfile" in text
     assert "containers/r-dada2/Dockerfile" in text
@@ -63,11 +64,12 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "image: trim-galore" in text
     assert "image: vsearch" in text
     assert "image: usearch" in text
+    assert "image: mafft-fasttree" in text
     assert "image: kraken2" in text
     assert "image: qiime2-amplicon" in text
     assert "image: r-dada2" in text
     assert "image: r-diffab" in text
-    assert text.count("heavy: false") == 10
+    assert text.count("heavy: false") == 11
     assert text.count("heavy: true") == 3
     assert "load: ${{ !matrix.heavy }}" in text
     assert "Run FastQC tiny example" in text
@@ -78,6 +80,7 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "Run Trim Galore tiny example" in text
     assert "Run VSEARCH tiny example" in text
     assert "Run USEARCH tiny example" in text
+    assert "Smoke test MAFFT/FastTree image" in text
     assert "--cluster_fast /input/tiny.fasta" in text
     assert "--minseqlength 1" in text
     assert "-cluster_fast /input/tiny.fasta" in text
@@ -86,6 +89,7 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert (
         "docker run --rm --entrypoint kraken2 microsuite/${{ matrix.image }}:ci --version" in text
     )
+    assert "command -v mafft && command -v FastTree" in text
 
 
 def test_source_data_package_is_not_ignored() -> None:

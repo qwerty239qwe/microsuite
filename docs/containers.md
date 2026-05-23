@@ -15,6 +15,7 @@ containers/trimmomatic/       Trimmomatic read trimming
 containers/trim-galore/       Trim Galore wrapper around Cutadapt
 containers/vsearch/           VSEARCH sequence clustering
 containers/usearch/           USEARCH 12 sequence search and clustering
+containers/mafft-fasttree/     MAFFT/FastTree phylogeny
 containers/qiime2-amplicon/    QIIME 2 amplicon workflows
 containers/r-dada2/            R DADA2 ASV inference
 containers/r-diffab/           R differential-abundance tools
@@ -32,6 +33,7 @@ containers/kraken2/            Kraken2 taxonomy profiling
 | `trim-galore` | Trim Galore trimming wrapper | `trim_galore`, `cutadapt` | implemented |
 | `vsearch` | VSEARCH sequence clustering | `vsearch` | implemented |
 | `usearch` | USEARCH 12 sequence search and clustering | `usearch` | implemented |
+| `mafft-fasttree` | Standalone alignment and phylogeny | `mafft`, `FastTree` | implemented |
 | `qiime2-amplicon` | QIIME 2 amplicon backend | `qiime` | skeleton |
 | `r-dada2` | R DADA2 ASV inference | `Rscript`, `dada2` | implemented |
 | `r-diffab` | R differential abundance backend | `Rscript`, `ANCOMBC` | skeleton |
@@ -39,9 +41,9 @@ containers/kraken2/            Kraken2 taxonomy profiling
 
 Default unit tests validate container files statically. The separate Docker
 GitHub Actions workflow builds the lighter `microsuite`, `fastqc`, trimming,
-MultiQC, VSEARCH, USEARCH, and `kraken2` images when container files change or
-when it is run manually. Lightweight images run tiny mounted-input examples
-after they build.
+MultiQC, VSEARCH, USEARCH, MAFFT/FastTree, and `kraken2` images when container
+files change or when it is run manually. Lightweight images run tiny
+mounted-input examples after they build.
 
 The CLI may check for external commands, but the Nextflow API should own
 container/profile selection for full workflows.
@@ -63,6 +65,7 @@ containers/trimmomatic/Dockerfile
 containers/trim-galore/Dockerfile
 containers/vsearch/Dockerfile
 containers/usearch/Dockerfile
+containers/mafft-fasttree/Dockerfile
 containers/qiime2-amplicon/Dockerfile
 containers/r-dada2/Dockerfile
 containers/r-diffab/Dockerfile
@@ -87,6 +90,7 @@ docker build -f containers/trimmomatic/Dockerfile -t microsuite-trimmomatic:loca
 docker build -f containers/trim-galore/Dockerfile -t microsuite-trim-galore:local .
 docker build -f containers/vsearch/Dockerfile -t microsuite-vsearch:local .
 docker build -f containers/usearch/Dockerfile -t microsuite-usearch:local .
+docker build -f containers/mafft-fasttree/Dockerfile -t microsuite-mafft-fasttree:local .
 docker build -f containers/qiime2-amplicon/Dockerfile -t microsuite-qiime2-amplicon:local .
 docker build -f containers/r-dada2/Dockerfile -t microsuite-r-dada2:local .
 docker build -f containers/r-diffab/Dockerfile -t microsuite-r-diffab:local .

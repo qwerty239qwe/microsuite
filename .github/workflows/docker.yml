@@ -75,6 +75,10 @@ jobs:
             dockerfile: containers/usearch/Dockerfile
             context: .
             heavy: false
+          - image: mafft-fasttree
+            dockerfile: containers/mafft-fasttree/Dockerfile
+            context: .
+            heavy: false
           - image: kraken2
             dockerfile: containers/kraken2/Dockerfile
             context: .
@@ -249,6 +253,12 @@ jobs:
       - name: Smoke test kraken2 image
         if: ${{ matrix.image == 'kraken2' }}
         run: docker run --rm --entrypoint kraken2 microsuite/${{ matrix.image }}:ci --version
+
+      - name: Smoke test MAFFT/FastTree image
+        if: ${{ matrix.image == 'mafft-fasttree' }}
+        run: |
+          docker run --rm --entrypoint bash microsuite/${{ matrix.image }}:ci \
+            -lc 'command -v mafft && command -v FastTree'
 
       - name: Skip heavy container image
         if: ${{ matrix.heavy && github.event.inputs.build-heavy-containers != 'true' }}

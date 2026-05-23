@@ -22,6 +22,7 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
         "trim-galore": ["trim_galore", "cutadapt"],
         "vsearch": ["vsearch"],
         "usearch": ["usearch"],
+        "mafft-fasttree": ["mafft", "FastTree"],
         "qiime2-amplicon": ["qiime", "QIIME 2"],
         "r-dada2": ["Rscript", "dada2"],
         "r-diffab": ["Rscript", "ANCOMBC"],
@@ -72,6 +73,7 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
     assert "[Kraken2](containers/kraken2/Dockerfile)" in text
     assert "[VSEARCH](containers/vsearch/Dockerfile)" in text
     assert "[USEARCH 12](containers/usearch/Dockerfile)" in text
+    assert "[MAFFT/FastTree](containers/mafft-fasttree/Dockerfile)" in text
     assert "[R DADA2](containers/r-dada2/Dockerfile)" in text
     assert "| Generate ASV table | `qiime2-dada2` |" in text
     assert "| Generate ASV table | `qiime2-deblur` |" in text
@@ -137,6 +139,17 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
         "| `dada2-r` | DADA2 R user env | ready | "
         "`microsuite denoise --backend dada2-r` | "
         '`denoise(backend="dada2-r", demux=reads_dir, output_table=...)` |'
+    ) in text
+    assert (
+        "| `kraken2` | Kraken2 2.1.3 | ready | "
+        "`microsuite tax_classify --backend kraken2 --classifier DB` | "
+        '`tax_classify(backend="kraken2", rep_seqs=..., classifier=database, output=...)` |'
+    ) in text
+    assert (
+        "| `mafft-fasttree` | MAFFT + FastTree user env | ready | "
+        "`microsuite phylogeny --backend mafft-fasttree` | "
+        '`phylogeny(backend="mafft-fasttree", rep_seqs=..., '
+        "output_aligned=..., output_tree=...)` |"
     ) in text
     assert (
         "| `ancombc` | R 4.4.0 image; ANCOMBC via "
