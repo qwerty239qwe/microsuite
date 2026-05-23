@@ -47,6 +47,10 @@ jobs:
             dockerfile: containers/fastqc/Dockerfile
             context: .
             heavy: false
+          - image: multiqc
+            dockerfile: containers/multiqc/Dockerfile
+            context: .
+            heavy: false
           - image: fastp
             dockerfile: containers/fastp/Dockerfile
             context: .
@@ -121,6 +125,30 @@ jobs:
             --outdir /output /input/tiny.fastq
           test -s tmp/docker-fastqc/tiny_fastqc.html
           test -s tmp/docker-fastqc/tiny_fastqc.zip
+
+      - name: Run MultiQC tiny example
+        if: ${{ matrix.image == 'multiqc' }}
+        run: |
+          mkdir -p tmp/docker-multiqc/input/tiny_fastqc tmp/docker-multiqc/output
+          cat > tmp/docker-multiqc/input/tiny_fastqc/fastqc_data.txt <<'EOF'
+          ##FastQC	0.12.1
+          >>Basic Statistics	pass
+          #Measure	Value
+          Filename	tiny.fastq
+          File type	Conventional base calls
+          Encoding	Sanger / Illumina 1.9
+          Total Sequences	1
+          Sequences flagged as poor quality	0
+          Sequence length	12
+          %GC	50
+          >>END_MODULE
+          EOF
+          docker run --rm \
+            -v "${PWD}/tmp/docker-multiqc/input:/input:ro" \
+            -v "${PWD}/tmp/docker-multiqc/output:/output" \
+            microsuite/${{ matrix.image }}:ci \
+            /input --outdir /output --force
+          test -s tmp/docker-multiqc/output/multiqc_report.html
 
       - name: Run fastp tiny example
         if: ${{ matrix.image == 'fastp' }}

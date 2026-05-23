@@ -8,6 +8,7 @@ Initial image skeletons:
 ```text
 containers/microsuite/   Python CLI + SDK
 containers/fastqc/            FastQC raw-read quality reports
+containers/multiqc/           MultiQC aggregate quality reports
 containers/fastp/             fastp trimming and read filtering
 containers/cutadapt/          Cutadapt adapter and primer trimming
 containers/trimmomatic/       Trimmomatic read trimming
@@ -24,6 +25,7 @@ containers/kraken2/            Kraken2 taxonomy profiling
 | --- | --- | --- | --- |
 | `microsuite` | Python CLI and SDK runtime | `microsuite`, `uv` | skeleton |
 | `fastqc` | Raw-read quality reports | `fastqc` | implemented |
+| `multiqc` | Aggregate quality reports | `multiqc` | implemented |
 | `fastp` | Adapter trimming, quality filtering, and reports | `fastp` | implemented |
 | `cutadapt` | Adapter and primer trimming | `cutadapt` | implemented |
 | `trimmomatic` | Sliding-window, length, quality, and adapter trimming | `trimmomatic` | implemented |
@@ -37,9 +39,9 @@ containers/kraken2/            Kraken2 taxonomy profiling
 
 Default unit tests validate container files statically. The separate Docker
 GitHub Actions workflow builds the lighter `microsuite`, `fastqc`, trimming,
-VSEARCH, USEARCH, and `kraken2` images when container files change or when it
-is run manually. Lightweight images run tiny mounted-input examples after they
-build.
+MultiQC, VSEARCH, USEARCH, and `kraken2` images when container files change or
+when it is run manually. Lightweight images run tiny mounted-input examples
+after they build.
 
 The CLI may check for external commands, but the Nextflow API should own
 container/profile selection for full workflows.
@@ -54,6 +56,7 @@ Initial skeletons live under:
 ```text
 containers/microsuite/Dockerfile
 containers/fastqc/Dockerfile
+containers/multiqc/Dockerfile
 containers/fastp/Dockerfile
 containers/cutadapt/Dockerfile
 containers/trimmomatic/Dockerfile
@@ -77,6 +80,7 @@ right context:
 ```bash
 docker build -f containers/microsuite/Dockerfile -t microsuite:local .
 docker build -f containers/fastqc/Dockerfile -t microsuite-fastqc:local .
+docker build -f containers/multiqc/Dockerfile -t microsuite-multiqc:local .
 docker build -f containers/fastp/Dockerfile -t microsuite-fastp:local .
 docker build -f containers/cutadapt/Dockerfile -t microsuite-cutadapt:local .
 docker build -f containers/trimmomatic/Dockerfile -t microsuite-trimmomatic:local .

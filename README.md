@@ -53,7 +53,7 @@ validation. The `Status` column in the method tables describes API maturity:
 | --- | --- | --- | --- |
 | Native table/statistics/report methods | ready | CI smoke-tested | Covered by unit and CLI workflow tests. |
 | FastQC | ready | CI smoke-tested | CLI wrapper and container are smoke-tested. |
-| MultiQC, fastp, Cutadapt, Trimmomatic, Trim Galore | partial | Unit-tested wrapper + user environment | Command construction and log capture are tested; binaries are user supplied. |
+| MultiQC, fastp, Cutadapt, Trimmomatic, Trim Galore | partial | CI smoke-tested + unit-tested wrapper | fastp and MultiQC containers are smoke-tested; other wrappers are command-tested and user-supplied. |
 | QIIME 2 method wrappers | partial | Unit-tested wrapper + user environment | Command construction is tested; QIIME 2/plugin version validation is user supplied until the image pin is finalized. |
 | ANCOM-BC | partial | Unit-tested wrapper + user environment | Python wrapper and runtime logs are tested; R/Bioconductor runtime is user supplied or containerized manually. |
 | Nextflow workflows | partial | Static only | Workflow files and docs are checked; full execution remains manual for 0.1.0. |
@@ -66,7 +66,7 @@ validation. The `Status` column in the method tables describes API maturity:
 | Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `fastqc` | FastQC 0.12.1 | ready | `microsuite qc --backend fastqc` | `qc(backend="fastqc", inputs=[...], output_dir=...)` | [FastQC](containers/fastqc/Dockerfile) or external `fastqc` | Ready as a CLI wrapper and standalone container; Nextflow raw-read wiring remains planned. | Raw-read quality reports. |
-| `multiqc` | User env | partial | `microsuite qc --backend multiqc` | `qc(backend="multiqc", input_dir=..., output_dir=...)` | External `multiqc`; container planned | Good aggregation layer; depends on upstream report files. | Aggregate QC reports. |
+| `multiqc` | MultiQC user env | ready | `microsuite qc --backend multiqc` | `qc(backend="multiqc", input_dir=..., output_dir=...)` | [MultiQC](containers/multiqc/Dockerfile) or external `multiqc` | Good aggregation layer; depends on upstream report files. | Aggregate QC reports. |
 | `qiime2-demux-summarize` | QIIME 2 2024.10 | partial | `microsuite qc --backend qiime2-demux` | `qc(backend="qiime2-demux", demux=..., output=...)` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Best for QIIME artifacts; current CLI backend name should be renamed or aliased. | Demultiplexed-read quality visualization. |
 
 ### Quality Filtering
@@ -83,7 +83,7 @@ validation. The `Status` column in the method tables describes API maturity:
 
 | Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `fastp` | User env | partial | `microsuite trim --backend fastp` | `trim(backend="fastp", read1=..., output1=...)` | [fastp](containers/fastp/Dockerfile) or external `fastp` | Fast all-in-one preprocessing; primer-specific trimming is less explicit than Cutadapt. | Adapter trimming, quality filtering, HTML/JSON reports. |
+| `fastp` | fastp user env | ready | `microsuite trim --backend fastp` | `trim(backend="fastp", read1=..., output1=...)` | [fastp](containers/fastp/Dockerfile) or external `fastp` | Fast all-in-one preprocessing; supports shared quality, length, N, and adapter options; primer-specific trimming is less explicit than Cutadapt. | Adapter trimming, quality filtering, HTML/JSON reports. |
 | `cutadapt` | Cutadapt >=4.x user env | partial | `microsuite trim --backend cutadapt` | `trim(backend="cutadapt", read1=..., output1=..., adapter=...)` | [Cutadapt](containers/cutadapt/Dockerfile) or external `cutadapt` | Precise primer/adaptor trimming with explicit adapter control; requires users to choose primer/adapter sequences. | Adapter/primer trimming and read filtering. |
 | `trimmomatic` | Trimmomatic >=0.39 user env | partial | `microsuite trim --backend trimmomatic` | `trim(backend="trimmomatic", read1=..., output1=..., trimmomatic_steps=[...])` | [Trimmomatic](containers/trimmomatic/Dockerfile) or external `trimmomatic` | Mature Java trimmer with explicit step pipeline; paired mode requires unpaired output files. | Sliding-window, length, quality, and adapter trimming. |
 | `trim-galore` | Trim Galore 0.6.x or v2.x user env | partial | `microsuite trim --backend trim-galore` | `trim(backend="trim-galore", read1=..., output1=..., trim_galore_version="auto")` | [Trim Galore](containers/trim-galore/Dockerfile) or external `trim_galore` | Lets users keep tool-default behavior or explicitly select the v2 mode; output names are tool-controlled and validated. | Adapter/quality trimming with integrated QC conventions. |

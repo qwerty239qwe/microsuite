@@ -48,16 +48,10 @@ def trim(
             any(
                 value is not None
                 for value in (
-                    adapter,
                     front,
                     anywhere,
-                    adapter2,
                     front2,
                     anywhere2,
-                    quality_cutoff,
-                    minimum_length,
-                    maximum_length,
-                    max_n,
                 )
             )
             or discard_untrimmed
@@ -70,6 +64,12 @@ def trim(
             output2=output2,
             html=html,
             json_report=json_report,
+            adapter=adapter,
+            adapter2=adapter2,
+            quality_cutoff=quality_cutoff,
+            minimum_length=minimum_length,
+            maximum_length=maximum_length,
+            max_n=max_n,
             threads=resolved_threads,
             force=force,
             run_dir=run_dir,
@@ -189,6 +189,12 @@ def trim_fastp(
     output2: Path | None,
     html: Path | None,
     json_report: Path | None,
+    adapter: str | None,
+    adapter2: str | None,
+    quality_cutoff: str | None,
+    minimum_length: str | None,
+    maximum_length: str | None,
+    max_n: str | None,
     threads: int,
     force: bool,
     run_dir: Path | None,
@@ -198,6 +204,8 @@ def trim_fastp(
         raise MicrobiomeSuiteError("--output2 is required when --read2 is supplied.")
     if output2 is not None and read2 is None:
         raise MicrobiomeSuiteError("--read2 is required when --output2 is supplied.")
+    if adapter2 is not None and read2 is None:
+        raise MicrobiomeSuiteError("--adapter2 requires --read2 and --output2 for --backend fastp.")
     fastp = shutil.which("fastp")
     if fastp is None:
         raise MicrobiomeSuiteError(
@@ -213,6 +221,14 @@ def trim_fastp(
     command = [fastp, "--in1", str(read1), "--out1", str(output1)]
     if read2 is not None and output2 is not None:
         command.extend(["--in2", str(read2), "--out2", str(output2)])
+    if adapter is not None:
+        command.extend(["--adapter_sequence", adapter])
+    if adapter2 is not None:
+        command.extend(["--adapter_sequence_r2", adapter2])
+    _add_optional(command, "--qualified_quality_phred", quality_cutoff)
+    _add_optional(command, "--length_required", minimum_length)
+    _add_optional(command, "--length_limit", maximum_length)
+    _add_optional(command, "--n_base_limit", max_n)
     if html is not None:
         command.extend(["--html", str(html)])
     if json_report is not None:

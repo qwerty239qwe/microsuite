@@ -41,6 +41,7 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "docker/build-push-action@v6" in text
     assert "containers/microsuite/Dockerfile" in text
     assert "containers/fastqc/Dockerfile" in text
+    assert "containers/multiqc/Dockerfile" in text
     assert "containers/fastp/Dockerfile" in text
     assert "containers/cutadapt/Dockerfile" in text
     assert "containers/trimmomatic/Dockerfile" in text
@@ -55,6 +56,7 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "Skipping heavy container image" in text
     assert "image: microsuite" in text
     assert "image: fastqc" in text
+    assert "image: multiqc" in text
     assert "image: fastp" in text
     assert "image: cutadapt" in text
     assert "image: trimmomatic" in text
@@ -65,10 +67,11 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "image: qiime2-amplicon" in text
     assert "image: r-dada2" in text
     assert "image: r-diffab" in text
-    assert text.count("heavy: false") == 9
+    assert text.count("heavy: false") == 10
     assert text.count("heavy: true") == 3
     assert "load: ${{ !matrix.heavy }}" in text
     assert "Run FastQC tiny example" in text
+    assert "Run MultiQC tiny example" in text
     assert "Run fastp tiny example" in text
     assert "Run Cutadapt tiny example" in text
     assert "Run Trimmomatic tiny example" in text
@@ -79,6 +82,7 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "--minseqlength 1" in text
     assert "-cluster_fast /input/tiny.fasta" in text
     assert "test -s tmp/docker-fastp/tiny.fastq" in text
+    assert "test -s tmp/docker-multiqc/output/multiqc_report.html" in text
     assert (
         "docker run --rm --entrypoint kraken2 microsuite/${{ matrix.image }}:ci --version" in text
     )

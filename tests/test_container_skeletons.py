@@ -15,6 +15,7 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
     expected = {
         "microsuite": ["microsuite", "uv"],
         "fastqc": ["fastqc", "openjdk"],
+        "multiqc": ["multiqc"],
         "fastp": ["fastp"],
         "cutadapt": ["cutadapt"],
         "trimmomatic": ["trimmomatic", "openjdk"],
@@ -65,6 +66,7 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
     ) in text
     assert "[microsuite Python](containers/microsuite/Dockerfile)" in text
     assert "[FastQC](containers/fastqc/Dockerfile)" in text
+    assert "[MultiQC](containers/multiqc/Dockerfile)" in text
     assert "[QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile)" in text
     assert "[R diffab](containers/r-diffab/Dockerfile)" in text
     assert "[Kraken2](containers/kraken2/Dockerfile)" in text
@@ -84,6 +86,11 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
         "| `fastqc` | FastQC 0.12.1 | ready | "
         "`microsuite qc --backend fastqc` | "
         '`qc(backend="fastqc", inputs=[...], output_dir=...)` |'
+    ) in text
+    assert (
+        "| `multiqc` | MultiQC user env | ready | "
+        "`microsuite qc --backend multiqc` | "
+        '`qc(backend="multiqc", input_dir=..., output_dir=...)` |'
     ) in text
     assert (
         "| `qiime2-demux-summarize` | QIIME 2 2024.10 | partial | "
@@ -107,7 +114,7 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
         '`decontam(backend="qiime2-decontam", table=..., metadata=..., output=...)` |'
     ) in text
     assert (
-        "| `fastp` | User env | partial | "
+        "| `fastp` | fastp user env | ready | "
         "`microsuite trim --backend fastp` | "
         '`trim(backend="fastp", read1=..., output1=...)` |'
     ) in text

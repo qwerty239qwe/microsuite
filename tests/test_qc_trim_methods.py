@@ -297,6 +297,44 @@ def test_trim_fastp_single_builds_command(tmp_path: Path, monkeypatch: pytest.Mo
     ]
 
 
+def test_trim_fastp_filtering_options_build_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    read = touch(tmp_path / "sample_R1.fastq.gz")
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr("shutil.which", lambda name: "fastp" if name == "fastp" else None)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        ),
+    )
+
+    trim(
+        backend="fastp",
+        read1=read,
+        output1=tmp_path / "trimmed_R1.fastq.gz",
+        adapter="AGATCGGAAGAGC",
+        quality_cutoff="20",
+        minimum_length="80",
+        maximum_length="300",
+        max_n="0",
+    )
+
+    command = calls[0]
+    assert "--adapter_sequence" in command
+    assert "AGATCGGAAGAGC" in command
+    assert "--qualified_quality_phred" in command
+    assert "20" in command
+    assert "--length_required" in command
+    assert "80" in command
+    assert "--length_limit" in command
+    assert "300" in command
+    assert "--n_base_limit" in command
+    assert "0" in command
+
+
 def test_trim_fastp_paired_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     read1 = touch(tmp_path / "sample_R1.fastq.gz")
     read2 = touch(tmp_path / "sample_R2.fastq.gz")
@@ -742,7 +780,7 @@ def test_trim_cutadapt_rejects_html_report(tmp_path: Path) -> None:
         )
 
 
-def test_trim_fastp_rejects_cutadapt_options(tmp_path: Path) -> None:
+def test_trim_fastp_rejects_cutadapt_only_options(tmp_path: Path) -> None:
     read = touch(tmp_path / "sample_R1.fastq.gz")
 
     with pytest.raises(MicrobiomeSuiteError, match="Cutadapt-specific trim options"):
@@ -750,7 +788,19 @@ def test_trim_fastp_rejects_cutadapt_options(tmp_path: Path) -> None:
             backend="fastp",
             read1=read,
             output1=tmp_path / "trimmed.fastq.gz",
-            adapter="AGATCGGAAGAGC",
+            front="ACGT",
+        )
+
+
+def test_trim_fastp_r2_adapter_requires_paired_input(tmp_path: Path) -> None:
+    read = touch(tmp_path / "sample_R1.fastq.gz")
+
+    with pytest.raises(MicrobiomeSuiteError, match="--adapter2 requires"):
+        trim(
+            backend="fastp",
+            read1=read,
+            output1=tmp_path / "trimmed.fastq.gz",
+            adapter2="AGATCGGAAGAGC",
         )
 
 
