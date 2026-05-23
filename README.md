@@ -33,7 +33,9 @@ Current 0.1.0 focus:
 
 See [docs/three-api-roadmap.md](docs/three-api-roadmap.md) for the architecture.
 Demo data attribution and citation details are in
-[docs/data-attribution.md](docs/data-attribution.md).
+[docs/data-attribution.md](docs/data-attribution.md). Optional real-tool
+integration tests are documented in
+[docs/external-integration-tests.md](docs/external-integration-tests.md).
 
 ## Backend Validation Status
 
