@@ -1,11 +1,10 @@
-FROM ubuntu:24.04
+FROM mambaorg/micromamba:1.5.10
 
 LABEL org.opencontainers.image.title="kraken2"
 LABEL org.opencontainers.image.description="Kraken2 taxonomy profiling and Bracken abundance backend"
 
 # Expected commands: kraken2, bracken
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends kraken2 bracken ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+RUN micromamba install -y -n base -c conda-forge -c bioconda kraken2 bracken && \
+    micromamba clean -a -y
 
 ENTRYPOINT ["kraken2"]
