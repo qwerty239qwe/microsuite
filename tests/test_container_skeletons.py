@@ -23,6 +23,7 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
         "vsearch": ["vsearch"],
         "usearch": ["usearch"],
         "mafft-fasttree": ["mafft", "FastTree"],
+        "metaphlan": ["metaphlan"],
         "qiime2-amplicon": ["qiime", "QIIME 2"],
         "r-dada2": ["Rscript", "dada2"],
         "r-diffab": ["Rscript", "ANCOMBC"],
@@ -74,6 +75,7 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
     assert "[VSEARCH](containers/vsearch/Dockerfile)" in text
     assert "[USEARCH 12](containers/usearch/Dockerfile)" in text
     assert "[MAFFT/FastTree](containers/mafft-fasttree/Dockerfile)" in text
+    assert "[MetaPhlAn](containers/metaphlan/Dockerfile)" in text
     assert "[R DADA2](containers/r-dada2/Dockerfile)" in text
     assert "| Generate ASV table | `qiime2-dada2` |" in text
     assert "| Generate ASV table | `qiime2-deblur` |" in text
@@ -144,6 +146,11 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
         "| `kraken2` | Kraken2 2.1.3 | ready | "
         "`microsuite tax_classify --backend kraken2 --classifier DB` | "
         '`tax_classify(backend="kraken2", rep_seqs=..., classifier=database, output=...)` |'
+    ) in text
+    assert (
+        "| `metaphlan` | MetaPhlAn user env | ready | "
+        "`microsuite tax_classify --backend metaphlan --input-type fastq` | "
+        '`tax_classify(backend="metaphlan", rep_seqs=..., output=..., input_type="fastq")` |'
     ) in text
     assert (
         "| `mafft-fasttree` | MAFFT + FastTree user env | ready | "

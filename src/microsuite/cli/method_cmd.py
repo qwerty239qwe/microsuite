@@ -531,8 +531,18 @@ def tax_classify_cmd(
     ],
     output: Annotated[Path, typer.Option("--output", "-o", help="Classification output.")],
     classifier: Annotated[
-        Path | None, typer.Option("--classifier", help="Pretrained classifier for qiime2.")
+        Path | None,
+        typer.Option(
+            "--classifier",
+            help="QIIME classifier, Kraken2 database, or optional MetaPhlAn Bowtie2 database.",
+        ),
     ] = None,
+    input_type: Annotated[
+        str,
+        typer.Option(
+            "--input-type", help="MetaPhlAn input type: fastq, fasta, bowtie2out, or sam."
+        ),
+    ] = "fastq",
     threads: Annotated[str, typer.Option("--threads", help="Thread count or 'auto'.")] = "1",
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
     run_dir: Annotated[
@@ -546,6 +556,7 @@ def tax_classify_cmd(
         backend=backend,
         rep_seqs=rep_seqs,
         classifier=classifier,
+        input_type=input_type,
         output=output,
         threads=threads,
         force=force,

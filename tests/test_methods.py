@@ -71,6 +71,63 @@ def test_tax_classify_kraken2_requires_database(tmp_path: Path) -> None:
         tax_classify(backend="kraken2", rep_seqs=rep_seqs, output=tmp_path / "taxonomy.tsv")
 
 
+def test_tax_classify_metaphlan_builds_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reads = tmp_path / "reads.fastq"
+    database = tmp_path / "metaphlan-db"
+    reads.write_text("@r1\nACGT\n+\n!!!!\n", encoding="utf-8")
+    database.mkdir()
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr("shutil.which", lambda name: "metaphlan" if name == "metaphlan" else None)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        ),
+    )
+
+    tax_classify(
+        backend="metaphlan",
+        rep_seqs=reads,
+        classifier=database,
+        output=tmp_path / "metaphlan-profile.tsv",
+        input_type="fastq",
+        threads=4,
+    )
+
+    assert calls == [
+        [
+            "metaphlan",
+            str(reads),
+            "--input_type",
+            "fastq",
+            "--nproc",
+            "4",
+            "--bowtie2out",
+            str(tmp_path / "metaphlan-profile.bowtie2.bz2"),
+            "-o",
+            str(tmp_path / "metaphlan-profile.tsv"),
+            "--bowtie2db",
+            str(database),
+        ]
+    ]
+
+
+def test_tax_classify_metaphlan_rejects_bad_input_type(tmp_path: Path) -> None:
+    reads = tmp_path / "reads.fastq"
+    reads.write_text("@r1\nACGT\n+\n!!!!\n", encoding="utf-8")
+
+    with pytest.raises(MicrobiomeSuiteError, match="--input-type"):
+        tax_classify(
+            backend="metaphlan",
+            rep_seqs=reads,
+            output=tmp_path / "metaphlan-profile.tsv",
+            input_type="bad",
+        )
+
+
 def test_phylogeny_mafft_fasttree_builds_outputs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

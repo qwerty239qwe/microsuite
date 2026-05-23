@@ -7,7 +7,7 @@ from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
-SUPPORTED_METHODS = ("qiime2", "kraken2", "dada2")
+SUPPORTED_METHODS = ("qiime2", "kraken2", "metaphlan", "dada2")
 PLANNED_METHODS = ("dada2",)
 
 
@@ -17,6 +17,7 @@ def tax_classify(
     rep_seqs: Path,
     output: Path,
     classifier: Path | None = None,
+    input_type: str = "fastq",
     threads: int | str = 1,
     force: bool = False,
     run_dir: Path | None = None,
@@ -46,6 +47,18 @@ def tax_classify(
             timeout=timeout,
         )
         return
+    if backend == "metaphlan":
+        tax_classify_metaphlan(
+            reads=rep_seqs,
+            database=classifier,
+            output=output,
+            input_type=input_type,
+            threads=resolved_threads,
+            force=force,
+            run_dir=run_dir,
+            timeout=timeout,
+        )
+        return
     if backend in PLANNED_METHODS:
         raise MicrobiomeSuiteError(
             f"Taxonomy classification backend '{backend}' is registered but not implemented yet. "
@@ -54,6 +67,63 @@ def tax_classify(
     raise MicrobiomeSuiteError(
         f"Unsupported taxonomy classification backend '{backend}'. "
         f"Choose one of: {', '.join(SUPPORTED_METHODS)}"
+    )
+
+
+def tax_classify_metaphlan(
+    *,
+    reads: Path,
+    database: Path | None,
+    output: Path,
+    input_type: str,
+    threads: int,
+    force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
+) -> None:
+    if input_type not in {"fastq", "fasta", "bowtie2out", "sam"}:
+        raise MicrobiomeSuiteError(
+            "--input-type must be one of: fastq, fasta, bowtie2out, sam for --backend metaphlan."
+        )
+    metaphlan = shutil.which("metaphlan")
+    if metaphlan is None:
+        raise MicrobiomeSuiteError(
+            "MetaPhlAn taxonomy profiling requires the external 'metaphlan' command. "
+            "Install MetaPhlAn or use the microsuite/metaphlan container and rerun this command."
+        )
+
+    ensure_input(reads)
+    if database is not None and not database.exists():
+        raise MicrobiomeSuiteError(f"MetaPhlAn database does not exist: {database}")
+    prepare_output(output, force=force)
+    bowtie2out = output.with_suffix(".bowtie2.bz2")
+    prepare_output(bowtie2out, force=force)
+
+    command = [
+        metaphlan,
+        str(reads),
+        "--input_type",
+        input_type,
+        "--nproc",
+        str(threads),
+        "--bowtie2out",
+        str(bowtie2out),
+        "-o",
+        str(output),
+    ]
+    if database is not None:
+        command.extend(["--bowtie2db", str(database)])
+    run_command(
+        command,
+        "MetaPhlAn taxonomy profiling failed.",
+        run_dir=run_dir,
+        timeout=timeout,
+        log=CommandLog(
+            task="tax_classify",
+            backend="metaphlan",
+            outputs={"profile": str(output), "bowtie2out": str(bowtie2out)},
+            params={"input_type": input_type},
+        ),
     )
 
 

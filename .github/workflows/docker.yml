@@ -83,6 +83,10 @@ jobs:
             dockerfile: containers/kraken2/Dockerfile
             context: .
             heavy: false
+          - image: metaphlan
+            dockerfile: containers/metaphlan/Dockerfile
+            context: .
+            heavy: true
           - image: qiime2-amplicon
             dockerfile: containers/qiime2-amplicon/Dockerfile
             context: .
@@ -259,6 +263,10 @@ jobs:
         run: |
           docker run --rm --entrypoint bash microsuite/${{ matrix.image }}:ci \
             -lc 'command -v mafft && command -v FastTree'
+
+      - name: Smoke test MetaPhlAn image
+        if: ${{ matrix.image == 'metaphlan' && github.event.inputs.build-heavy-containers == 'true' }}
+        run: docker run --rm microsuite/${{ matrix.image }}:ci --version
 
       - name: Skip heavy container image
         if: ${{ matrix.heavy && github.event.inputs.build-heavy-containers != 'true' }}
