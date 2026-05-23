@@ -256,7 +256,9 @@ jobs:
 
       - name: Smoke test kraken2 image
         if: ${{ matrix.image == 'kraken2' }}
-        run: docker run --rm --entrypoint kraken2 microsuite/${{ matrix.image }}:ci --version
+        run: |
+          docker run --rm --entrypoint kraken2 microsuite/${{ matrix.image }}:ci --version
+          docker run --rm --entrypoint bracken microsuite/${{ matrix.image }}:ci -h
 
       - name: Smoke test MAFFT/FastTree image
         if: ${{ matrix.image == 'mafft-fasttree' }}

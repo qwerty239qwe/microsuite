@@ -7,7 +7,7 @@ from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
-SUPPORTED_METHODS = ("qiime2", "kraken2", "metaphlan", "dada2")
+SUPPORTED_METHODS = ("qiime2", "kraken2", "bracken", "metaphlan", "dada2")
 PLANNED_METHODS = ("dada2",)
 
 
@@ -18,6 +18,8 @@ def tax_classify(
     output: Path,
     classifier: Path | None = None,
     input_type: str = "fastq",
+    level: str = "S",
+    read_length: int = 150,
     threads: int | str = 1,
     force: bool = False,
     run_dir: Path | None = None,
@@ -31,6 +33,18 @@ def tax_classify(
             classifier=classifier,
             output=output,
             threads=resolved_threads,
+            force=force,
+            run_dir=run_dir,
+            timeout=timeout,
+        )
+        return
+    if backend == "bracken":
+        tax_classify_bracken(
+            kraken_report=rep_seqs,
+            database=classifier,
+            output=output,
+            level=level,
+            read_length=read_length,
             force=force,
             run_dir=run_dir,
             timeout=timeout,
@@ -67,6 +81,63 @@ def tax_classify(
     raise MicrobiomeSuiteError(
         f"Unsupported taxonomy classification backend '{backend}'. "
         f"Choose one of: {', '.join(SUPPORTED_METHODS)}"
+    )
+
+
+def tax_classify_bracken(
+    *,
+    kraken_report: Path,
+    database: Path | None,
+    output: Path,
+    level: str,
+    read_length: int,
+    force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
+) -> None:
+    if database is None:
+        raise MicrobiomeSuiteError("--classifier is required for --backend bracken.")
+    if level not in {"D", "P", "C", "O", "F", "G", "S"}:
+        raise MicrobiomeSuiteError(
+            "--level must be one of: D, P, C, O, F, G, S for --backend bracken."
+        )
+    if read_length < 1:
+        raise MicrobiomeSuiteError("--read-length must be at least 1 for --backend bracken.")
+    bracken = shutil.which("bracken")
+    if bracken is None:
+        raise MicrobiomeSuiteError(
+            "Bracken abundance re-estimation requires the external 'bracken' command. "
+            "Install Bracken or use the microsuite/kraken2 container and rerun this command."
+        )
+
+    ensure_input(kraken_report)
+    if not database.exists():
+        raise MicrobiomeSuiteError(f"Bracken database does not exist: {database}")
+    prepare_output(output, force=force)
+    command = [
+        bracken,
+        "-d",
+        str(database),
+        "-i",
+        str(kraken_report),
+        "-o",
+        str(output),
+        "-r",
+        str(read_length),
+        "-l",
+        level,
+    ]
+    run_command(
+        command,
+        "Bracken abundance re-estimation failed.",
+        run_dir=run_dir,
+        timeout=timeout,
+        log=CommandLog(
+            task="tax_classify",
+            backend="bracken",
+            outputs={"abundance": str(output)},
+            params={"level": level, "read_length": read_length},
+        ),
     )
 
 

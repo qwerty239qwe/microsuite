@@ -160,6 +160,28 @@ def test_cli_tax_classify_metaphlan_bad_input_type(tmp_path: Path) -> None:
     assert "--input-type" in str(result.exception)
 
 
+def test_cli_tax_classify_bracken_requires_database(tmp_path: Path) -> None:
+    report = tmp_path / "kraken-report.tsv"
+    report.write_text("placeholder", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "tax_classify",
+            "--backend",
+            "bracken",
+            "--rep-seqs",
+            str(report),
+            "-o",
+            str(tmp_path / "bracken.tsv"),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert result.exception is not None
+    assert "--classifier" in str(result.exception)
+
+
 def test_cli_diversity_calc_requires_phylogeny_for_unifrac(tmp_path: Path) -> None:
     table = tmp_path / "table.qza"
     table.write_text("placeholder", encoding="utf-8")

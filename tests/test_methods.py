@@ -71,6 +71,66 @@ def test_tax_classify_kraken2_requires_database(tmp_path: Path) -> None:
         tax_classify(backend="kraken2", rep_seqs=rep_seqs, output=tmp_path / "taxonomy.tsv")
 
 
+def test_tax_classify_bracken_builds_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    report = tmp_path / "kraken-report.tsv"
+    database = tmp_path / "kraken-db"
+    report.write_text("placeholder", encoding="utf-8")
+    database.mkdir()
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr("shutil.which", lambda name: "bracken" if name == "bracken" else None)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        ),
+    )
+
+    tax_classify(
+        backend="bracken",
+        rep_seqs=report,
+        classifier=database,
+        output=tmp_path / "bracken.tsv",
+        level="G",
+        read_length=100,
+    )
+
+    assert calls == [
+        [
+            "bracken",
+            "-d",
+            str(database),
+            "-i",
+            str(report),
+            "-o",
+            str(tmp_path / "bracken.tsv"),
+            "-r",
+            "100",
+            "-l",
+            "G",
+        ]
+    ]
+
+
+def test_tax_classify_bracken_validates_level_and_database(tmp_path: Path) -> None:
+    report = tmp_path / "kraken-report.tsv"
+    report.write_text("placeholder", encoding="utf-8")
+
+    with pytest.raises(MicrobiomeSuiteError, match="--classifier"):
+        tax_classify(backend="bracken", rep_seqs=report, output=tmp_path / "bracken.tsv")
+
+    with pytest.raises(MicrobiomeSuiteError, match="--level"):
+        tax_classify(
+            backend="bracken",
+            rep_seqs=report,
+            classifier=tmp_path,
+            output=tmp_path / "bracken.tsv",
+            level="bad",
+        )
+
+
 def test_tax_classify_metaphlan_builds_command(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

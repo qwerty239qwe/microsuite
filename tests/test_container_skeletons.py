@@ -27,7 +27,7 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
         "qiime2-amplicon": ["qiime", "QIIME 2"],
         "r-dada2": ["Rscript", "dada2"],
         "r-diffab": ["Rscript", "ANCOMBC"],
-        "kraken2": ["kraken2", "Bracken support is planned"],
+        "kraken2": ["kraken2", "bracken"],
     }
 
     for name, tokens in expected.items():
@@ -146,6 +146,12 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
         "| `kraken2` | Kraken2 2.1.3 | ready | "
         "`microsuite tax_classify --backend kraken2 --classifier DB` | "
         '`tax_classify(backend="kraken2", rep_seqs=..., classifier=database, output=...)` |'
+    ) in text
+    assert (
+        "| `bracken` | Bracken user env | ready | "
+        "`microsuite tax_classify --backend bracken --classifier DB --level S --read-length 150` | "
+        '`tax_classify(backend="bracken", rep_seqs=kraken_report, '
+        'classifier=database, output=..., level="S", read_length=150)` |'
     ) in text
     assert (
         "| `metaphlan` | MetaPhlAn user env | ready | "

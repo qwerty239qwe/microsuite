@@ -92,6 +92,7 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert (
         "docker run --rm --entrypoint kraken2 microsuite/${{ matrix.image }}:ci --version" in text
     )
+    assert "docker run --rm --entrypoint bracken microsuite/${{ matrix.image }}:ci -h" in text
     assert "command -v mafft && command -v FastTree" in text
     assert "microsuite/${{ matrix.image }}:ci --version" in text
 

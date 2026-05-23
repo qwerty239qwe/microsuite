@@ -534,7 +534,7 @@ def tax_classify_cmd(
         Path | None,
         typer.Option(
             "--classifier",
-            help="QIIME classifier, Kraken2 database, or optional MetaPhlAn Bowtie2 database.",
+            help="QIIME classifier, Kraken2/Bracken database, or optional MetaPhlAn database.",
         ),
     ] = None,
     input_type: Annotated[
@@ -543,6 +543,16 @@ def tax_classify_cmd(
             "--input-type", help="MetaPhlAn input type: fastq, fasta, bowtie2out, or sam."
         ),
     ] = "fastq",
+    level: Annotated[
+        str,
+        typer.Option("--level", help="Bracken taxonomy level: D, P, C, O, F, G, or S."),
+    ] = "S",
+    read_length: Annotated[
+        int,
+        typer.Option(
+            "--read-length", min=1, help="Bracken read length used for abundance estimates."
+        ),
+    ] = 150,
     threads: Annotated[str, typer.Option("--threads", help="Thread count or 'auto'.")] = "1",
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
     run_dir: Annotated[
@@ -557,6 +567,8 @@ def tax_classify_cmd(
         rep_seqs=rep_seqs,
         classifier=classifier,
         input_type=input_type,
+        level=level,
+        read_length=read_length,
         output=output,
         threads=threads,
         force=force,

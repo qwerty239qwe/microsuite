@@ -20,7 +20,7 @@ containers/metaphlan/          MetaPhlAn marker-gene profiling
 containers/qiime2-amplicon/    QIIME 2 amplicon workflows
 containers/r-dada2/            R DADA2 ASV inference
 containers/r-diffab/           R differential-abundance tools
-containers/kraken2/            Kraken2 taxonomy profiling
+containers/kraken2/            Kraken2 taxonomy profiling and Bracken abundance
 ```
 
 | Image | Purpose | Expected commands | Build status |
@@ -39,7 +39,7 @@ containers/kraken2/            Kraken2 taxonomy profiling
 | `qiime2-amplicon` | QIIME 2 amplicon backend | `qiime` | skeleton |
 | `r-dada2` | R DADA2 ASV inference | `Rscript`, `dada2` | implemented |
 | `r-diffab` | R differential abundance backend | `Rscript`, `ANCOMBC` | skeleton |
-| `kraken2` | Kraken2 taxonomy profiling | `kraken2`; planned: `bracken` | skeleton |
+| `kraken2` | Kraken2 taxonomy profiling and Bracken abundance | `kraken2`, `bracken` | implemented |
 
 Default unit tests validate container files statically. The separate Docker
 GitHub Actions workflow builds the lighter `microsuite`, `fastqc`, trimming,
