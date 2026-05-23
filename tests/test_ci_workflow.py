@@ -90,6 +90,9 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "Run USEARCH tiny example" in text
     assert "Smoke test MAFFT/FastTree image" in text
     assert "Smoke test MetaPhlAn image" in text
+    assert "Smoke test R diffab image" in text
+    assert 'requireNamespace("ANCOMBC", quietly = TRUE)' in text
+    assert 'file.exists("/opt/microsuite/ancombc.R")' in text
     assert "--cluster_fast /input/tiny.fasta" in text
     assert "--minseqlength 1" in text
     assert "-cluster_fast /input/tiny.fasta" in text

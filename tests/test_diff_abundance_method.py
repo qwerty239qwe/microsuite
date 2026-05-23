@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+from importlib.resources import files
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -28,11 +29,14 @@ def fixture_table(tmp_path: Path) -> Path:
 
 def test_ancombc_r_script_is_external_asset() -> None:
     script = ROOT / "scripts" / "r" / "ancombc.R"
+    packaged_script = files("microsuite.diffab.r").joinpath("ancombc.R")
 
     assert script.exists()
     text = script.read_text(encoding="utf-8")
     assert "ANCOMBC" in text
     assert "commandArgs" in text
+    assert packaged_script.is_file()
+    assert packaged_script.read_text(encoding="utf-8") == text
 
 
 def test_diff_abundance_ancombc_missing_rscript(
@@ -74,7 +78,9 @@ def test_ancombc_invokes_external_script_path(
     assert commands
     command = commands[0]
     assert command[0] == "Rscript"
-    assert command[1] == str(ROOT / "scripts" / "r" / "ancombc.R")
+    assert command[1].endswith("microsuite/diffab/r/ancombc.R") or command[1].endswith(
+        "microsuite\\diffab\\r\\ancombc.R"
+    )
     assert command[-2:] == ["treatment", str(tmp_path / "diff.tsv")]
 
 

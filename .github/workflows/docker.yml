@@ -270,6 +270,12 @@ jobs:
         if: ${{ matrix.image == 'metaphlan' && github.event.inputs.build-heavy-containers == 'true' }}
         run: docker run --rm microsuite/${{ matrix.image }}:ci --version
 
+      - name: Smoke test R diffab image
+        if: ${{ matrix.image == 'r-diffab' && github.event.inputs.build-heavy-containers == 'true' }}
+        run: |
+          docker run --rm microsuite/${{ matrix.image }}:ci -e \
+            'stopifnot(requireNamespace("ANCOMBC", quietly = TRUE)); stopifnot(file.exists("/opt/microsuite/ancombc.R"))'
+
       - name: Skip heavy container image
         if: ${{ matrix.heavy && github.event.inputs.build-heavy-containers != 'true' }}
         run: echo "Skipping heavy container image ${{ matrix.image }}. Use workflow_dispatch with build-heavy-containers=true to build it."

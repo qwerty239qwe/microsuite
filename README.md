@@ -160,7 +160,7 @@ features clustered by sequence identity, commonly 97%.
 
 | Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `ancombc` | R 4.4.0 image; ANCOMBC via Bioconductor | partial | `microsuite diff_abundance --backend ancombc` | `diff_abundance(backend="ancombc", table=..., group=..., output=...)` | [R diffab](containers/r-diffab/Dockerfile) | Strong compositional method; R/Bioconductor install is heavier. | ANCOM-BC differential abundance. |
+| `ancombc` | R 4.4.0 image; ANCOMBC via Bioconductor | ready | `microsuite diff_abundance --backend ancombc` | `diff_abundance(backend="ancombc", table=..., group=..., output=...)` | [R diffab](containers/r-diffab/Dockerfile) | Strong compositional method; R/Bioconductor install is heavier. | ANCOM-BC differential abundance. |
 | `qiime2-ancombc` | QIIME 2 2024.10 | partial | `microsuite diff_abundance --backend qiime2-ancombc --metadata sample-metadata.tsv` | `diff_abundance(backend="qiime2-ancombc", table=..., metadata=..., group=...)` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Keeps composition results in QIIME artifact form. | QIIME composition ANCOM-BC. |
 | `aldex2` | Planned | planned | `microsuite diff_abundance --backend aldex2` | planned | [R diffab](containers/r-diffab/Dockerfile) | Good compositional alternative; R wrapper pending. | ALDEx2 differential abundance. |
 | `maaslin2` | Planned | planned | `microsuite diff_abundance --backend maaslin2` | planned | [R diffab](containers/r-diffab/Dockerfile) | Flexible covariate modeling; more complex formula interface. | MaAsLin2 multivariable association testing. |

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+from importlib.resources import files
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -11,7 +12,7 @@ from microsuite._errors import MicrobiomeSuiteError
 from microsuite.diversity._matrix import dense_counts
 from microsuite.runtime.runner import CommandLog, run_command
 
-ANCOMBC_SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "r" / "ancombc.R"
+ANCOMBC_SCRIPT = files("microsuite.diffab.r").joinpath("ancombc.R")
 
 
 def run_ancombc(

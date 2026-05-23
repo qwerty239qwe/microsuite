@@ -166,7 +166,7 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
     ) in text
     assert (
         "| `ancombc` | R 4.4.0 image; ANCOMBC via "
-        "Bioconductor | partial | `microsuite diff_abundance --backend ancombc` | "
+        "Bioconductor | ready | `microsuite diff_abundance --backend ancombc` | "
         '`diff_abundance(backend="ancombc", table=..., group=..., output=...)` |'
     ) in text
 

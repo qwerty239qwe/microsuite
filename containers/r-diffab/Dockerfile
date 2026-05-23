@@ -5,7 +5,14 @@ LABEL org.opencontainers.image.description="R differential abundance backend for
 
 # Expected commands: Rscript
 # Expected R packages: ANCOMBC
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libgsl27 && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN Rscript -e "install.packages('BiocManager', repos='https://cloud.r-project.org')" && \
-    Rscript -e "BiocManager::install('ANCOMBC', ask = FALSE, update = FALSE)"
+    Rscript -e "BiocManager::install('ANCOMBC', ask = FALSE, update = FALSE)" && \
+    Rscript -e "stopifnot(requireNamespace('ANCOMBC', quietly = TRUE))"
+
+COPY scripts/r/ancombc.R /opt/microsuite/ancombc.R
 
 ENTRYPOINT ["Rscript"]
