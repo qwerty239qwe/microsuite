@@ -28,6 +28,12 @@ def test_github_actions_ci_runs_project_quality_gate() -> None:
     assert 'version: "25.10.0"' in text
     assert "nextflow run workflows/nextflow/main.nf" in text
     assert "--outdir results/nextflow-smoke" in text
+    assert "external-integration:" in text
+    assert "External tool Python API integration" in text
+    assert 'MICROSUITE_RUN_EXTERNAL_INTEGRATION: "1"' in text
+    assert "sudo apt-get install -y --no-install-recommends fastp vsearch mafft fasttree" in text
+    assert "uv pip install cutadapt multiqc" in text
+    assert "uv run pytest tests/integration/test_external_tools.py" in text
     assert "docker-build:" not in text
 
 

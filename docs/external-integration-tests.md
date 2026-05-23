@@ -10,6 +10,11 @@ MICROSUITE_RUN_EXTERNAL_INTEGRATION=1 uv run pytest tests/integration
 These tests call the Python API and execute real tools on `PATH`. Tests skip
 individually when a tool is not installed.
 
+GitHub Actions also runs a lightweight external integration job. It installs
+`fastp`, `vsearch`, `mafft`, and `fasttree` with apt, installs `cutadapt` and
+`multiqc` into the uv environment, and runs this same test module with
+`MICROSUITE_RUN_EXTERNAL_INTEGRATION=1`.
+
 No-database tests currently cover:
 
 - `fastp`
