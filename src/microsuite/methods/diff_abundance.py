@@ -5,11 +5,12 @@ from pathlib import Path
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
 from microsuite.diffab.ancombc import run_ancombc
+from microsuite.diffab.r_backends import run_r_diffab_backend
 from microsuite.io.h5ad import read_h5ad
 from microsuite.methods._qiime import require_qiime, run_qiime
 
 SUPPORTED_BACKENDS = ("ancombc", "qiime2-ancombc", "aldex2", "maaslin2", "lefse")
-PLANNED_BACKENDS = ("aldex2", "maaslin2", "lefse")
+R_BACKENDS = ("aldex2", "maaslin2", "lefse")
 
 
 def diff_abundance(
@@ -24,11 +25,6 @@ def diff_abundance(
     timeout: float | None = None,
 ) -> None:
     backend = backend.lower()
-    if backend in PLANNED_BACKENDS:
-        raise MicrobiomeSuiteError(
-            f"Differential abundance backend '{backend}' is registered but not implemented yet. "
-            "Use --backend ancombc for now."
-        )
     if backend == "qiime2-ancombc":
         if metadata is None:
             raise MicrobiomeSuiteError("--metadata is required for --backend qiime2-ancombc.")
@@ -55,6 +51,17 @@ def diff_abundance(
             timeout=timeout,
             task="diff_abundance",
             backend=backend,
+        )
+        return
+    if backend in R_BACKENDS:
+        adata = read_h5ad(ensure_input(table))
+        run_r_diffab_backend(
+            adata,
+            backend=backend,
+            group=group,
+            output=prepare_output(output, force=force),
+            run_dir=run_dir,
+            timeout=timeout,
         )
         return
     if backend != "ancombc":

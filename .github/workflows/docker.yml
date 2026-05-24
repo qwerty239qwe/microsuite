@@ -274,7 +274,7 @@ jobs:
         if: ${{ matrix.image == 'r-diffab' && github.event.inputs.build-heavy-containers == 'true' }}
         run: |
           docker run --rm microsuite/${{ matrix.image }}:ci -e \
-            'stopifnot(requireNamespace("ANCOMBC", quietly = TRUE)); stopifnot(file.exists("/opt/microsuite/ancombc.R"))'
+            'for (pkg in c("ANCOMBC", "ALDEx2", "Maaslin2", "lefser")) stopifnot(requireNamespace(pkg, quietly = TRUE)); for (script in c("ancombc", "aldex2", "maaslin2", "lefse")) stopifnot(file.exists(sprintf("/opt/microsuite/%s.R", script)))'
 
       - name: Skip heavy container image
         if: ${{ matrix.heavy && github.event.inputs.build-heavy-containers != 'true' }}

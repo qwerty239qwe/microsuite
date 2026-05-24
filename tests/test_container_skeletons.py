@@ -26,7 +26,7 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
         "metaphlan": ["metaphlan"],
         "qiime2-amplicon": ["qiime", "QIIME 2"],
         "r-dada2": ["Rscript", "dada2"],
-        "r-diffab": ["Rscript", "ANCOMBC"],
+        "r-diffab": ["Rscript", "ANCOMBC", "ALDEx2", "MaAsLin2", "lefser"],
         "kraken2": ["kraken2", "bracken"],
     }
 
@@ -165,9 +165,24 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
         "output_aligned=..., output_tree=...)` |"
     ) in text
     assert (
-        "| `ancombc` | R 4.4.0 image; ANCOMBC via "
-        "Bioconductor | ready | `microsuite diff_abundance --backend ancombc` | "
+        "| `ancombc` | R image; ANCOMBC via Bioconductor | ready | "
+        "`microsuite diff_abundance --backend ancombc` | "
         '`diff_abundance(backend="ancombc", table=..., group=..., output=...)` |'
+    ) in text
+    assert (
+        "| `aldex2` | R image; ALDEx2 via Bioconductor | ready | "
+        "`microsuite diff_abundance --backend aldex2` | "
+        '`diff_abundance(backend="aldex2", table=..., group=..., output=...)` |'
+    ) in text
+    assert (
+        "| `maaslin2` | R image; MaAsLin2 via Bioconductor | ready | "
+        "`microsuite diff_abundance --backend maaslin2` | "
+        '`diff_abundance(backend="maaslin2", table=..., group=..., output=...)` |'
+    ) in text
+    assert (
+        "| `lefse` | R image; lefser via Bioconductor | ready | "
+        "`microsuite diff_abundance --backend lefse` | "
+        '`diff_abundance(backend="lefse", table=..., group=..., output=...)` |'
     ) in text
 
 

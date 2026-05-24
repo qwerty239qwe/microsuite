@@ -38,7 +38,7 @@ containers/kraken2/            Kraken2 taxonomy profiling and Bracken abundance
 | `metaphlan` | MetaPhlAn marker-gene profiling | `metaphlan` | implemented |
 | `qiime2-amplicon` | QIIME 2 amplicon backend | `qiime` | skeleton |
 | `r-dada2` | R DADA2 ASV inference | `Rscript`, `dada2` | implemented |
-| `r-diffab` | R differential abundance backend | `Rscript`, `ANCOMBC` | implemented |
+| `r-diffab` | R differential abundance backend | `Rscript`, `ANCOMBC`, `ALDEx2`, `MaAsLin2`, `lefser` | implemented |
 | `kraken2` | Kraken2 taxonomy profiling and Bracken abundance | `kraken2`, `bracken` | implemented |
 
 Default unit tests validate container files statically. The separate Docker

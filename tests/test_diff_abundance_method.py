@@ -27,13 +27,13 @@ def fixture_table(tmp_path: Path) -> Path:
     return table
 
 
-def test_ancombc_r_script_is_external_asset() -> None:
-    script = ROOT / "scripts" / "r" / "ancombc.R"
-    packaged_script = files("microsuite.diffab.r").joinpath("ancombc.R")
+@pytest.mark.parametrize("script_name", ["ancombc", "aldex2", "maaslin2", "lefse"])
+def test_r_diffab_scripts_are_external_assets(script_name: str) -> None:
+    script = ROOT / "scripts" / "r" / f"{script_name}.R"
+    packaged_script = files("microsuite.diffab.r").joinpath(f"{script_name}.R")
 
     assert script.exists()
     text = script.read_text(encoding="utf-8")
-    assert "ANCOMBC" in text
     assert "commandArgs" in text
     assert packaged_script.is_file()
     assert packaged_script.read_text(encoding="utf-8") == text
@@ -84,6 +84,37 @@ def test_ancombc_invokes_external_script_path(
     assert command[-2:] == ["treatment", str(tmp_path / "diff.tsv")]
 
 
+@pytest.mark.parametrize("backend", ["aldex2", "maaslin2", "lefse"])
+def test_r_diffab_backend_invokes_packaged_script(
+    backend: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    table = fixture_table(tmp_path)
+    commands: list[list[str]] = []
+
+    monkeypatch.setattr(shutil, "which", lambda name: "Rscript")
+
+    def fake_run(command: list[str], **kwargs: object) -> object:
+        commands.append(command)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    diff_abundance(
+        backend=backend,
+        table=table,
+        group="treatment",
+        output=tmp_path / "diff.tsv",
+    )
+
+    assert commands
+    command = commands[0]
+    assert command[0] == "Rscript"
+    assert command[1].endswith(f"microsuite/diffab/r/{backend}.R") or command[1].endswith(
+        f"microsuite\\diffab\\r\\{backend}.R"
+    )
+    assert command[-2:] == ["treatment", str(tmp_path / "diff.tsv")]
+
+
 def test_diff_abundance_writes_runtime_logs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -114,12 +145,44 @@ def test_diff_abundance_writes_runtime_logs(
     assert run["outputs"] == {"output": str(tmp_path / "diff.tsv")}
 
 
-def test_diff_abundance_planned_backend_message(tmp_path: Path) -> None:
+@pytest.mark.parametrize("backend", ["aldex2", "maaslin2", "lefse"])
+def test_r_diffab_backend_writes_runtime_logs(
+    backend: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     table = fixture_table(tmp_path)
+    run_dir = tmp_path / "run"
 
-    with pytest.raises(MicrobiomeSuiteError, match="not implemented"):
+    monkeypatch.setattr(shutil, "which", lambda name: "Rscript")
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 0, "ok\n", ""),
+    )
+
+    diff_abundance(
+        backend=backend,
+        table=table,
+        group="treatment",
+        output=tmp_path / "diff.tsv",
+        run_dir=run_dir,
+    )
+
+    run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    assert run["task"] == "diff_abundance"
+    assert run["backend"] == backend
+    assert run["inputs"] == {"group": "treatment"}
+    assert run["outputs"] == {"output": str(tmp_path / "diff.tsv")}
+
+
+@pytest.mark.parametrize("backend", ["aldex2", "maaslin2", "lefse"])
+def test_r_diffab_backend_missing_rscript(
+    backend: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    table = fixture_table(tmp_path)
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+
+    with pytest.raises(MicrobiomeSuiteError, match="Rscript"):
         diff_abundance(
-            backend="aldex2",
+            backend=backend,
             table=table,
             group="treatment",
             output=tmp_path / "diff.tsv",
