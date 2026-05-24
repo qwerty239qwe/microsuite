@@ -34,6 +34,8 @@ denoise(backend="dada2-r", demux=reads_dir, output_table=table, output_rep_seqs=
 qc_filter(backend="qiime2-filter-reads", demux=demux, database=index, output=filtered)
 decontam(backend="qiime2-decontam", table=table, metadata=metadata, output=scores)
 evaluate(backend="qiime2-taxonomy", expected_taxa=expected, observed_taxa=observed, output=viz)
+functional_profile(backend="picrust2", table=table, rep_seqs=rep_seqs, output_dir=functions_dir)
+functional_profile(backend="humann", reads=reads, output_dir=functions_dir)
 ```
 
 `read_table` and `write_table` currently support `.h5ad` files only. TSV, BIOM,

@@ -61,6 +61,7 @@ def test_python_sdk_facade_table_roundtrip_and_ecology(tmp_path: Path) -> None:
 
 def test_python_sdk_facade_public_exports_include_qc() -> None:
     assert "qc" in api.__all__
+    assert "functional_profile" in api.__all__
 
 
 def test_python_sdk_facade_exposes_fastqc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

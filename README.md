@@ -179,9 +179,9 @@ features clustered by sequence identity, commonly 97%.
 
 | Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `picrust2` | Planned | planned | planned | planned | Image not added yet | Popular marker-gene function prediction; reference-dependent. | Predict function from marker-gene profiles. |
-| `tax4fun2` | Planned | planned | planned | planned | Image not added yet | Alternative functional prediction; separate runtime needed. | Tax4Fun2 function prediction. |
-| `humann` | Planned | planned | planned | planned | Image not added yet | Strong metagenomic functional profiling; heavy databases. | Functional profiling from metagenomic data. |
+| `picrust2` | PICRUSt2 user env | ready | `microsuite functional_profile --backend picrust2 --table table.biom --rep-seqs rep-seqs.fasta --output-dir functions` | `functional_profile(backend="picrust2", table=..., rep_seqs=..., output_dir=...)` | External PICRUSt2 environment | Popular marker-gene function prediction; reference-dependent and expects PICRUSt2 input formats. | Predict function from marker-gene profiles. |
+| `tax4fun2` | Tax4Fun2 R user env | ready | `microsuite functional_profile --backend tax4fun2 --table otu-table.tsv --rep-seqs otus.fasta --database Tax4Fun2_ReferenceData_v2 --output-dir functions` | `functional_profile(backend="tax4fun2", table=..., rep_seqs=..., database=..., output_dir=...)` | External R/Tax4Fun2 environment | Alternative functional prediction; requires Tax4Fun2 reference data and BLAST dependencies. | Tax4Fun2 function prediction. |
+| `humann` | HUMAnN user env | ready | `microsuite functional_profile --backend humann --reads reads.fastq.gz --output-dir functions` | `functional_profile(backend="humann", reads=..., output_dir=...)` | External HUMAnN environment | Strong metagenomic functional profiling; heavy nucleotide/protein databases. | Functional profiling from metagenomic data. |
 
 ### Machine Learning And Longitudinal Analysis
 

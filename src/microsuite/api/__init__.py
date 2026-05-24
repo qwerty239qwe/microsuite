@@ -13,6 +13,7 @@ from microsuite.api.table import read_table, write_table
 from microsuite.methods.decontam import decontam
 from microsuite.methods.denoise import denoise
 from microsuite.methods.evaluate import evaluate
+from microsuite.methods.functional_profile import functional_profile
 from microsuite.methods.qc import qc
 from microsuite.methods.qc_filter import qc_filter
 from microsuite.methods.qiime2_wrappers import (
@@ -44,6 +45,7 @@ __all__ = [
     "diversity_test",
     "feature_filter",
     "feature_summarize",
+    "functional_profile",
     "metadata_tabulate",
     "normalize_table",
     "pcoa",

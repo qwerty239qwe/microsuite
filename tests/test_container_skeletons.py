@@ -184,6 +184,25 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
         "`microsuite diff_abundance --backend lefse` | "
         '`diff_abundance(backend="lefse", table=..., group=..., output=...)` |'
     ) in text
+    assert (
+        "| `picrust2` | PICRUSt2 user env | ready | "
+        "`microsuite functional_profile --backend picrust2 --table table.biom "
+        "--rep-seqs rep-seqs.fasta --output-dir functions` | "
+        '`functional_profile(backend="picrust2", table=..., rep_seqs=..., output_dir=...)` |'
+    ) in text
+    assert (
+        "| `tax4fun2` | Tax4Fun2 R user env | ready | "
+        "`microsuite functional_profile --backend tax4fun2 --table otu-table.tsv "
+        "--rep-seqs otus.fasta --database Tax4Fun2_ReferenceData_v2 --output-dir functions` | "
+        '`functional_profile(backend="tax4fun2", table=..., rep_seqs=..., '
+        "database=..., output_dir=...)` |"
+    ) in text
+    assert (
+        "| `humann` | HUMAnN user env | ready | "
+        "`microsuite functional_profile --backend humann --reads reads.fastq.gz "
+        "--output-dir functions` | "
+        '`functional_profile(backend="humann", reads=..., output_dir=...)` |'
+    ) in text
 
 
 @pytest.mark.skipif(
