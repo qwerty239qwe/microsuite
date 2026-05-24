@@ -185,6 +185,39 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
         '`diff_abundance(backend="lefse", table=..., group=..., output=...)` |'
     ) in text
     assert (
+        "| `native-beta-significance` | microsuite 0.1.0 | ready | "
+        "`microsuite diversity beta-significance beta.tsv --metadata metadata.tsv "
+        "--column body_site` | "
+        '`beta_significance(distance_matrix, metadata, column=..., method="permanova")` |'
+    ) in text
+    assert (
+        "| `mantel` | microsuite 0.1.0 | ready | "
+        "`microsuite diversity mantel beta-a.tsv beta-b.tsv -o mantel.tsv` | "
+        '`mantel_test(matrix_a, matrix_b, method="spearman")` |'
+    ) in text
+    assert (
+        "| `rda` | microsuite 0.1.0 | ready | "
+        "`microsuite diversity constrained-ordination table.h5ad --constraint body_site "
+        "--method rda -o rda.tsv` | "
+        '`constrained_ordination(adata, constraints=[...], method="rda")` |'
+    ) in text
+    assert (
+        "| `native-gamma-diversity` | microsuite 0.1.0 | ready | "
+        "`microsuite diversity gamma table.h5ad --group body_site -o gamma.tsv` | "
+        '`gamma_diversity(adata, group=..., metric="observed_features")` |'
+    ) in text
+    assert (
+        "| `beta-turnover` | microsuite 0.1.0 | ready | "
+        "`microsuite diversity beta-turnover table.h5ad --level genus -o turnover.tsv` | "
+        '`beta_turnover(adata, level="genus")` |'
+    ) in text
+    assert (
+        "| `taxa-turnover` | microsuite 0.1.0 | ready | "
+        "`microsuite diversity taxa-turnover table.h5ad --group body_site "
+        "--level genus -o taxa-turnover.tsv` | "
+        '`taxa_turnover(adata, group=..., level="genus")` |'
+    ) in text
+    assert (
         "| `picrust2` | PICRUSt2 user env | ready | "
         "`microsuite functional_profile --backend picrust2 --table table.biom "
         "--rep-seqs rep-seqs.fasta --output-dir functions` | "
