@@ -66,6 +66,7 @@ def test_python_sdk_facade_public_exports_include_qc() -> None:
     assert "mantel_test" in api.__all__
     assert "gamma_diversity" in api.__all__
     assert "constrained_ordination" in api.__all__
+    assert "network" in api.__all__
 
 
 def test_python_sdk_facade_exposes_fastqc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -20,6 +20,7 @@ from microsuite.methods.decontam import decontam
 from microsuite.methods.denoise import denoise
 from microsuite.methods.evaluate import evaluate
 from microsuite.methods.functional_profile import functional_profile
+from microsuite.methods.network import network
 from microsuite.methods.qc import qc
 from microsuite.methods.qc_filter import qc_filter
 from microsuite.methods.qiime2_wrappers import (
@@ -58,6 +59,7 @@ __all__ = [
     "gamma_diversity",
     "mantel_test",
     "metadata_tabulate",
+    "network",
     "normalize_table",
     "pcoa",
     "ordination_plot",

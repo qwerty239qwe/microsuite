@@ -21,6 +21,7 @@ from microsuite.methods.evaluate import SUPPORTED_BACKENDS as EVALUATE_BACKENDS
 from microsuite.methods.evaluate import evaluate
 from microsuite.methods.functional_profile import SUPPORTED_BACKENDS as FUNCTIONAL_PROFILE_BACKENDS
 from microsuite.methods.functional_profile import functional_profile
+from microsuite.methods.network import SUPPORTED_BACKENDS as NETWORK_BACKENDS
 from microsuite.methods.normalize import SUPPORTED_BACKENDS as NORMALIZE_BACKENDS
 from microsuite.methods.normalize import normalize
 from microsuite.methods.qc import SUPPORTED_BACKENDS as QC_BACKENDS
@@ -103,6 +104,9 @@ def methods() -> None:
         typer.echo(f"  - {backend}")
     typer.echo("functional_profile")
     for backend in FUNCTIONAL_PROFILE_BACKENDS:
+        typer.echo(f"  - {backend}")
+    typer.echo("network")
+    for backend in NETWORK_BACKENDS:
         typer.echo(f"  - {backend}")
     typer.echo("report")
     for backend in REPORT_BACKENDS:

@@ -218,6 +218,28 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
         '`taxa_turnover(adata, group=..., level="genus")` |'
     ) in text
     assert (
+        "| `native-correlation` | microsuite 0.1.0 | ready | "
+        "`microsuite network infer --backend native-correlation --table table.h5ad "
+        "-o network.tsv` | "
+        '`network(backend="native-correlation", table=..., output=...)` |'
+    ) in text
+    assert (
+        "| `sparcc` | microsuite 0.1.0 | ready | "
+        "`microsuite network infer --backend sparcc --table table.h5ad -o sparcc.tsv` | "
+        '`network(backend="sparcc", table=..., output=...)` |'
+    ) in text
+    assert (
+        "| `spieceasi` | SpiecEasi R user env | ready | "
+        "`microsuite network infer --backend spieceasi --table table.h5ad -o spieceasi.tsv` | "
+        '`network(backend="spieceasi", table=..., output=...)` |'
+    ) in text
+    assert (
+        "| `flashweave` | FlashWeave Julia user env | ready | "
+        "`microsuite network infer --backend flashweave --table table.h5ad "
+        "-o flashweave.edgelist` | "
+        '`network(backend="flashweave", table=..., output=...)` |'
+    ) in text
+    assert (
         "| `picrust2` | PICRUSt2 user env | ready | "
         "`microsuite functional_profile --backend picrust2 --table table.biom "
         "--rep-seqs rep-seqs.fasta --output-dir functions` | "

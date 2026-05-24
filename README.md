@@ -170,10 +170,10 @@ features clustered by sequence identity, commonly 97%.
 
 | Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `native-correlation` | Planned | planned | planned | planned | [microsuite Python](containers/microsuite/Dockerfile) | Simple and transparent; compositional bias risk. | Correlation network analysis. |
-| `sparcc` | Planned | planned | planned | planned | Image not added yet | Compositional-aware; runtime/database setup pending. | SparCC association network analysis. |
-| `spieceasi` | Planned | planned | planned | planned | R image later | Strong ecological network method; R dependency and tuning burden. | SPIEC-EASI network inference. |
-| `flashweave` | Planned | planned | planned | planned | Image not added yet | Handles heterogeneous metadata; separate runtime needed. | FlashWeave network inference. |
+| `native-correlation` | microsuite 0.1.0 | ready | `microsuite network infer --backend native-correlation --table table.h5ad -o network.tsv` | `network(backend="native-correlation", table=..., output=...)` | [microsuite Python](containers/microsuite/Dockerfile) | Simple and transparent; compositional bias risk. | Correlation network analysis. |
+| `sparcc` | microsuite 0.1.0 | ready | `microsuite network infer --backend sparcc --table table.h5ad -o sparcc.tsv` | `network(backend="sparcc", table=..., output=...)` | [microsuite Python](containers/microsuite/Dockerfile) | CLR correlation approximation for compositional data; full SparCC bootstrapping remains external. | SparCC-style association network analysis. |
+| `spieceasi` | SpiecEasi R user env | ready | `microsuite network infer --backend spieceasi --table table.h5ad -o spieceasi.tsv` | `network(backend="spieceasi", table=..., output=...)` | External R/SpiecEasi environment | Strong ecological network method; R dependency and tuning burden. | SPIEC-EASI network inference. |
+| `flashweave` | FlashWeave Julia user env | ready | `microsuite network infer --backend flashweave --table table.h5ad -o flashweave.edgelist` | `network(backend="flashweave", table=..., output=...)` | External Julia/FlashWeave environment | Handles heterogeneous metadata; separate Julia runtime needed. | FlashWeave network inference. |
 
 ### Functional Profiling
 
