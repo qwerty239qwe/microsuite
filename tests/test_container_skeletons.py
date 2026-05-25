@@ -246,6 +246,25 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
         '`network(backend="flashweave", table=..., output=...)` |'
     ) in text
     assert (
+        "| `randomforest` | microsuite 0.1.0 | ready | "
+        "`microsuite ml classify --backend randomforest --table table.h5ad "
+        "--target body_site -o predictions.tsv` | "
+        '`ml_classify(backend="randomforest", table=..., target=..., output=...)` |'
+    ) in text
+    assert (
+        "| `xgboost` | XGBoost optional Python package | ready | "
+        "`microsuite ml classify --backend xgboost --table table.h5ad "
+        "--target body_site -o predictions.tsv` | "
+        '`ml_classify(backend="xgboost", table=..., target=..., output=...)` |'
+    ) in text
+    assert (
+        "| `native-time-series` | microsuite 0.1.0 | ready | "
+        "`microsuite ml longitudinal --backend native-time-series --table table.h5ad "
+        "--subject subject --time day -o slopes.tsv` | "
+        '`longitudinal(backend="native-time-series", table=..., subject=..., time=..., '
+        "output=...)` |"
+    ) in text
+    assert (
         "| `picrust2` | PICRUSt2 user env | ready | "
         "`microsuite functional_profile --backend picrust2 --table table.biom "
         "--rep-seqs rep-seqs.fasta --output-dir functions` | "

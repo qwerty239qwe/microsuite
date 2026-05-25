@@ -187,9 +187,9 @@ features clustered by sequence identity, commonly 97%.
 
 | Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `randomforest` | Planned | planned | planned | planned | [microsuite Python](containers/microsuite/Dockerfile) | Interpretable baseline ML; needs validation/splits. | Supervised sample classification. |
-| `xgboost` | Planned | planned | planned | planned | Image not added yet | Strong predictive model; optional dependency and tuning needed. | Optional XGBoost sample classification. |
-| `native-time-series` | Planned | planned | planned | planned | [microsuite Python](containers/microsuite/Dockerfile) | Web-friendly outputs; design choices still open. | Longitudinal microbiome analysis. |
+| `randomforest` | microsuite 0.1.0 | ready | `microsuite ml classify --backend randomforest --table table.h5ad --target body_site -o predictions.tsv` | `ml_classify(backend="randomforest", table=..., target=..., output=...)` | [microsuite Python](containers/microsuite/Dockerfile) | Interpretable baseline ML; uses scikit-learn when available and a deterministic fallback otherwise. | Supervised sample classification. |
+| `xgboost` | XGBoost optional Python package | ready | `microsuite ml classify --backend xgboost --table table.h5ad --target body_site -o predictions.tsv` | `ml_classify(backend="xgboost", table=..., target=..., output=...)` | Optional external `xgboost` Python package | Strong predictive model; optional dependency and tuning burden. | Optional XGBoost sample classification. |
+| `native-time-series` | microsuite 0.1.0 | ready | `microsuite ml longitudinal --backend native-time-series --table table.h5ad --subject subject --time day -o slopes.tsv` | `longitudinal(backend="native-time-series", table=..., subject=..., time=..., output=...)` | [microsuite Python](containers/microsuite/Dockerfile) | Web-friendly per-feature slope summaries; mixed-effects modeling remains external-tool territory. | Longitudinal microbiome analysis. |
 
 ### Visualization And Reporting
 

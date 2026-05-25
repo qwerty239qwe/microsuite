@@ -20,6 +20,7 @@ from microsuite.methods.decontam import decontam
 from microsuite.methods.denoise import denoise
 from microsuite.methods.evaluate import evaluate
 from microsuite.methods.functional_profile import functional_profile
+from microsuite.methods.ml_longitudinal import longitudinal, ml_classify
 from microsuite.methods.network import network
 from microsuite.methods.qc import qc
 from microsuite.methods.qc_filter import qc_filter
@@ -59,6 +60,8 @@ __all__ = [
     "gamma_diversity",
     "mantel_test",
     "metadata_tabulate",
+    "longitudinal",
+    "ml_classify",
     "network",
     "normalize_table",
     "pcoa",
