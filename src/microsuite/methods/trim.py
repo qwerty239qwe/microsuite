@@ -5,10 +5,10 @@ from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.methods._qiime import require_qiime, run_qiime
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
 SUPPORTED_BACKENDS = ("fastp", "cutadapt", "trimmomatic", "trim-galore", "qiime2-cutadapt")
-PLANNED_BACKENDS = ("qiime2-cutadapt",)
 
 
 def trim(
@@ -172,11 +172,40 @@ def trim(
             timeout=timeout,
         )
         return
-    if backend in PLANNED_BACKENDS:
-        raise MicrobiomeSuiteError(
-            f"Trim backend '{backend}' is registered but not implemented yet. "
-            "Use --backend fastp for now."
+    if backend == "qiime2-cutadapt":
+        _reject_options(
+            "qiime2-cutadapt",
+            {
+                "--read2": read2,
+                "--output2": output2,
+                "--unpaired1": unpaired1,
+                "--unpaired2": unpaired2,
+                "--html": html,
+                "--json-report": json_report,
+                "--basename": basename,
+                "--trimmomatic-step": trimmomatic_steps,
+            },
         )
+        trim_qiime2_cutadapt(
+            demux=read1,
+            output=output1,
+            adapter=adapter,
+            front=front,
+            anywhere=anywhere,
+            adapter2=adapter2,
+            front2=front2,
+            anywhere2=anywhere2,
+            quality_cutoff=quality_cutoff,
+            minimum_length=minimum_length,
+            maximum_length=maximum_length,
+            max_n=max_n,
+            discard_untrimmed=discard_untrimmed,
+            threads=resolved_threads,
+            force=force,
+            run_dir=run_dir,
+            timeout=timeout,
+        )
+        return
     backends = ", ".join(SUPPORTED_BACKENDS)
     raise MicrobiomeSuiteError(f"Unsupported trim backend '{backend}'. Choose one of: {backends}")
 
@@ -496,6 +525,113 @@ def trim_galore(
         timeout=timeout,
         backend="trim-galore",
     )
+
+
+def trim_qiime2_cutadapt(
+    *,
+    demux: Path,
+    output: Path,
+    adapter: str | None,
+    front: str | None,
+    anywhere: str | None,
+    adapter2: str | None,
+    front2: str | None,
+    anywhere2: str | None,
+    quality_cutoff: str | None,
+    minimum_length: str | None,
+    maximum_length: str | None,
+    max_n: str | None,
+    discard_untrimmed: bool,
+    threads: int,
+    force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
+) -> None:
+    has_adapter = any(
+        value is not None for value in (adapter, front, anywhere, adapter2, front2, anywhere2)
+    )
+    if (
+        not any(
+            value is not None
+            for value in (
+                adapter,
+                front,
+                anywhere,
+                adapter2,
+                front2,
+                anywhere2,
+                quality_cutoff,
+                minimum_length,
+                maximum_length,
+                max_n,
+            )
+        )
+        and not discard_untrimmed
+    ):
+        raise MicrobiomeSuiteError(
+            "qiime2-cutadapt requires at least one adapter or filtering option, such as "
+            "--adapter, --front, --quality-cutoff, --minimum-length, or --max-n."
+        )
+    if discard_untrimmed and not has_adapter:
+        raise MicrobiomeSuiteError(
+            "--discard-untrimmed requires at least one adapter option, such as "
+            "--adapter, --front, or --anywhere."
+        )
+
+    qiime = require_qiime("QIIME 2 Cutadapt trimming")
+    ensure_input(demux)
+    prepare_output(output, force=force)
+
+    paired = any(value is not None for value in (adapter2, front2, anywhere2))
+    action = "trim-paired" if paired else "trim-single"
+    command = [
+        qiime,
+        "cutadapt",
+        action,
+        "--i-demultiplexed-sequences",
+        str(demux),
+        "--o-trimmed-sequences",
+        str(output),
+        "--p-cores",
+        str(threads),
+    ]
+    if paired:
+        _add_optional(command, "--p-adapter-f", adapter)
+        _add_optional(command, "--p-front-f", front)
+        _add_optional(command, "--p-anywhere-f", anywhere)
+        _add_optional(command, "--p-adapter-r", adapter2)
+        _add_optional(command, "--p-front-r", front2)
+        _add_optional(command, "--p-anywhere-r", anywhere2)
+    else:
+        _add_optional(command, "--p-adapter", adapter)
+        _add_optional(command, "--p-front", front)
+        _add_optional(command, "--p-anywhere", anywhere)
+    _add_qiime_quality_cutoff(command, quality_cutoff)
+    _add_optional(command, "--p-minimum-length", minimum_length)
+    _add_optional(command, "--p-maximum-length", maximum_length)
+    _add_optional(command, "--p-max-n", max_n)
+    if discard_untrimmed:
+        command.append("--p-discard-untrimmed")
+
+    run_qiime(
+        command,
+        "QIIME 2 Cutadapt trimming failed.",
+        run_dir=run_dir,
+        timeout=timeout,
+        task="trim",
+        backend="qiime2-cutadapt",
+    )
+
+
+def _add_qiime_quality_cutoff(command: list[str], quality_cutoff: str | None) -> None:
+    if quality_cutoff is None:
+        return
+    values = quality_cutoff.split(",", maxsplit=1)
+    if len(values) == 1:
+        command.extend(["--p-quality-cutoff-3end", values[0]])
+        return
+    command.extend(["--p-quality-cutoff-5end", values[0]])
+    command.extend(["--p-quality-cutoff-3end", values[1]])
 
 
 def _trim_galore_expected_output(

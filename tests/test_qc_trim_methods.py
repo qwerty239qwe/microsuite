@@ -816,11 +816,130 @@ def test_trim_cutadapt_r2_adapter_requires_paired_input(tmp_path: Path) -> None:
         )
 
 
-def test_trim_qiime2_cutadapt_planned_backend_message(tmp_path: Path) -> None:
-    read = touch(tmp_path / "sample_R1.fastq.gz")
+def test_trim_qiime2_cutadapt_single_builds_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    demux = touch(tmp_path / "demux.qza")
+    calls: list[list[str]] = []
 
-    with pytest.raises(MicrobiomeSuiteError, match="registered but not implemented"):
-        trim(backend="qiime2-cutadapt", read1=read, output1=tmp_path / "trimmed.fastq.gz")
+    monkeypatch.setattr("shutil.which", lambda name: "qiime" if name == "qiime" else None)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "ok\n", "")
+        ),
+    )
+
+    trim(
+        backend="qiime2-cutadapt",
+        read1=demux,
+        output1=tmp_path / "trimmed.qza",
+        adapter="AGATCGGAAGAGC",
+        quality_cutoff="10,20",
+        minimum_length="100",
+        max_n="0",
+        threads=4,
+    )
+
+    assert calls == [
+        [
+            "qiime",
+            "cutadapt",
+            "trim-single",
+            "--i-demultiplexed-sequences",
+            str(demux),
+            "--o-trimmed-sequences",
+            str(tmp_path / "trimmed.qza"),
+            "--p-cores",
+            "4",
+            "--p-adapter",
+            "AGATCGGAAGAGC",
+            "--p-quality-cutoff-5end",
+            "10",
+            "--p-quality-cutoff-3end",
+            "20",
+            "--p-minimum-length",
+            "100",
+            "--p-max-n",
+            "0",
+        ]
+    ]
+
+
+def test_trim_qiime2_cutadapt_paired_builds_command_and_logs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    demux = touch(tmp_path / "paired-demux.qza")
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr("shutil.which", lambda name: "qiime" if name == "qiime" else None)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "ok\n", "")
+        ),
+    )
+
+    run_dir = tmp_path / "run"
+    trim(
+        backend="qiime2-cutadapt",
+        read1=demux,
+        output1=tmp_path / "trimmed-paired.qza",
+        front="GTGYCAGCMGCCGCGGTAA",
+        front2="GGACTACNVGGGTWTCTAAT",
+        discard_untrimmed=True,
+        run_dir=run_dir,
+    )
+
+    assert calls[0] == [
+        "qiime",
+        "cutadapt",
+        "trim-paired",
+        "--i-demultiplexed-sequences",
+        str(demux),
+        "--o-trimmed-sequences",
+        str(tmp_path / "trimmed-paired.qza"),
+        "--p-cores",
+        "1",
+        "--p-front-f",
+        "GTGYCAGCMGCCGCGGTAA",
+        "--p-front-r",
+        "GGACTACNVGGGTWTCTAAT",
+        "--p-discard-untrimmed",
+    ]
+    run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    assert run["task"] == "trim"
+    assert run["backend"] == "qiime2-cutadapt"
+
+
+def test_trim_qiime2_cutadapt_rejects_fastq_pair_options(tmp_path: Path) -> None:
+    demux = touch(tmp_path / "demux.qza")
+    read2 = touch(tmp_path / "sample_R2.fastq.gz")
+
+    with pytest.raises(MicrobiomeSuiteError, match="--read2"):
+        trim(
+            backend="qiime2-cutadapt",
+            read1=demux,
+            read2=read2,
+            output1=tmp_path / "trimmed.qza",
+            output2=tmp_path / "trimmed_R2.fastq.gz",
+            adapter="AGATCGGAAGAGC",
+        )
+
+
+def test_trim_qiime2_cutadapt_missing_qiime_reports_tool(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    demux = touch(tmp_path / "demux.qza")
+    monkeypatch.setattr("shutil.which", lambda name: None)
+
+    with pytest.raises(MicrobiomeSuiteError, match="qiime"):
+        trim(
+            backend="qiime2-cutadapt",
+            read1=demux,
+            output1=tmp_path / "trimmed.qza",
+            adapter="AGATCGGAAGAGC",
+        )
 
 
 def test_cli_trim_cutadapt_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

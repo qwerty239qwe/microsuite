@@ -123,19 +123,25 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
         '`trim(backend="fastp", read1=..., output1=...)` |'
     ) in text
     assert (
-        "| `cutadapt` | Cutadapt >=4.x user env | partial | "
+        "| `cutadapt` | Cutadapt >=4.x user env | ready | "
         "`microsuite trim --backend cutadapt` | "
         '`trim(backend="cutadapt", read1=..., output1=..., adapter=...)` |'
     ) in text
     assert (
-        "| `trimmomatic` | Trimmomatic >=0.39 user env | partial | "
+        "| `trimmomatic` | Trimmomatic >=0.39 user env | ready | "
         "`microsuite trim --backend trimmomatic` | "
         '`trim(backend="trimmomatic", read1=..., output1=..., trimmomatic_steps=[...])` |'
     ) in text
     assert (
-        "| `trim-galore` | Trim Galore 0.6.x or v2.x user env | partial | "
+        "| `trim-galore` | Trim Galore 0.6.x or v2.x user env | ready | "
         "`microsuite trim --backend trim-galore` | "
         '`trim(backend="trim-galore", read1=..., output1=..., trim_galore_version="auto")` |'
+    ) in text
+    assert (
+        "| `qiime2-cutadapt` | QIIME 2 2024.10 | ready | "
+        "`microsuite trim --backend qiime2-cutadapt --read1 demux.qza "
+        "--output1 trimmed.qza` | "
+        '`trim(backend="qiime2-cutadapt", read1=demux, output1=trimmed, adapter=...)` |'
     ) in text
     assert (
         "| `dada2-r` | DADA2 R user env | ready | "
