@@ -74,3 +74,37 @@ uv run microsuite qiime extract data/moving-pictures-real/taxonomy.qza \
 
 These downloaded files are intentionally treated as local demo data rather than
 source files.
+
+## Gut To Soil
+
+The QIIME 2 gut-to-soil tutorial is available as an optional real-data
+integration dataset. The fetcher downloads small derived artifacts rather than
+raw reads, so it can exercise real QIIME 2 archives without rerunning denoising
+or taxonomy classification.
+
+Fetch the tutorial artifacts:
+
+```bash
+microsuite data fetch gut-to-soil -o data/gut-to-soil
+```
+
+The download writes:
+
+- `sample-metadata.tsv`
+- `asv-table-ms2.qza`
+- `taxonomy.qza`
+
+Import the feature table with taxonomy:
+
+```bash
+uv sync --extra qza --extra dev
+uv run microsuite import qza data/gut-to-soil/asv-table-ms2.qza \
+  --metadata data/gut-to-soil/sample-metadata.tsv \
+  --taxonomy-artifact data/gut-to-soil/taxonomy.qza \
+  -o runs/gut-to-soil/table.h5ad \
+  --force
+```
+
+The optional integration test for this dataset is gated by
+`MICROSUITE_RUN_REAL_DATA_TESTS=1` because it downloads files from the public
+QIIME 2 tutorial site.

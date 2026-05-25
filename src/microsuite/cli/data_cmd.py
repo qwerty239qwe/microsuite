@@ -5,6 +5,7 @@ from typing import Annotated
 
 import typer
 
+from microsuite.data.gut_to_soil import fetch_gut_to_soil
 from microsuite.data.moving_pictures import copy_small_fixture, fetch_moving_pictures
 
 app = typer.Typer(help="Fetch or materialize example datasets.", no_args_is_help=True)
@@ -19,8 +20,11 @@ def fetch(
     ] = False,
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing files.")] = False,
 ) -> None:
+    if name == "gut-to-soil":
+        fetch_gut_to_soil(output, force=force)
+        return
     if name != "moving-pictures":
-        raise typer.BadParameter("Only 'moving-pictures' is available in 0.1.0.")
+        raise typer.BadParameter("Available datasets: moving-pictures, gut-to-soil.")
     if full:
         fetch_moving_pictures(output, force=force)
     else:

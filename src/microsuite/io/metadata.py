@@ -15,6 +15,7 @@ def read_indexed_tsv(path: Path, *, index_name: str) -> pd.DataFrame:
     frame = frame.set_index(first)
     frame.index = frame.index.astype(str)
     frame = frame.loc[~frame.index.str.startswith("#q2:")]
+    frame = frame.fillna("")
     if frame.index.has_duplicates:
         duplicates = frame.index[frame.index.duplicated()].unique().tolist()
         raise MicrobiomeSuiteError(f"Duplicate {index_name} IDs in {path}: {duplicates[:5]}")

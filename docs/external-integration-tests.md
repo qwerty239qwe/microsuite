@@ -48,3 +48,14 @@ Optional Bracken overrides:
 
 - `MICROSUITE_BRACKEN_LEVEL`, default `S`
 - `MICROSUITE_BRACKEN_READ_LENGTH`, default `150`
+
+Real-data workflow tests are separately gated because they download tutorial
+artifacts:
+
+```bash
+MICROSUITE_RUN_REAL_DATA_TESTS=1 uv run pytest tests/integration/test_gut_to_soil_real_data.py
+```
+
+The gut-to-soil test downloads `sample-metadata.tsv`, `asv-table-ms2.qza`, and
+`taxonomy.qza` from the QIIME 2 gut-to-soil tutorial, imports them to AnnData,
+and runs a broad native-method smoke path over the real table.
