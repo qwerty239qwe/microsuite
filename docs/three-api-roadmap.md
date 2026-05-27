@@ -155,10 +155,10 @@ Rules:
 - `--backend` selects the tool or engine.
 - `--method` is only used for a statistical or transform method.
 - External backends check for the executable before running.
-- Planned backends are allowed in the catalog but must fail clearly.
+- Unsupported backends stay out of the public catalog until they have a working wrapper.
 - Existing deprecated aliases can remain temporarily when needed.
 
-## Planned Task Surface
+## Task Surface
 
 ```text
 qc
@@ -168,16 +168,20 @@ qc
 
 trim
   - fastp
-  - cutadapt later
-  - qiime2-cutadapt later
+  - cutadapt
+  - trimmomatic
+  - trim-galore
+  - qiime2-cutadapt
 
 denoise
   - qiime2-dada2
   - qiime2-deblur
-  - dada2-r later
+  - dada2-r
 
 cluster
   - vsearch
+  - usearch
+  - qiime2-vsearch
 
 tax_classify
   - qiime2
@@ -187,7 +191,7 @@ tax_classify
 
 phylogeny
   - qiime2
-  - mafft-fasttree later
+  - mafft-fasttree
 
 normalize
   - native
@@ -207,13 +211,13 @@ diversity_calc
 
 beta_significance
   - qiime2
-  - native later
+  - native
 
 diff_abundance
   - ancombc
   - aldex2
   - maaslin2
-  - lefse legacy/planned
+  - lefse legacy
 
 env_assoc
   - mantel
@@ -320,7 +324,7 @@ Acceptance:
 
 - wrapper checks `Rscript`
 - wrapper invokes packaged script path
-- planned `aldex2`, `maaslin2`, and `lefse` backends fail clearly
+- `ancombc`, `aldex2`, `maaslin2`, and `lefse` wrappers invoke packaged R scripts
 - old command remains functional
 - R implementation lives in `scripts/r/ancombc.R`, not in embedded Python strings
 

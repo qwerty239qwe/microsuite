@@ -9,7 +9,6 @@ from microsuite._paths import ensure_input, prepare_output
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
 SUPPORTED_BACKENDS = ("qiime2-dada2", "qiime2-deblur", "dada2-r")
-PLANNED_BACKENDS: tuple[str, ...] = ()
 DADA2_R_SCRIPT = "dada2_denoise.R"
 
 
@@ -88,11 +87,6 @@ def denoise(
             timeout=timeout,
         )
         return
-    if backend in PLANNED_BACKENDS:
-        raise MicrobiomeSuiteError(
-            f"Denoise backend '{backend}' is registered but not implemented yet. "
-            "Use --backend qiime2-dada2 or --backend qiime2-deblur for now."
-        )
     raise MicrobiomeSuiteError(
         f"Unsupported denoise backend '{backend}'. Choose one of: {', '.join(SUPPORTED_BACKENDS)}"
     )

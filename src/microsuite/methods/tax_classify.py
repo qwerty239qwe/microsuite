@@ -7,8 +7,7 @@ from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
-SUPPORTED_METHODS = ("qiime2", "kraken2", "bracken", "metaphlan", "dada2")
-PLANNED_METHODS = ("dada2",)
+SUPPORTED_METHODS = ("qiime2", "kraken2", "bracken", "metaphlan")
 
 
 def tax_classify(
@@ -73,11 +72,6 @@ def tax_classify(
             timeout=timeout,
         )
         return
-    if backend in PLANNED_METHODS:
-        raise MicrobiomeSuiteError(
-            f"Taxonomy classification backend '{backend}' is registered but not implemented yet. "
-            "Use --backend qiime2 for now."
-        )
     raise MicrobiomeSuiteError(
         f"Unsupported taxonomy classification backend '{backend}'. "
         f"Choose one of: {', '.join(SUPPORTED_METHODS)}"
