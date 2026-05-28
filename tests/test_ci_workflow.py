@@ -27,6 +27,9 @@ def test_github_actions_ci_runs_project_quality_gate() -> None:
     assert "nextflow-io/setup-nextflow" not in text
     assert 'version: "25.10.0"' in text
     assert "nextflow run workflows/nextflow/main.nf" in text
+    assert "-stub-run" in text
+    assert "--manifest tests/fixtures/nextflow/manifest.tsv" in text
+    assert "--classifier tests/fixtures/nextflow/classifier.qza" in text
     assert "--outdir results/nextflow-smoke" in text
     assert "external-integration:" in text
     assert "External tool Python API integration" in text

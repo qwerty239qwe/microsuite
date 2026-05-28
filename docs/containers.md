@@ -50,10 +50,10 @@ mounted-input examples after they build.
 The CLI may check for external commands, but the Nextflow API should own
 container/profile selection for full workflows.
 
-The `fastqc` image is the first concrete external-tool runtime. It installs
-FastQC 0.12.1 with Java and the upstream `fastqc` wrapper, and CI smoke-tests
-`fastqc --version`. The current Nextflow `FASTQC` module is still a workflow
-placeholder until the raw-read manifest contract is finalized.
+The `fastqc` image installs FastQC 0.12.1 with Java and the upstream `fastqc`
+wrapper, and CI smoke-tests a tiny FASTQ. The Nextflow Docker profile assigns
+process-specific images for FastQC, MultiQC, QIIME 2, and microsuite report
+steps.
 
 Initial skeletons live under:
 

@@ -58,7 +58,7 @@ validation. The `Status` column in the method tables describes API maturity:
 | MultiQC, fastp, Cutadapt, Trimmomatic, Trim Galore | ready | CI smoke-tested + unit-tested wrapper | fastp and MultiQC containers are smoke-tested; other wrappers are command-tested and user-supplied. |
 | QIIME 2 method wrappers | ready | Unit-tested wrapper + user environment | Command construction is tested; QIIME 2/plugin version validation is user supplied. |
 | R differential-abundance methods | ready | Unit-tested wrapper + user environment | Python wrappers and runtime logs are tested; R/Bioconductor runtime is user supplied or containerized. |
-| Nextflow workflows | partial | Static only | Workflow files and docs are checked; full execution remains manual for 0.1.0. |
+| Nextflow workflows | ready | CI stub-tested + user environment | The process graph is exercised with Nextflow `-stub-run`; real QIIME 2 execution requires local tools or containers. |
 | Kraken2, Bracken, MetaPhlAn, ALDEx2, MaAsLin2, LEfSe | ready | Kraken2 CI smoke-tested; MetaPhlAn heavy image manual-gated; R wrappers unit-tested | External runtimes and databases remain user supplied. |
 
 ## Method Surface

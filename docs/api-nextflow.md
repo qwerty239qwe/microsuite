@@ -3,7 +3,7 @@
 The Nextflow API is for full reproducible workflows.
 
 Use it for large or publication-oriented pipelines. The current Nextflow entry
-point is a skeleton for the planned `amplicon_qiime2` workflow:
+point runs the `amplicon_qiime2` workflow:
 
 ```bash
 nextflow run workflows/nextflow/main.nf \
@@ -48,10 +48,11 @@ The Nextflow layer owns:
 - sample batching
 - external tool environments
 
-The first planned workflow is `amplicon_qiime2`:
+The first workflow is `amplicon_qiime2`:
 
 ```text
-manifest -> qiime2 dada2 -> taxonomy -> phylogeny -> diversity -> report
+manifest -> FastQC -> MultiQC
+manifest + reads -> QIIME 2 import -> DADA2 -> taxonomy -> phylogeny -> diversity -> report
 ```
 
 ## Manifest contract
@@ -85,14 +86,32 @@ S1	reads/S1_R1.fastq.gz	reads/S1_R2.fastq.gz	paired-end
 S2	reads/S2_R1.fastq.gz	reads/S2_R2.fastq.gz	paired-end
 ```
 
+Runtime parameters:
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `--threads` | `2` | CPUs used by QIIME 2 DADA2 and taxonomy classification. |
+| `--trim_left`, `--trunc_len` | `0`, `0` | Single-end DADA2 trimming and truncation. |
+| `--trim_left_f`, `--trunc_len_f` | `0`, `0` | Paired-end forward-read DADA2 trimming and truncation. |
+| `--trim_left_r`, `--trunc_len_r` | `0`, `0` | Paired-end reverse-read DADA2 trimming and truncation. |
+| `--sampling_depth` | `1000` | Sampling depth for `qiime diversity core-metrics-phylogenetic`. |
+
+The local profile expects `fastqc`, `multiqc`, and `qiime` on `PATH`. The Docker
+profile assigns process-specific images for FastQC, MultiQC, QIIME 2, and the
+microsuite report step. The Singularity profile expects matching `.sif` files
+under `containers/singularity/`.
+
+Continuous integration runs the workflow with Nextflow `-stub-run` against tiny
+FASTQ fixtures. This validates the executable process graph without downloading
+QIIME 2 databases or running heavy external tools.
+
 Native statistics and AnnData operations should stay in the Python SDK and CLI
 backends, not in Nextflow process scripts.
 
 Current status:
 
-- `workflows/nextflow/main.nf` exists.
+- `workflows/nextflow/main.nf` orchestrates the `amplicon_qiime2` process graph.
 - local, Docker, and Singularity profiles exist.
-- module files are placeholders and are not yet production implementations.
-- the FastQC container exists, but the Nextflow `FASTQC` process still uses
-  placeholder behavior until the raw-read manifest contract is implemented.
-- default tests validate the skeleton statically rather than running Nextflow.
+- module files contain runnable commands plus Nextflow stubs for CI smoke tests.
+- default Python tests validate the workflow files statically; GitHub Actions
+  runs a Nextflow stub smoke test.

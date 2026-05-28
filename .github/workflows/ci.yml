@@ -77,13 +77,14 @@ jobs:
         with:
           version: "25.10.0"
 
-      - name: Run placeholder amplicon workflow
+      - name: Run amplicon workflow stub
         run: |
           nextflow run workflows/nextflow/main.nf \
             -profile local \
-            --manifest tests/fixtures/moving_pictures_small/table.tsv \
-            --metadata tests/fixtures/moving_pictures_small/metadata.tsv \
-            --classifier tests/fixtures/moving_pictures_small/taxonomy.tsv \
+            -stub-run \
+            --manifest tests/fixtures/nextflow/manifest.tsv \
+            --metadata tests/fixtures/nextflow/metadata.tsv \
+            --classifier tests/fixtures/nextflow/classifier.qza \
             --outdir results/nextflow-smoke
 
   external-integration:

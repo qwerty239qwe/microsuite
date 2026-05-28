@@ -1,5 +1,7 @@
 process QIIME2_TAXONOMY {
     tag 'qiime2_taxonomy'
+    label 'qiime2'
+    cpus { params.threads as int }
     publishDir "${params.outdir}/taxonomy", mode: 'copy'
 
     input:
@@ -11,6 +13,15 @@ process QIIME2_TAXONOMY {
 
     script:
     """
-    echo "QIIME2 taxonomy placeholder for ${rep_seqs} and ${classifier}" > taxonomy.qza
+    qiime feature-classifier classify-sklearn \
+      --i-classifier ${classifier} \
+      --i-reads ${rep_seqs} \
+      --p-n-jobs ${task.cpus} \
+      --o-classification taxonomy.qza
+    """
+
+    stub:
+    """
+    printf 'stub taxonomy\\n' > taxonomy.qza
     """
 }

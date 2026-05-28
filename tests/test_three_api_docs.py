@@ -36,7 +36,7 @@ def test_existing_docs_reflect_three_api_model() -> None:
 
     nextflow = (DOCS / "api-nextflow.md").read_text(encoding="utf-8")
     assert "Current status" in nextflow
-    assert "module files are placeholders" in nextflow
+    assert "module files contain runnable commands" in nextflow
     assert "Manifest contract" in nextflow
     for column in ["`sample_id`", "`read1`", "`read2`", "`platform`", "`layout`"]:
         assert column in nextflow
