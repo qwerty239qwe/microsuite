@@ -7,7 +7,7 @@ from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
-SUPPORTED_METHODS = ("qiime2", "kraken2", "bracken", "metaphlan")
+SUPPORTED_METHODS = ("qiime2", "kraken2", "bracken", "metaphlan", "emu")
 
 
 def tax_classify(
@@ -72,9 +72,85 @@ def tax_classify(
             timeout=timeout,
         )
         return
+    if backend == "emu":
+        tax_classify_emu(
+            reads=rep_seqs,
+            database=classifier,
+            output=output,
+            input_type=input_type,
+            threads=resolved_threads,
+            force=force,
+            run_dir=run_dir,
+            timeout=timeout,
+        )
+        return
     raise MicrobiomeSuiteError(
         f"Unsupported taxonomy classification backend '{backend}'. "
         f"Choose one of: {', '.join(SUPPORTED_METHODS)}"
+    )
+
+
+def tax_classify_emu(
+    *,
+    reads: Path,
+    database: Path | None,
+    output: Path,
+    input_type: str,
+    threads: int,
+    force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
+) -> None:
+    emu_type = "map-ont" if input_type == "fastq" else input_type
+    if emu_type not in {"map-ont", "map-pb", "lr:hq", "map-hifi", "sr"}:
+        raise MicrobiomeSuiteError(
+            "--input-type must be one of: map-ont, map-pb, lr:hq, map-hifi, sr "
+            "for --backend emu. The default CLI value 'fastq' maps to map-ont."
+        )
+    if not output.name.endswith("_rel-abundance.tsv"):
+        raise MicrobiomeSuiteError(
+            "--output must end with '_rel-abundance.tsv' for --backend emu so it matches "
+            "the EMU output naming convention."
+        )
+    emu = shutil.which("emu")
+    if emu is None:
+        raise MicrobiomeSuiteError(
+            "EMU long-read amplicon profiling requires the external 'emu' command. "
+            "Install EMU and provide an EMU database with --classifier or EMU_DATABASE_DIR."
+        )
+
+    ensure_input(reads)
+    if database is not None and not database.exists():
+        raise MicrobiomeSuiteError(f"EMU database does not exist: {database}")
+    prepare_output(output, force=force)
+
+    basename = output.name[: -len("_rel-abundance.tsv")]
+    command = [
+        emu,
+        "abundance",
+        str(reads),
+        "--type",
+        emu_type,
+        "--threads",
+        str(threads),
+        "--output-dir",
+        str(output.parent),
+        "--output-basename",
+        basename,
+    ]
+    if database is not None:
+        command.extend(["--db", str(database)])
+    run_command(
+        command,
+        "EMU long-read amplicon profiling failed.",
+        run_dir=run_dir,
+        timeout=timeout,
+        log=CommandLog(
+            task="tax_classify",
+            backend="emu",
+            outputs={"relative_abundance": str(output)},
+            params={"input_type": emu_type},
+        ),
     )
 
 

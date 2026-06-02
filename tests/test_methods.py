@@ -188,6 +188,67 @@ def test_tax_classify_metaphlan_rejects_bad_input_type(tmp_path: Path) -> None:
         )
 
 
+def test_tax_classify_emu_builds_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reads = tmp_path / "long-reads.fastq"
+    database = tmp_path / "emu-db"
+    reads.write_text("@r1\nACGT\n+\n!!!!\n", encoding="utf-8")
+    database.mkdir()
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr("shutil.which", lambda name: "emu" if name == "emu" else None)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        ),
+    )
+
+    tax_classify(
+        backend="emu",
+        rep_seqs=reads,
+        classifier=database,
+        output=tmp_path / "sample_rel-abundance.tsv",
+        input_type="map-ont",
+        threads=4,
+    )
+
+    assert calls == [
+        [
+            "emu",
+            "abundance",
+            str(reads),
+            "--type",
+            "map-ont",
+            "--threads",
+            "4",
+            "--output-dir",
+            str(tmp_path),
+            "--output-basename",
+            "sample",
+            "--db",
+            str(database),
+        ]
+    ]
+
+
+def test_tax_classify_emu_validates_output_name_and_type(tmp_path: Path) -> None:
+    reads = tmp_path / "long-reads.fastq"
+    reads.write_text("@r1\nACGT\n+\n!!!!\n", encoding="utf-8")
+
+    with pytest.raises(MicrobiomeSuiteError, match="_rel-abundance.tsv"):
+        tax_classify(backend="emu", rep_seqs=reads, output=tmp_path / "emu.tsv")
+
+    with pytest.raises(MicrobiomeSuiteError, match="--input-type"):
+        tax_classify(
+            backend="emu",
+            rep_seqs=reads,
+            output=tmp_path / "sample_rel-abundance.tsv",
+            input_type="bad",
+        )
+
+
 def test_phylogeny_mafft_fasttree_builds_outputs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

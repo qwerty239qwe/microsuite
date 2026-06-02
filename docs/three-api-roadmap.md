@@ -188,6 +188,7 @@ tax_classify
   - kraken2
   - bracken
   - metaphlan
+  - emu
 
 phylogeny
   - qiime2

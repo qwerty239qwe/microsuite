@@ -165,6 +165,13 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
         '`tax_classify(backend="metaphlan", rep_seqs=..., output=..., input_type="fastq")` |'
     ) in text
     assert (
+        "| `emu` | EMU user env | ready | "
+        "`microsuite tax_classify --backend emu --input-type map-ont "
+        "--classifier EMU_DB -o sample_rel-abundance.tsv` | "
+        '`tax_classify(backend="emu", rep_seqs=long_reads, classifier=emu_db, '
+        'output=..., input_type="map-ont")` |'
+    ) in text
+    assert (
         "| `mafft-fasttree` | MAFFT + FastTree user env | ready | "
         "`microsuite phylogeny --backend mafft-fasttree` | "
         '`phylogeny(backend="mafft-fasttree", rep_seqs=..., '

@@ -543,13 +543,20 @@ def tax_classify_cmd(
         Path | None,
         typer.Option(
             "--classifier",
-            help="QIIME classifier, Kraken2/Bracken database, or optional MetaPhlAn database.",
+            help=(
+                "QIIME classifier, Kraken2/Bracken database, optional MetaPhlAn database, "
+                "or optional EMU database."
+            ),
         ),
     ] = None,
     input_type: Annotated[
         str,
         typer.Option(
-            "--input-type", help="MetaPhlAn input type: fastq, fasta, bowtie2out, or sam."
+            "--input-type",
+            help=(
+                "MetaPhlAn input type: fastq, fasta, bowtie2out, or sam. "
+                "EMU type: map-ont, map-pb, lr:hq, map-hifi, or sr; default fastq maps to map-ont."
+            ),
         ),
     ] = "fastq",
     level: Annotated[
