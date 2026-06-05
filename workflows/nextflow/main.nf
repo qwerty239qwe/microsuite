@@ -84,6 +84,6 @@ workflow {
         QIIME2_DADA2.out.table,
         QIIME2_TAXONOMY.out.taxonomy,
         QIIME2_DIVERSITY.out.diversity_dir,
-        MULTIQC.out.report_dir,
+        MULTIQC.out.report_dir
     )
 }

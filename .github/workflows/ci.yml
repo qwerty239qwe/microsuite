@@ -79,9 +79,8 @@ jobs:
 
       - name: Run amplicon workflow stub
         run: |
-          nextflow run workflows/nextflow/main.nf \
+          nextflow run -stub-run workflows/nextflow/main.nf \
             -profile local \
-            -stub-run \
             --manifest tests/fixtures/nextflow/manifest.tsv \
             --metadata tests/fixtures/nextflow/metadata.tsv \
             --classifier tests/fixtures/nextflow/classifier.qza \

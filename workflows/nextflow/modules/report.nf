@@ -15,31 +15,31 @@ process REPORT {
 
     script:
     """
-    cat > report.html <<'EOF'
-    <!doctype html>
-    <html lang="en">
-    <head><meta charset="utf-8"><title>microsuite amplicon_qiime2 report</title></head>
-    <body>
-      <h1>microsuite amplicon_qiime2</h1>
-      <ul>
-        <li>Feature table: ${table}</li>
-        <li>Taxonomy: ${taxonomy}</li>
-        <li>Diversity directory: ${diversity_dir}</li>
-        <li>MultiQC directory: ${multiqc_dir}</li>
-      </ul>
-    </body>
-    </html>
-    EOF
-
-    cat > run.json <<'EOF'
     {
-      "workflow": "amplicon_qiime2",
-      "table": "${table}",
-      "taxonomy": "${taxonomy}",
-      "diversity": "${diversity_dir}",
-      "multiqc": "${multiqc_dir}"
-    }
-    EOF
+      printf '%s\\n' '<!doctype html>'
+      printf '%s\\n' '<html lang="en">'
+      printf '%s\\n' '<head><meta charset="utf-8"><title>microsuite amplicon_qiime2 report</title></head>'
+      printf '%s\\n' '<body>'
+      printf '%s\\n' '<h1>microsuite amplicon_qiime2</h1>'
+      printf '%s\\n' '<ul>'
+      printf '%s\\n' '<li>Feature table: ${table}</li>'
+      printf '%s\\n' '<li>Taxonomy: ${taxonomy}</li>'
+      printf '%s\\n' '<li>Diversity directory: ${diversity_dir}</li>'
+      printf '%s\\n' '<li>MultiQC directory: ${multiqc_dir}</li>'
+      printf '%s\\n' '</ul>'
+      printf '%s\\n' '</body>'
+      printf '%s\\n' '</html>'
+    } > report.html
+
+    {
+      printf '%s\\n' '{'
+      printf '%s\\n' '  "workflow": "amplicon_qiime2",'
+      printf '%s\\n' '  "table": "${table}",'
+      printf '%s\\n' '  "taxonomy": "${taxonomy}",'
+      printf '%s\\n' '  "diversity": "${diversity_dir}",'
+      printf '%s\\n' '  "multiqc": "${multiqc_dir}"'
+      printf '%s\\n' '}'
+    } > run.json
     """
 
     stub:

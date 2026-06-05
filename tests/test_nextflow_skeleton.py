@@ -37,6 +37,7 @@ def test_nextflow_amplicon_modules_are_declared() -> None:
     assert "amplicon_qiime2" in main
     assert "manifest" in main
     assert "classifier" in main
+    assert "MULTIQC.out.report_dir," not in main
     for module in modules:
         include_name = module.removesuffix(".nf")
         assert f"./modules/{include_name}" in main
@@ -61,6 +62,24 @@ def test_nextflow_modules_use_real_commands_and_stubs() -> None:
         for token in tokens:
             assert token in text, f"{module}: {token}"
         assert "placeholder" not in text
+
+
+def test_nextflow_profiles_assign_process_containers() -> None:
+    docker = (NEXTFLOW / "profiles" / "docker.config").read_text(encoding="utf-8")
+    singularity = (NEXTFLOW / "profiles" / "singularity.config").read_text(encoding="utf-8")
+
+    for text in [docker, singularity]:
+        for label in ["fastqc", "multiqc", "qiime2", "microsuite"]:
+            assert f"withLabel: {label}" in text
+        assert "process.container =" not in text
+
+    for image in [
+        "microsuite/fastqc:ci",
+        "microsuite/multiqc:ci",
+        "microsuite/qiime2-amplicon:ci",
+        "microsuite/microsuite:ci",
+    ]:
+        assert image in docker
 
 
 def test_nextflow_docs_state_profiles_and_stub_status() -> None:

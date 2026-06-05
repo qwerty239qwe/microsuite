@@ -26,7 +26,7 @@ def test_github_actions_ci_runs_project_quality_gate() -> None:
     assert "nf-core/setup-nextflow@v2" in text
     assert "nextflow-io/setup-nextflow" not in text
     assert 'version: "25.10.0"' in text
-    assert "nextflow run workflows/nextflow/main.nf" in text
+    assert "nextflow run -stub-run workflows/nextflow/main.nf" in text
     assert "-stub-run" in text
     assert "--manifest tests/fixtures/nextflow/manifest.tsv" in text
     assert "--classifier tests/fixtures/nextflow/classifier.qza" in text
