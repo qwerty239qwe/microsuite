@@ -35,7 +35,8 @@ See [docs/three-api-roadmap.md](docs/three-api-roadmap.md) for the architecture.
 Demo data attribution and citation details are in
 [docs/data-attribution.md](docs/data-attribution.md). Optional real-tool
 integration tests are documented in
-[docs/external-integration-tests.md](docs/external-integration-tests.md).
+[docs/external-integration-tests.md](docs/external-integration-tests.md). DADA2
+backend guidance is in [docs/dada2.md](docs/dada2.md).
 
 ## Backend Validation Status
 
@@ -60,6 +61,7 @@ validation. The `Status` column in the method tables describes API maturity:
 | R differential-abundance methods | ready | Unit-tested wrapper + user environment | Python wrappers and runtime logs are tested; R/Bioconductor runtime is user supplied or containerized. |
 | Nextflow workflows | ready | CI stub-tested + user environment | The process graph is exercised with Nextflow `-stub-run`; real QIIME 2 execution requires local tools or containers. |
 | Kraken2, Bracken, MetaPhlAn, EMU, ALDEx2, MaAsLin2, LEfSe | ready | Kraken2 CI smoke-tested; MetaPhlAn heavy image manual-gated; EMU/R wrappers unit-tested | External runtimes and databases remain user supplied. |
+| Metagenome assembly and binning wrappers | ready | Unit-tested wrapper + user environment | MEGAHIT, metaSPAdes, IDBA-UD, MetaBAT2, MaxBin2, and CONCOCT command construction is tested; real execution requires user-supplied tools and input matrices. |
 
 ## Method Surface
 
@@ -98,7 +100,7 @@ features clustered by sequence identity, commonly 97%.
 
 | Goal | Backend | Input | Output table type | Main outputs | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Generate ASV table | `qiime2-dada2` | Demultiplexed QIIME 2 reads artifact | ASV feature table | `table.qza`, `rep-seqs.qza`, denoising stats | Main QIIME 2 ASV path. |
+| Generate ASV table | `qiime2-dada2` | Demultiplexed QIIME 2 reads artifact | ASV feature table | `table.qza`, `rep-seqs.qza`, denoising stats, optional base-transition diagnostics | Main QIIME 2 ASV path, including single, paired, CCS, and pyro modes. |
 | Generate ASV table | `qiime2-deblur` | Demultiplexed QIIME 2 reads artifact | ASV feature table | `table.qza`, `rep-seqs.qza`, Deblur stats | 16S-oriented Deblur path. |
 | Generate ASV table | `dada2-r` | FASTQ directory | ASV count table | table TSV with `ASV*` feature IDs, representative-sequence FASTA, stats TSV | Direct R/DADA2 path; not a QIIME artifact workflow. |
 | Generate OTU-style table | `vsearch` | FASTA sequences with sample IDs in labels | OTU count table | table TSV, centroid FASTA, sidecar `.uc` mapping | Standalone VSEARCH clustering. |
@@ -109,12 +111,23 @@ features clustered by sequence identity, commonly 97%.
 
 | Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `qiime2-dada2` | QIIME 2 2024.10 | ready | `microsuite denoise --backend qiime2-dada2` | `denoise(backend="qiime2-dada2", demux=..., output_table=...)` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Strong amplicon default; needs careful truncation choices. | DADA2 ASV inference from demultiplexed reads. |
+| `qiime2-dada2` | q2-dada2 2026.4.0 target | ready | `microsuite denoise --backend qiime2-dada2 --mode single` | `denoise(backend="qiime2-dada2", demux=..., output_table=..., mode="single")` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) or external QIIME 2 | Best for QIIME artifact workflows and q2-dada2 modes such as CCS and pyro; needs careful truncation choices. | DADA2 ASV inference from demultiplexed reads. |
 | `qiime2-deblur` | QIIME 2 2024.10 | ready | `microsuite denoise --backend qiime2-deblur` | `denoise(backend="qiime2-deblur", demux=..., output_table=...)` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Reproducible fixed-error model; mainly 16S-oriented. | Deblur ASV inference from demultiplexed reads. |
-| `dada2-r` | DADA2 R user env | ready | `microsuite denoise --backend dada2-r` | `denoise(backend="dada2-r", demux=reads_dir, output_table=...)` | [R DADA2](containers/r-dada2/Dockerfile) or external `Rscript` with R package `dada2` | Direct R ecosystem access; expects a FASTQ directory and writes importable TSV/FASTA outputs with matching ASV IDs. | R/DADA2 ASV inference from raw or trimmed FASTQ files. |
+| `dada2-r` | DADA2 1.40.0 / Bioconductor 3.23 target | ready | `microsuite denoise --backend dada2-r` | `denoise(backend="dada2-r", demux=reads_dir, output_table=...)` | [R DADA2](containers/r-dada2/Dockerfile) or external `Rscript` with R package `dada2` | Best for direct FASTQ-to-TSV/FASTA workflows; expects a FASTQ directory and writes importable outputs with matching ASV IDs. | R/DADA2 ASV inference from raw or trimmed FASTQ files. |
 | `vsearch` | VSEARCH user env | ready | `microsuite cluster --backend vsearch` | `cluster(backend="vsearch", rep_seqs=..., output_table=..., output_rep_seqs=...)` | [VSEARCH](containers/vsearch/Dockerfile) or external `vsearch` | Standalone OTU-style clustering with TSV count table output; sample IDs are inferred from sequence labels. | VSEARCH `cluster_fast` sequence clustering. |
 | `usearch` | USEARCH 12 | ready | `microsuite cluster --backend usearch` | `cluster(backend="usearch", rep_seqs=..., output_table=..., output_rep_seqs=...)` | [USEARCH 12](containers/usearch/Dockerfile) or external `usearch` | Fast standalone OTU-style clustering with TSV count table output; sample IDs are inferred from sequence labels. | USEARCH `cluster_fast` sequence clustering. |
 | `qiime2-vsearch` | QIIME 2 2024.10 | ready | `microsuite cluster --backend qiime2-vsearch` | `cluster(backend="qiime2-vsearch", table=..., rep_seqs=...)` | [QIIME 2 amplicon](containers/qiime2-amplicon/Dockerfile) | Useful for QIIME artifact workflows; requires QIIME 2 and q2-vsearch. | QIIME 2 VSEARCH de novo feature clustering. |
+
+### Metagenome Assembly And Binning
+
+| Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `megahit` | MEGAHIT user env | ready | `microsuite assemble --backend megahit --read1 R1.fq.gz --read2 R2.fq.gz --output-dir assembly` | `assemble(backend="megahit", read1=..., read2=..., output_dir=...)` | External `megahit` | Fast metagenome assembler with a compact command surface; paired or single reads are supported. | Assemble metagenomic reads into contigs. |
+| `metaspades` | SPAdes/metaSPAdes user env | ready | `microsuite assemble --backend metaspades --read1 R1.fq.gz --read2 R2.fq.gz --output-dir assembly` | `assemble(backend="metaspades", read1=..., read2=..., output_dir=...)` | External `metaspades.py` | Strong metagenome assembly option; can be heavier than MEGAHIT. | Assemble metagenomic reads into contigs. |
+| `idba-ud` | IDBA-UD user env | ready | `microsuite assemble --backend idba-ud --reads reads.fa --output-dir assembly` | `assemble(backend="idba-ud", reads=..., output_dir=...)` | External `idba_ud` | Expects FASTA input, so FASTQ conversion remains a preprocessing step. | Assemble metagenomic reads into contigs. |
+| `metabat2` | MetaBAT2 user env | ready | `microsuite bin --backend metabat2 --contigs contigs.fa --depth depth.tsv --output-dir bins` | `bin_contigs(backend="metabat2", contigs=..., depth=..., output_dir=...)` | External `metabat2` | Requires a depth matrix, usually generated from read mapping. | Bin contigs into MAG candidates. |
+| `maxbin2` | MaxBin2 user env | ready | `microsuite bin --backend maxbin2 --contigs contigs.fa --abundance abundance.tsv --output-dir bins` | `bin_contigs(backend="maxbin2", contigs=..., abundance=..., output_dir=...)` | External `run_MaxBin.pl` | Requires an abundance table compatible with MaxBin2. | Bin contigs into MAG candidates. |
+| `concoct` | CONCOCT user env | ready | `microsuite bin --backend concoct --contigs contigs.fa --coverage coverage.tsv --output-dir bins` | `bin_contigs(backend="concoct", contigs=..., coverage=..., output_dir=...)` | External `concoct` | Requires a coverage table; downstream bin FASTA extraction is not automated yet. | Bin contigs into MAG candidates. |
 
 ### Taxonomy And Phylogeny
 

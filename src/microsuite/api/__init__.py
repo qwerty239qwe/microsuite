@@ -16,6 +16,8 @@ from microsuite.api.ecology import (
     taxa_turnover,
 )
 from microsuite.api.table import read_table, write_table
+from microsuite.methods.assembly import assemble
+from microsuite.methods.binning import bin_contigs
 from microsuite.methods.decontam import decontam
 from microsuite.methods.denoise import denoise
 from microsuite.methods.evaluate import evaluate
@@ -44,9 +46,11 @@ from microsuite.methods.trim import trim
 __all__ = [
     "abundance_table",
     "alpha_diversity",
+    "assemble",
     "beta_diversity",
     "beta_significance",
     "beta_turnover",
+    "bin_contigs",
     "constrained_ordination",
     "decontam",
     "denoise",

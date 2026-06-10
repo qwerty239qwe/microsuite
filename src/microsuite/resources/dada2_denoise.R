@@ -28,9 +28,24 @@ output_rep_seqs <- value_after("--output-rep-seqs")
 output_stats <- value_after("--output-stats")
 threads <- as.integer(value_after("--threads", "1"))
 paired <- has_flag("--paired")
+max_n <- as.integer(value_after("--max-n", "0"))
+trunc_q <- as.integer(value_after("--trunc-q", "2"))
+rm_phix <- if (has_flag("--rm-phix")) TRUE else if (has_flag("--no-rm-phix")) FALSE else TRUE
+pooling_method <- value_after("--pooling-method", "independent")
+pool <- if (pooling_method == "pseudo") "pseudo" else FALSE
+chimera_method <- value_after("--chimera-method", "consensus")
+min_fold_parent_over_abundance <- as.numeric(value_after("--min-fold-parent-over-abundance", "1.0"))
+allow_one_off <- has_flag("--allow-one-off")
+n_reads_learn <- as.integer(value_after("--n-reads-learn", "1000000"))
 
 if (is.null(input_dir) || is.null(output_table) || is.null(output_rep_seqs) || is.null(output_stats)) {
   stop("Missing required --input-dir, --output-table, --output-rep-seqs, or --output-stats.")
+}
+if (!pooling_method %in% c("independent", "pseudo")) {
+  stop("--pooling-method must be independent or pseudo.")
+}
+if (!chimera_method %in% c("consensus", "none")) {
+  stop("--chimera-method must be consensus or none.")
 }
 
 fastqs <- sort(list.files(input_dir, pattern = "\\.(fastq|fq)(\\.gz)?$", full.names = TRUE))
@@ -58,15 +73,30 @@ if (paired) {
     fnFs, filtFs, fnRs, filtRs,
     trimLeft = c(as.integer(value_after("--trim-left-f", "0")), as.integer(value_after("--trim-left-r", "0"))),
     truncLen = c(as.integer(value_after("--trunc-len-f", "0")), as.integer(value_after("--trunc-len-r", "0"))),
+    maxEE = c(as.numeric(value_after("--max-ee-f", "2")), as.numeric(value_after("--max-ee-r", "2"))),
+    truncQ = trunc_q,
+    maxN = max_n,
+    rm.phix = rm_phix,
     multithread = threads
   )
-  errF <- learnErrors(filtFs, multithread = threads)
-  errR <- learnErrors(filtRs, multithread = threads)
-  dadaFs <- dada(filtFs, err = errF, multithread = threads)
-  dadaRs <- dada(filtRs, err = errR, multithread = threads)
-  mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs)
+  errF <- learnErrors(filtFs, nbases = n_reads_learn, multithread = threads)
+  errR <- learnErrors(filtRs, nbases = n_reads_learn, multithread = threads)
+  dadaFs <- dada(filtFs, err = errF, pool = pool, multithread = threads)
+  dadaRs <- dada(filtRs, err = errR, pool = pool, multithread = threads)
+  mergers <- mergePairs(
+    dadaFs, filtFs, dadaRs, filtRs,
+    minOverlap = as.integer(value_after("--min-overlap", "12")),
+    maxMismatch = as.integer(value_after("--max-merge-mismatch", "0")),
+    trimOverhang = has_flag("--trim-overhang")
+  )
   seqtab <- makeSequenceTable(mergers)
-  seqtab.nochim <- removeBimeraDenovo(seqtab, method = "consensus", multithread = threads)
+  seqtab.nochim <- removeBimeraDenovo(
+    seqtab,
+    method = chimera_method,
+    minFoldParentOverAbundance = min_fold_parent_over_abundance,
+    allowOneOff = allow_one_off,
+    multithread = threads
+  )
   track <- data.frame(
     input = out[, "reads.in"],
     filtered = out[, "reads.out"],
@@ -83,12 +113,22 @@ if (paired) {
     fastqs, filt,
     trimLeft = as.integer(value_after("--trim-left", "0")),
     truncLen = as.integer(value_after("--trunc-len", "0")),
+    maxEE = as.numeric(value_after("--max-ee", "2")),
+    truncQ = trunc_q,
+    maxN = max_n,
+    rm.phix = rm_phix,
     multithread = threads
   )
-  err <- learnErrors(filt, multithread = threads)
-  dada_out <- dada(filt, err = err, multithread = threads)
+  err <- learnErrors(filt, nbases = n_reads_learn, multithread = threads)
+  dada_out <- dada(filt, err = err, pool = pool, multithread = threads)
   seqtab <- makeSequenceTable(dada_out)
-  seqtab.nochim <- removeBimeraDenovo(seqtab, method = "consensus", multithread = threads)
+  seqtab.nochim <- removeBimeraDenovo(
+    seqtab,
+    method = chimera_method,
+    minFoldParentOverAbundance = min_fold_parent_over_abundance,
+    allowOneOff = allow_one_off,
+    multithread = threads
+  )
   track <- data.frame(
     input = out[, "reads.in"],
     filtered = out[, "reads.out"],

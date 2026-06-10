@@ -144,7 +144,7 @@ def test_readme_method_surface_links_backends_to_environments() -> None:
         '`trim(backend="qiime2-cutadapt", read1=demux, output1=trimmed, adapter=...)` |'
     ) in text
     assert (
-        "| `dada2-r` | DADA2 R user env | ready | "
+        "| `dada2-r` | DADA2 1.40.0 / Bioconductor 3.23 target | ready | "
         "`microsuite denoise --backend dada2-r` | "
         '`denoise(backend="dada2-r", demux=reads_dir, output_table=...)` |'
     ) in text

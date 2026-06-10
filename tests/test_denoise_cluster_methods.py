@@ -175,6 +175,185 @@ def test_denoise_qiime2_dada2_paired_builds_command(
     assert "149" in command
 
 
+def test_denoise_qiime2_dada2_explicit_modes_build_commands(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    demux = touch(tmp_path / "demux.qza")
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr("shutil.which", lambda name: "qiime" if name == "qiime" else None)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: calls.append(command)
+        or subprocess.CompletedProcess(command, 0, "", ""),
+    )
+
+    for mode in ("single", "paired", "pyro"):
+        denoise(
+            backend="qiime2-dada2",
+            demux=demux,
+            output_table=tmp_path / f"{mode}-table.qza",
+            output_rep_seqs=tmp_path / f"{mode}-rep-seqs.qza",
+            output_stats=tmp_path / f"{mode}-stats.qza",
+            mode=mode,
+            trunc_len=150,
+            trunc_len_f=151,
+            trunc_len_r=149,
+        )
+    denoise(
+        backend="qiime2-dada2",
+        demux=demux,
+        output_table=tmp_path / "ccs-table.qza",
+        output_rep_seqs=tmp_path / "ccs-rep-seqs.qza",
+        output_stats=tmp_path / "ccs-stats.qza",
+        mode="ccs",
+        ccs_front="AGRGTTYGATYMTGGCTCAG",
+    )
+
+    assert [call[:3] for call in calls] == [
+        ["qiime", "dada2", "denoise-single"],
+        ["qiime", "dada2", "denoise-paired"],
+        ["qiime", "dada2", "denoise-pyro"],
+        ["qiime", "dada2", "denoise-ccs"],
+    ]
+
+
+def test_denoise_qiime2_dada2_ccs_advanced_params(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    demux = touch(tmp_path / "demux.qza")
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr("shutil.which", lambda name: "qiime" if name == "qiime" else None)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: calls.append(command)
+        or subprocess.CompletedProcess(command, 0, "", ""),
+    )
+
+    denoise(
+        backend="qiime2-dada2",
+        demux=demux,
+        output_table=tmp_path / "table.qza",
+        output_rep_seqs=tmp_path / "rep-seqs.qza",
+        output_stats=tmp_path / "stats.qza",
+        mode="ccs",
+        trunc_len=0,
+        max_ee=3.0,
+        trunc_q=4,
+        pooling_method="pseudo",
+        chimera_method="none",
+        min_fold_parent_over_abundance=3.5,
+        allow_one_off=True,
+        n_reads_learn=500000,
+        hashed_feature_ids=False,
+        retain_all_samples=False,
+        ccs_front="AGRGTTYGATYMTGGCTCAG",
+        ccs_adapter="AAGTCGTAACAAGGTARC",
+        ccs_max_mismatch=2,
+        ccs_indels=True,
+        ccs_min_len=1000,
+        ccs_max_len=1600,
+    )
+
+    command = calls[0]
+    assert command[:3] == ["qiime", "dada2", "denoise-ccs"]
+    assert "--p-front" in command
+    assert "AGRGTTYGATYMTGGCTCAG" in command
+    assert "--p-adapter" in command
+    assert "--p-max-ee" in command
+    assert "3.0" in command
+    assert "--p-pooling-method" in command
+    assert "pseudo" in command
+    assert "--p-no-hashed-feature-ids" in command
+    assert "--p-no-retain-all-samples" in command
+    assert "--p-indels" in command
+
+
+def test_denoise_qiime2_dada2_base_transition_plot_requires_stats(
+    tmp_path: Path,
+) -> None:
+    demux = touch(tmp_path / "demux.qza")
+
+    with pytest.raises(MicrobiomeSuiteError, match="base-transition-plot"):
+        denoise(
+            backend="qiime2-dada2",
+            demux=demux,
+            output_table=tmp_path / "table.qza",
+            output_rep_seqs=tmp_path / "rep-seqs.qza",
+            output_stats=tmp_path / "stats.qza",
+            output_base_transition_plot=tmp_path / "transitions.qzv",
+        )
+
+
+def test_denoise_qiime2_dada2_base_transition_plot_builds_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    demux = touch(tmp_path / "demux.qza")
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr("shutil.which", lambda name: "qiime" if name == "qiime" else None)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: calls.append(command)
+        or subprocess.CompletedProcess(command, 0, "", ""),
+    )
+
+    denoise(
+        backend="qiime2-dada2",
+        demux=demux,
+        output_table=tmp_path / "table.qza",
+        output_rep_seqs=tmp_path / "rep-seqs.qza",
+        output_stats=tmp_path / "stats.qza",
+        output_base_transition_stats=tmp_path / "transitions.qza",
+        output_base_transition_plot=tmp_path / "transitions.qzv",
+        trunc_len=150,
+    )
+
+    assert calls[1] == [
+        "qiime",
+        "dada2",
+        "plot-base-transitions",
+        "--i-base-transition-stats",
+        str(tmp_path / "transitions.qza"),
+        "--o-visualization",
+        str(tmp_path / "transitions.qzv"),
+    ]
+
+
+def test_denoise_qiime2_dada2_rejects_incompatible_params(tmp_path: Path) -> None:
+    demux = touch(tmp_path / "demux.qza")
+
+    with pytest.raises(MicrobiomeSuiteError, match="paired mode"):
+        denoise(
+            backend="qiime2-dada2",
+            demux=demux,
+            output_table=tmp_path / "table.qza",
+            output_rep_seqs=tmp_path / "rep-seqs.qza",
+            output_stats=tmp_path / "stats.qza",
+            mode="single",
+            min_overlap=12,
+        )
+    with pytest.raises(MicrobiomeSuiteError, match="pooling method"):
+        denoise(
+            backend="qiime2-dada2",
+            demux=demux,
+            output_table=tmp_path / "table.qza",
+            output_rep_seqs=tmp_path / "rep-seqs.qza",
+            output_stats=tmp_path / "stats.qza",
+            pooling_method="pooled",
+        )
+    with pytest.raises(MicrobiomeSuiteError, match="chimera method"):
+        denoise(
+            backend="qiime2-dada2",
+            demux=demux,
+            output_table=tmp_path / "table.qza",
+            output_rep_seqs=tmp_path / "rep-seqs.qza",
+            output_stats=tmp_path / "stats.qza",
+            chimera_method="pooled",
+        )
+
+
 def test_denoise_qiime2_deblur_builds_command(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -275,6 +454,22 @@ def test_dada2_r_script_writes_matching_asv_feature_ids() -> None:
     assert "rownames(asv_table) <- ids" in script
     assert "write.table(asv_table, output_table" in script
     assert 'writeLines(as.vector(rbind(paste0(">", ids), seqs)), output_rep_seqs)' in script
+
+
+def test_dada2_r_script_wires_advanced_controls() -> None:
+    script = Path("src/microsuite/resources/dada2_denoise.R").read_text(encoding="utf-8")
+
+    assert "maxEE" in script
+    assert "truncQ = trunc_q" in script
+    assert "maxN = max_n" in script
+    assert "rm.phix = rm_phix" in script
+    assert "pool = pool" in script
+    assert "nbases = n_reads_learn" in script
+    assert "minFoldParentOverAbundance = min_fold_parent_over_abundance" in script
+    assert "allowOneOff = allow_one_off" in script
+    assert "minOverlap" in script
+    assert "maxMismatch" in script
+    assert "trimOverhang" in script
 
 
 def test_denoise_dada2_r_missing_rscript(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -459,6 +654,14 @@ def test_cli_exposes_denoise_cluster_and_reports_missing_qiime(
     assert "denoise" in methods.stdout
     assert "cluster" in methods.stdout
     assert "usearch" in methods.stdout
+
+    help_result = runner.invoke(app, ["denoise", "--help"])
+    assert help_result.exit_code == 0
+    assert "--mode" in help_result.stdout
+    assert "--paired" in help_result.stdout
+    assert "--max-ee" in help_result.stdout
+    assert "visualization" in help_result.stdout
+    assert "--ccs-front" in help_result.stdout
 
     result = runner.invoke(
         app,
