@@ -14,6 +14,7 @@ from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
 from microsuite.diversity._matrix import dense_counts
 from microsuite.io.h5ad import read_h5ad
+from microsuite.methods._dispatch import require_backend
 from microsuite.runtime.runner import CommandLog, run_command
 
 SUPPORTED_BACKENDS = ("native-correlation", "sparcc", "spieceasi", "flashweave")
@@ -42,7 +43,7 @@ def network(
     run_dir: Path | None = None,
     timeout: float | None = None,
 ) -> None:
-    backend = backend.lower()
+    backend = require_backend(backend, SUPPORTED_BACKENDS, "network")
     if backend == "native-correlation":
         result = correlation_network(
             read_h5ad(ensure_input(table)),
@@ -88,9 +89,6 @@ def network(
             timeout=timeout,
         )
         return
-    raise MicrobiomeSuiteError(
-        f"Unsupported network backend '{backend}'. Choose one of: {', '.join(SUPPORTED_BACKENDS)}"
-    )
 
 
 def correlation_network(

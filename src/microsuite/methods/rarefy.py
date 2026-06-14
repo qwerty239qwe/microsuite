@@ -10,6 +10,7 @@ from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
 from microsuite.diversity._matrix import dense_counts
 from microsuite.io.h5ad import read_h5ad, write_h5ad
+from microsuite.methods._dispatch import require_backend
 
 SUPPORTED_BACKENDS = ("native",)
 
@@ -23,12 +24,7 @@ def rarefy(
     seed: int = 0,
     force: bool = False,
 ) -> None:
-    backend = backend.lower()
-    if backend != "native":
-        raise MicrobiomeSuiteError(
-            f"Unsupported rarefy backend '{backend}'. "
-            f"Choose one of: {', '.join(SUPPORTED_BACKENDS)}"
-        )
+    backend = require_backend(backend, SUPPORTED_BACKENDS, "rarefy")
     result = rarefy_native(read_h5ad(ensure_input(table)), depth=depth, seed=seed)
     write_h5ad(result, prepare_output(output, force=force))
 

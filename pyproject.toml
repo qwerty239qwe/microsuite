@@ -17,12 +17,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# BIOM tables and QIIME 2 .qza feature tables both decode through biom-format
+# (io/qza.py reads the embedded BIOM table via io/biom.py).
 biom = ["biom-format>=2.1"]
 qza = ["biom-format>=2.1"]
+# R differential-abundance/network backends are external runtimes supplied by the
+# user, not Python packages, so this extra intentionally adds no Python deps.
 r = []
-all = ["biom-format>=2.1"]
+all = ["microsuite[biom,qza,r]"]
 dev = [
     "pytest>=8.0",
+    "pytest-cov>=5.0",
     "ruff>=0.6",
     "ty>=0.0.1a6",
 ]
@@ -50,3 +55,10 @@ include = ["src", "tests"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.coverage.run]
+source = ["microsuite"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true

@@ -15,3 +15,7 @@ build/
 /runs/
 /data/
 /results/
+
+# Coverage
+.coverage
+coverage.xml

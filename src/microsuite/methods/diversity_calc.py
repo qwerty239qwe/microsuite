@@ -6,6 +6,7 @@ from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.methods._dispatch import require_backend
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
 
@@ -60,12 +61,7 @@ def diversity_calc(
     run_dir: Path | None = None,
     timeout: float | None = None,
 ) -> None:
-    backend = backend.lower()
-    if backend != "qiime2":
-        raise MicrobiomeSuiteError(
-            f"Unsupported diversity calculation backend '{backend}'. "
-            f"Choose one of: {', '.join(SUPPORTED_METHODS)}"
-        )
+    backend = require_backend(backend, SUPPORTED_METHODS, "diversity calculation")
     diversity_calc_qiime2(
         metric=metric,
         table=table,

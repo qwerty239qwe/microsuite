@@ -5,6 +5,7 @@ from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.methods._dispatch import require_backend
 from microsuite.methods._qiime import require_qiime, run_qiime
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
@@ -41,7 +42,7 @@ def trim(
     run_dir: Path | None = None,
     timeout: float | None = None,
 ) -> None:
-    backend = backend.lower()
+    backend = require_backend(backend, SUPPORTED_BACKENDS, "trim")
     resolved_threads = resolve_threads(threads)
     if backend == "fastp":
         if (
@@ -206,8 +207,6 @@ def trim(
             timeout=timeout,
         )
         return
-    backends = ", ".join(SUPPORTED_BACKENDS)
-    raise MicrobiomeSuiteError(f"Unsupported trim backend '{backend}'. Choose one of: {backends}")
 
 
 def trim_fastp(

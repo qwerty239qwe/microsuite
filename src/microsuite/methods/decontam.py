@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
+from microsuite.methods._dispatch import require_backend
 from microsuite.methods._qiime import ensure_inputs, prepare_outputs, require_qiime, run_qiime
 
 SUPPORTED_BACKENDS = ("qiime2-decontam",)
@@ -22,12 +23,7 @@ def decontam(
     run_dir: Path | None = None,
     timeout: float | None = None,
 ) -> None:
-    backend = backend.lower()
-    if backend != "qiime2-decontam":
-        backends = ", ".join(SUPPORTED_BACKENDS)
-        raise MicrobiomeSuiteError(
-            f"Unsupported decontam backend '{backend}'. Choose one of: {backends}"
-        )
+    backend = require_backend(backend, SUPPORTED_BACKENDS, "decontam")
     decontam_qiime2(
         table=table,
         metadata=metadata,

@@ -188,9 +188,7 @@ def test_tax_classify_metaphlan_rejects_bad_input_type(tmp_path: Path) -> None:
         )
 
 
-def test_tax_classify_emu_builds_command(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_tax_classify_emu_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     reads = tmp_path / "long-reads.fastq"
     database = tmp_path / "emu-db"
     reads.write_text("@r1\nACGT\n+\n!!!!\n", encoding="utf-8")

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
+from microsuite.methods._dispatch import require_backend
 from microsuite.methods._qiime import ensure_inputs, prepare_outputs, require_qiime, run_qiime
 from microsuite.runtime.runner import resolve_threads
 
@@ -36,7 +37,7 @@ def qc_filter(
     run_dir: Path | None = None,
     timeout: float | None = None,
 ) -> None:
-    backend = backend.lower()
+    backend = require_backend(backend, SUPPORTED_BACKENDS, "QC filter")
     resolved_threads = resolve_threads(threads)
     if backend == "qiime2-bowtie2-build":
         qc_filter_qiime2_bowtie2_build(
@@ -87,9 +88,6 @@ def qc_filter(
             timeout=timeout,
         )
         return
-    raise MicrobiomeSuiteError(
-        f"Unsupported QC filter backend '{backend}'. Choose one of: {', '.join(SUPPORTED_BACKENDS)}"
-    )
 
 
 def qc_filter_qiime2_quality_filter_q_score(

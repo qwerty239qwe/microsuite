@@ -5,6 +5,7 @@ from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input
+from microsuite.methods._dispatch import require_backend
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
 SUPPORTED_BACKENDS = ("metabat2", "maxbin2", "concoct")
@@ -24,7 +25,7 @@ def bin_contigs(
     run_dir: Path | None = None,
     timeout: float | None = None,
 ) -> None:
-    backend = backend.lower()
+    backend = require_backend(backend, SUPPORTED_BACKENDS, "bin")
     if backend == "metabat2":
         bin_metabat2(
             contigs=contigs,
@@ -60,9 +61,6 @@ def bin_contigs(
             timeout=timeout,
         )
         return
-    raise MicrobiomeSuiteError(
-        f"Unsupported bin backend '{backend}'. Choose one of: {', '.join(SUPPORTED_BACKENDS)}"
-    )
 
 
 def bin_metabat2(

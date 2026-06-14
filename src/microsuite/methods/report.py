@@ -7,17 +7,13 @@ from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import prepare_output
+from microsuite.methods._dispatch import require_backend
 
 SUPPORTED_BACKENDS = ("native",)
 
 
 def report(*, backend: str, run_dir: Path, output: Path, force: bool = False) -> None:
-    backend = backend.lower()
-    if backend != "native":
-        backends = ", ".join(SUPPORTED_BACKENDS)
-        raise MicrobiomeSuiteError(
-            f"Unsupported report backend '{backend}'. Choose one of: {backends}"
-        )
+    backend = require_backend(backend, SUPPORTED_BACKENDS, "report")
     if not run_dir.exists() or not run_dir.is_dir():
         raise MicrobiomeSuiteError(f"Run directory does not exist: {run_dir}")
     write_native_report(run_dir=run_dir, output=prepare_output(output, force=force))

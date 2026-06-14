@@ -184,8 +184,9 @@ def test_denoise_qiime2_dada2_explicit_modes_build_commands(
     monkeypatch.setattr("shutil.which", lambda name: "qiime" if name == "qiime" else None)
     monkeypatch.setattr(
         "subprocess.run",
-        lambda command, **kwargs: calls.append(command)
-        or subprocess.CompletedProcess(command, 0, "", ""),
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        ),
     )
 
     for mode in ("single", "paired", "pyro"):
@@ -227,8 +228,9 @@ def test_denoise_qiime2_dada2_ccs_advanced_params(
     monkeypatch.setattr("shutil.which", lambda name: "qiime" if name == "qiime" else None)
     monkeypatch.setattr(
         "subprocess.run",
-        lambda command, **kwargs: calls.append(command)
-        or subprocess.CompletedProcess(command, 0, "", ""),
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        ),
     )
 
     denoise(
@@ -295,8 +297,9 @@ def test_denoise_qiime2_dada2_base_transition_plot_builds_command(
     monkeypatch.setattr("shutil.which", lambda name: "qiime" if name == "qiime" else None)
     monkeypatch.setattr(
         "subprocess.run",
-        lambda command, **kwargs: calls.append(command)
-        or subprocess.CompletedProcess(command, 0, "", ""),
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        ),
     )
 
     denoise(

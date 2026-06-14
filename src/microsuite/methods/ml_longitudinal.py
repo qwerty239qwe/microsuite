@@ -11,6 +11,7 @@ from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
 from microsuite.diversity._matrix import dense_counts
 from microsuite.io.h5ad import read_h5ad
+from microsuite.methods._dispatch import require_backend
 
 SUPPORTED_ML_BACKENDS = ("randomforest", "xgboost")
 SUPPORTED_LONGITUDINAL_BACKENDS = ("native-time-series",)
@@ -51,11 +52,7 @@ def ml_classify_native(
     n_estimators: int = 100,
     seed: int = 0,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    backend = backend.lower()
-    if backend not in SUPPORTED_ML_BACKENDS:
-        raise MicrobiomeSuiteError(
-            f"Unsupported ML backend '{backend}'. Choose one of: {', '.join(SUPPORTED_ML_BACKENDS)}"
-        )
+    backend = require_backend(backend, SUPPORTED_ML_BACKENDS, "ML")
     if backend == "xgboost":
         return _classify_xgboost(
             adata,
@@ -84,12 +81,7 @@ def longitudinal(
     level: str | None = None,
     force: bool = False,
 ) -> None:
-    backend = backend.lower()
-    if backend not in SUPPORTED_LONGITUDINAL_BACKENDS:
-        raise MicrobiomeSuiteError(
-            "Unsupported longitudinal backend "
-            f"'{backend}'. Choose one of: {', '.join(SUPPORTED_LONGITUDINAL_BACKENDS)}"
-        )
+    backend = require_backend(backend, SUPPORTED_LONGITUDINAL_BACKENDS, "longitudinal")
     result = longitudinal_native(
         read_h5ad(ensure_input(table)),
         subject=subject,

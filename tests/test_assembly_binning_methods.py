@@ -27,9 +27,7 @@ def test_python_sdk_facade_exports_assembly_and_binning() -> None:
     assert "bin_contigs" in api.__all__
 
 
-def test_megahit_builds_paired_command(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_megahit_builds_paired_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     read1 = touch(tmp_path / "R1.fastq.gz")
     read2 = touch(tmp_path / "R2.fastq.gz")
     calls: list[list[str]] = []
@@ -37,8 +35,9 @@ def test_megahit_builds_paired_command(
     monkeypatch.setattr(shutil, "which", lambda name: "megahit" if name == "megahit" else None)
     monkeypatch.setattr(
         "subprocess.run",
-        lambda command, **kwargs: calls.append(command)
-        or subprocess.CompletedProcess(command, 0, "", ""),
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        ),
     )
 
     assemble(
@@ -75,8 +74,9 @@ def test_metaspades_builds_single_command_and_logs(
     )
     monkeypatch.setattr(
         "subprocess.run",
-        lambda command, **kwargs: calls.append(command)
-        or subprocess.CompletedProcess(command, 0, "ok\n", ""),
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "ok\n", "")
+        ),
     )
 
     run_dir = tmp_path / "run"
@@ -112,8 +112,9 @@ def test_idba_ud_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(shutil, "which", lambda name: "idba_ud" if name == "idba_ud" else None)
     monkeypatch.setattr(
         "subprocess.run",
-        lambda command, **kwargs: calls.append(command)
-        or subprocess.CompletedProcess(command, 0, "", ""),
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        ),
     )
 
     assemble(
@@ -163,8 +164,9 @@ def test_metabat2_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(shutil, "which", lambda name: "metabat2" if name == "metabat2" else None)
     monkeypatch.setattr(
         "subprocess.run",
-        lambda command, **kwargs: calls.append(command)
-        or subprocess.CompletedProcess(command, 0, "", ""),
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        ),
     )
 
     bin_contigs(
@@ -201,8 +203,9 @@ def test_maxbin2_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     )
     monkeypatch.setattr(
         "subprocess.run",
-        lambda command, **kwargs: calls.append(command)
-        or subprocess.CompletedProcess(command, 0, "", ""),
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        ),
     )
 
     bin_contigs(
@@ -236,8 +239,9 @@ def test_concoct_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(shutil, "which", lambda name: "concoct" if name == "concoct" else None)
     monkeypatch.setattr(
         "subprocess.run",
-        lambda command, **kwargs: calls.append(command)
-        or subprocess.CompletedProcess(command, 0, "", ""),
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        ),
     )
 
     bin_contigs(
@@ -290,8 +294,9 @@ def test_cli_assemble_and_bin_help_and_invocation(
     monkeypatch.setattr(shutil, "which", fake_which)
     monkeypatch.setattr(
         "subprocess.run",
-        lambda command, **kwargs: calls.append(command)
-        or subprocess.CompletedProcess(command, 0, "", ""),
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        ),
     )
 
     runner = CliRunner()

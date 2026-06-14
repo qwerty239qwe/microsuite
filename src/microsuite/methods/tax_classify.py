@@ -5,6 +5,7 @@ from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.methods._dispatch import require_backend
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
 SUPPORTED_METHODS = ("qiime2", "kraken2", "bracken", "metaphlan", "emu")
@@ -24,7 +25,7 @@ def tax_classify(
     run_dir: Path | None = None,
     timeout: float | None = None,
 ) -> None:
-    backend = backend.lower()
+    backend = require_backend(backend, SUPPORTED_METHODS, "taxonomy classification")
     resolved_threads = resolve_threads(threads)
     if backend == "qiime2":
         tax_classify_qiime2(
@@ -84,10 +85,6 @@ def tax_classify(
             timeout=timeout,
         )
         return
-    raise MicrobiomeSuiteError(
-        f"Unsupported taxonomy classification backend '{backend}'. "
-        f"Choose one of: {', '.join(SUPPORTED_METHODS)}"
-    )
 
 
 def tax_classify_emu(

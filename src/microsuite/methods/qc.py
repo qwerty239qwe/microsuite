@@ -5,6 +5,7 @@ from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.methods._dispatch import require_backend
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
 SUPPORTED_BACKENDS = ("fastqc", "multiqc", "qiime2-demux")
@@ -24,7 +25,7 @@ def qc(
     run_dir: Path | None = None,
     timeout: float | None = None,
 ) -> None:
-    backend = backend.lower()
+    backend = require_backend(backend, SUPPORTED_BACKENDS, "QC")
     if backend == "fastqc":
         qc_fastqc(
             inputs=inputs or [],
@@ -48,8 +49,6 @@ def qc(
     if backend == "qiime2-demux":
         qc_qiime2_demux(demux=demux, output=output, force=force, run_dir=run_dir, timeout=timeout)
         return
-    backends = ", ".join(SUPPORTED_BACKENDS)
-    raise MicrobiomeSuiteError(f"Unsupported QC backend '{backend}'. Choose one of: {backends}")
 
 
 def qc_fastqc(

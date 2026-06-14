@@ -54,6 +54,56 @@ def run_moving_pictures_qiime2(
     metrics = output / "core-metrics-results"
     logs = output / "runtime"
 
+    steps = _build_steps(
+        qiime,
+        artifacts=artifacts,
+        viz=viz,
+        metrics=metrics,
+        metadata=metadata,
+        emp_dir=emp_dir,
+        ref_seqs=ref_seqs,
+        ref_taxonomy=ref_taxonomy,
+        threads_value=threads_value,
+        sampling_depth=sampling_depth,
+        include_deblur=include_deblur,
+    )
+    executed = _execute_steps(steps, logs=logs, timeout=timeout)
+
+    report = output / "report.html"
+    report.write_text(_report_html(executed), encoding="utf-8")
+    run = {
+        "toolbox": "microsuite",
+        "version": __version__,
+        "workflow": "moving-pictures-qiime2",
+        "created_at": datetime.now(UTC).isoformat(),
+        "parameters": {
+            "threads": threads,
+            "timeout": timeout,
+            "qiime_command": qiime_command,
+            "include_deblur": include_deblur,
+            "sampling_depth": sampling_depth,
+            "classifier_mode": classifier_mode,
+        },
+        "steps": executed,
+        "outputs": {"report": str(report), "run_dir": str(output)},
+    }
+    (output / "run.json").write_text(json.dumps(run, indent=2), encoding="utf-8")
+
+
+def _build_steps(
+    qiime: str,
+    *,
+    artifacts: Path,
+    viz: Path,
+    metrics: Path,
+    metadata: Path,
+    emp_dir: Path,
+    ref_seqs: Path,
+    ref_taxonomy: Path,
+    threads_value: str,
+    sampling_depth: int,
+    include_deblur: bool,
+) -> list[Step]:
     imported = artifacts / "emp-single-end-sequences.qza"
     demux = artifacts / "demux.qza"
     demux_details = artifacts / "demux-details.qza"
@@ -515,8 +565,13 @@ def run_moving_pictures_qiime2(
                 ],
             ),
         )
+    return steps
 
-    executed = []
+
+def _execute_steps(
+    steps: list[Step], *, logs: Path, timeout: float | None
+) -> list[dict[str, object]]:
+    executed: list[dict[str, object]] = []
     for index, step in enumerate(steps, start=1):
         run_dir = logs / f"{index:02d}-{step.name}"
         run_command(
@@ -536,26 +591,7 @@ def run_moving_pictures_qiime2(
                 "run_dir": str(run_dir),
             }
         )
-
-    report = output / "report.html"
-    report.write_text(_report_html(executed), encoding="utf-8")
-    run = {
-        "toolbox": "microsuite",
-        "version": __version__,
-        "workflow": "moving-pictures-qiime2",
-        "created_at": datetime.now(UTC).isoformat(),
-        "parameters": {
-            "threads": threads,
-            "timeout": timeout,
-            "qiime_command": qiime_command,
-            "include_deblur": include_deblur,
-            "sampling_depth": sampling_depth,
-            "classifier_mode": classifier_mode,
-        },
-        "steps": executed,
-        "outputs": {"report": str(report), "run_dir": str(output)},
-    }
-    (output / "run.json").write_text(json.dumps(run, indent=2), encoding="utf-8")
+    return executed
 
 
 def _resolve_qiime(command: str) -> str:

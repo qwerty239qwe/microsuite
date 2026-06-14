@@ -5,6 +5,7 @@ from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.methods._dispatch import require_backend
 from microsuite.runtime.runner import CommandLog, run_command
 
 SUPPORTED_BACKENDS = ("vsearch", "usearch", "qiime2-vsearch")
@@ -25,7 +26,7 @@ def cluster(
     run_dir: Path | None = None,
     timeout: float | None = None,
 ) -> None:
-    backend = backend.lower()
+    backend = require_backend(backend, SUPPORTED_BACKENDS, "cluster")
     if backend == "qiime2-vsearch":
         if table is None:
             raise MicrobiomeSuiteError("--table is required for --backend qiime2-vsearch.")
@@ -68,11 +69,6 @@ def cluster(
             timeout=timeout,
         )
         return
-    else:
-        backends = ", ".join(SUPPORTED_BACKENDS)
-        raise MicrobiomeSuiteError(
-            f"Unsupported cluster backend '{backend}'. Choose one of: {backends}"
-        )
 
 
 def cluster_qiime2_vsearch(

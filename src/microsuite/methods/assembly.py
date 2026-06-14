@@ -5,6 +5,7 @@ from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input
+from microsuite.methods._dispatch import require_backend
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
 SUPPORTED_BACKENDS = ("megahit", "metaspades", "idba-ud")
@@ -22,7 +23,7 @@ def assemble(
     run_dir: Path | None = None,
     timeout: float | None = None,
 ) -> None:
-    backend = backend.lower()
+    backend = require_backend(backend, SUPPORTED_BACKENDS, "assemble")
     if backend == "megahit":
         assemble_megahit(
             read1=read1,
@@ -57,9 +58,6 @@ def assemble(
             timeout=timeout,
         )
         return
-    raise MicrobiomeSuiteError(
-        f"Unsupported assemble backend '{backend}'. Choose one of: {', '.join(SUPPORTED_BACKENDS)}"
-    )
 
 
 def assemble_megahit(
@@ -197,6 +195,8 @@ def _append_assembly_reads(
     if reads is not None:
         command.extend([single_flag, str(ensure_input(reads))])
         return {"reads": str(reads)}
+    if read1 is None:
+        raise MicrobiomeSuiteError("--read1 or --reads is required for assembly.")
     if read2 is None:
         command.extend([single_flag, str(ensure_input(read1))])
         return {"read1": str(read1)}

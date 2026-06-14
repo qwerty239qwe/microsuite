@@ -44,7 +44,7 @@ jobs:
         run: uv sync --all-extras --locked
 
       - name: Run tests
-        run: uv run pytest
+        run: uv run pytest --cov=microsuite --cov-report=term-missing --cov-report=xml
 
       - name: Run Ruff lint
         run: uv run ruff check .

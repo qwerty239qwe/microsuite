@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from microsuite._errors import MicrobiomeSuiteError
+from microsuite.methods._dispatch import require_backend
 from microsuite.methods._qiime import ensure_inputs, prepare_outputs, require_qiime, run_qiime
 
 SUPPORTED_BACKENDS = ("qiime2-taxonomy",)
@@ -20,12 +20,7 @@ def evaluate(
     run_dir: Path | None = None,
     timeout: float | None = None,
 ) -> None:
-    backend = backend.lower()
-    if backend != "qiime2-taxonomy":
-        backends = ", ".join(SUPPORTED_BACKENDS)
-        raise MicrobiomeSuiteError(
-            f"Unsupported evaluate backend '{backend}'. Choose one of: {backends}"
-        )
+    backend = require_backend(backend, SUPPORTED_BACKENDS, "evaluate")
     evaluate_qiime2_taxonomy(
         expected_taxa=expected_taxa,
         observed_taxa=observed_taxa,

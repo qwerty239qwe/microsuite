@@ -10,6 +10,7 @@ from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
 from microsuite.diversity._matrix import dense_counts
 from microsuite.io.h5ad import read_h5ad
+from microsuite.methods._dispatch import require_backend
 
 SUPPORTED_BACKENDS = ("native",)
 
@@ -23,12 +24,7 @@ def abundance(
     relative: bool = True,
     force: bool = False,
 ) -> None:
-    backend = backend.lower()
-    if backend != "native":
-        raise MicrobiomeSuiteError(
-            f"Unsupported abundance backend '{backend}'. "
-            f"Choose one of: {', '.join(SUPPORTED_BACKENDS)}"
-        )
+    backend = require_backend(backend, SUPPORTED_BACKENDS, "abundance")
     result = abundance_native(read_h5ad(ensure_input(table)), level=level, relative=relative)
     result.to_csv(prepare_output(output, force=force), sep="\t")
 

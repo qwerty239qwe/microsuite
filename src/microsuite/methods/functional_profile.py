@@ -6,6 +6,7 @@ from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input
+from microsuite.methods._dispatch import require_backend
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
 SUPPORTED_BACKENDS = ("picrust2", "tax4fun2", "humann")
@@ -30,7 +31,7 @@ def functional_profile(
     run_dir: Path | None = None,
     timeout: float | None = None,
 ) -> None:
-    backend = backend.lower()
+    backend = require_backend(backend, SUPPORTED_BACKENDS, "functional_profile")
     if backend == "picrust2":
         functional_profile_picrust2(
             table=table,
@@ -69,11 +70,6 @@ def functional_profile(
             timeout=timeout,
         )
         return
-
-    raise MicrobiomeSuiteError(
-        f"Unsupported functional_profile backend '{backend}'. "
-        f"Choose one of: {', '.join(SUPPORTED_BACKENDS)}"
-    )
 
 
 def functional_profile_picrust2(

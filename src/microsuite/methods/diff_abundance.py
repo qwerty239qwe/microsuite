@@ -7,6 +7,7 @@ from microsuite._paths import ensure_input, prepare_output
 from microsuite.diffab.ancombc import run_ancombc
 from microsuite.diffab.r_backends import run_r_diffab_backend
 from microsuite.io.h5ad import read_h5ad
+from microsuite.methods._dispatch import require_backend
 from microsuite.methods._qiime import require_qiime, run_qiime
 
 SUPPORTED_BACKENDS = ("ancombc", "qiime2-ancombc", "aldex2", "maaslin2", "lefse")
@@ -24,7 +25,7 @@ def diff_abundance(
     run_dir: Path | None = None,
     timeout: float | None = None,
 ) -> None:
-    backend = backend.lower()
+    backend = require_backend(backend, SUPPORTED_BACKENDS, "differential abundance")
     if backend == "qiime2-ancombc":
         if metadata is None:
             raise MicrobiomeSuiteError("--metadata is required for --backend qiime2-ancombc.")
@@ -64,11 +65,6 @@ def diff_abundance(
             timeout=timeout,
         )
         return
-    if backend != "ancombc":
-        raise MicrobiomeSuiteError(
-            f"Unsupported differential abundance backend '{backend}'. "
-            f"Choose one of: {', '.join(SUPPORTED_BACKENDS)}"
-        )
 
     adata = read_h5ad(ensure_input(table))
     run_ancombc(

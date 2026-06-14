@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import shutil
+from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.methods._dispatch import require_backend
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
 SUPPORTED_BACKENDS = ("qiime2-dada2", "qiime2-deblur", "dada2-r")
@@ -13,6 +15,30 @@ DADA2_MODES = ("single", "paired", "ccs", "pyro")
 POOLING_METHODS = ("independent", "pseudo")
 CHIMERA_METHODS = ("consensus", "none")
 DADA2_R_SCRIPT = "dada2_denoise.R"
+
+
+@dataclass(frozen=True)
+class Dada2Tuning:
+    """Trim/quality/merge/chimera options shared by the DADA2 backends."""
+
+    trim_left: int = 0
+    trunc_len: int = 0
+    trim_left_f: int = 0
+    trunc_len_f: int = 0
+    trim_left_r: int = 0
+    trunc_len_r: int = 0
+    max_ee: float | None = None
+    max_ee_f: float | None = None
+    max_ee_r: float | None = None
+    trunc_q: int | None = None
+    pooling_method: str | None = None
+    chimera_method: str | None = None
+    min_fold_parent_over_abundance: float | None = None
+    allow_one_off: bool | None = None
+    n_reads_learn: int | None = None
+    min_overlap: int | None = None
+    max_merge_mismatch: int | None = None
+    trim_overhang: bool | None = None
 
 
 def denoise(
@@ -59,8 +85,28 @@ def denoise(
     run_dir: Path | None = None,
     timeout: float | None = None,
 ) -> None:
-    backend = backend.lower()
+    backend = require_backend(backend, SUPPORTED_BACKENDS, "denoise")
     resolved_threads = resolve_threads(threads)
+    tuning = Dada2Tuning(
+        trim_left=trim_left,
+        trunc_len=trunc_len,
+        trim_left_f=trim_left_f,
+        trunc_len_f=trunc_len_f,
+        trim_left_r=trim_left_r,
+        trunc_len_r=trunc_len_r,
+        max_ee=max_ee,
+        max_ee_f=max_ee_f,
+        max_ee_r=max_ee_r,
+        trunc_q=trunc_q,
+        pooling_method=pooling_method,
+        chimera_method=chimera_method,
+        min_fold_parent_over_abundance=min_fold_parent_over_abundance,
+        allow_one_off=allow_one_off,
+        n_reads_learn=n_reads_learn,
+        min_overlap=min_overlap,
+        max_merge_mismatch=max_merge_mismatch,
+        trim_overhang=trim_overhang,
+    )
     if backend == "qiime2-dada2":
         denoise_qiime2_dada2(
             demux=demux,
@@ -70,26 +116,9 @@ def denoise(
             output_base_transition_stats=output_base_transition_stats,
             output_base_transition_plot=output_base_transition_plot,
             mode=_resolve_dada2_mode(mode=mode, paired=paired),
-            trim_left=trim_left,
-            trunc_len=trunc_len,
-            trim_left_f=trim_left_f,
-            trunc_len_f=trunc_len_f,
-            trim_left_r=trim_left_r,
-            trunc_len_r=trunc_len_r,
-            max_ee=max_ee,
-            max_ee_f=max_ee_f,
-            max_ee_r=max_ee_r,
-            trunc_q=trunc_q,
-            pooling_method=pooling_method,
-            chimera_method=chimera_method,
-            min_fold_parent_over_abundance=min_fold_parent_over_abundance,
-            allow_one_off=allow_one_off,
-            n_reads_learn=n_reads_learn,
+            tuning=tuning,
             hashed_feature_ids=hashed_feature_ids,
             retain_all_samples=retain_all_samples,
-            min_overlap=min_overlap,
-            max_merge_mismatch=max_merge_mismatch,
-            trim_overhang=trim_overhang,
             ccs_front=ccs_front,
             ccs_adapter=ccs_adapter,
             ccs_max_mismatch=ccs_max_mismatch,
@@ -126,35 +155,15 @@ def denoise(
             output_rep_seqs=output_rep_seqs,
             output_stats=output_stats,
             paired=dada2_r_mode == "paired",
-            trim_left=trim_left,
-            trunc_len=trunc_len,
-            trim_left_f=trim_left_f,
-            trunc_len_f=trunc_len_f,
-            trim_left_r=trim_left_r,
-            trunc_len_r=trunc_len_r,
-            max_ee=max_ee,
-            max_ee_f=max_ee_f,
-            max_ee_r=max_ee_r,
-            trunc_q=trunc_q,
+            tuning=tuning,
             max_n=max_n,
             rm_phix=rm_phix,
-            pooling_method=pooling_method,
-            chimera_method=chimera_method,
-            min_fold_parent_over_abundance=min_fold_parent_over_abundance,
-            allow_one_off=allow_one_off,
-            n_reads_learn=n_reads_learn,
-            min_overlap=min_overlap,
-            max_merge_mismatch=max_merge_mismatch,
-            trim_overhang=trim_overhang,
             threads=resolved_threads,
             force=force,
             run_dir=run_dir,
             timeout=timeout,
         )
         return
-    raise MicrobiomeSuiteError(
-        f"Unsupported denoise backend '{backend}'. Choose one of: {', '.join(SUPPORTED_BACKENDS)}"
-    )
 
 
 def denoise_qiime2_dada2(
@@ -166,26 +175,9 @@ def denoise_qiime2_dada2(
     output_base_transition_stats: Path | None,
     output_base_transition_plot: Path | None,
     mode: str,
-    trim_left: int,
-    trunc_len: int,
-    trim_left_f: int,
-    trunc_len_f: int,
-    trim_left_r: int,
-    trunc_len_r: int,
-    max_ee: float | None,
-    max_ee_f: float | None,
-    max_ee_r: float | None,
-    trunc_q: int | None,
-    pooling_method: str | None,
-    chimera_method: str | None,
-    min_fold_parent_over_abundance: float | None,
-    allow_one_off: bool | None,
-    n_reads_learn: int | None,
+    tuning: Dada2Tuning,
     hashed_feature_ids: bool | None,
     retain_all_samples: bool | None,
-    min_overlap: int | None,
-    max_merge_mismatch: int | None,
-    trim_overhang: bool | None,
     ccs_front: str | None,
     ccs_adapter: str | None,
     ccs_max_mismatch: int | None,
@@ -197,6 +189,24 @@ def denoise_qiime2_dada2(
     run_dir: Path | None,
     timeout: float | None,
 ) -> None:
+    trim_left = tuning.trim_left
+    trunc_len = tuning.trunc_len
+    trim_left_f = tuning.trim_left_f
+    trunc_len_f = tuning.trunc_len_f
+    trim_left_r = tuning.trim_left_r
+    trunc_len_r = tuning.trunc_len_r
+    max_ee = tuning.max_ee
+    max_ee_f = tuning.max_ee_f
+    max_ee_r = tuning.max_ee_r
+    trunc_q = tuning.trunc_q
+    pooling_method = tuning.pooling_method
+    chimera_method = tuning.chimera_method
+    min_fold_parent_over_abundance = tuning.min_fold_parent_over_abundance
+    allow_one_off = tuning.allow_one_off
+    n_reads_learn = tuning.n_reads_learn
+    min_overlap = tuning.min_overlap
+    max_merge_mismatch = tuning.max_merge_mismatch
+    trim_overhang = tuning.trim_overhang
     _validate_dada2_common(pooling_method=pooling_method, chimera_method=chimera_method)
     if output_base_transition_plot is not None and output_base_transition_stats is None:
         raise MicrobiomeSuiteError(
@@ -404,31 +414,32 @@ def denoise_dada2_r(
     output_rep_seqs: Path,
     output_stats: Path,
     paired: bool,
-    trim_left: int,
-    trunc_len: int,
-    trim_left_f: int,
-    trunc_len_f: int,
-    trim_left_r: int,
-    trunc_len_r: int,
-    max_ee: float | None,
-    max_ee_f: float | None,
-    max_ee_r: float | None,
-    trunc_q: int | None,
+    tuning: Dada2Tuning,
     max_n: int | None,
     rm_phix: bool | None,
-    pooling_method: str | None,
-    chimera_method: str | None,
-    min_fold_parent_over_abundance: float | None,
-    allow_one_off: bool | None,
-    n_reads_learn: int | None,
-    min_overlap: int | None,
-    max_merge_mismatch: int | None,
-    trim_overhang: bool | None,
     threads: int,
     force: bool,
     run_dir: Path | None,
     timeout: float | None,
 ) -> None:
+    trim_left = tuning.trim_left
+    trunc_len = tuning.trunc_len
+    trim_left_f = tuning.trim_left_f
+    trunc_len_f = tuning.trunc_len_f
+    trim_left_r = tuning.trim_left_r
+    trunc_len_r = tuning.trunc_len_r
+    max_ee = tuning.max_ee
+    max_ee_f = tuning.max_ee_f
+    max_ee_r = tuning.max_ee_r
+    trunc_q = tuning.trunc_q
+    pooling_method = tuning.pooling_method
+    chimera_method = tuning.chimera_method
+    min_fold_parent_over_abundance = tuning.min_fold_parent_over_abundance
+    allow_one_off = tuning.allow_one_off
+    n_reads_learn = tuning.n_reads_learn
+    min_overlap = tuning.min_overlap
+    max_merge_mismatch = tuning.max_merge_mismatch
+    trim_overhang = tuning.trim_overhang
     _validate_dada2_common(pooling_method=pooling_method, chimera_method=chimera_method)
     if not paired and any(
         value is not None for value in (min_overlap, max_merge_mismatch, trim_overhang)
@@ -534,9 +545,7 @@ def _resolve_dada2_mode(*, mode: str | None, paired: bool) -> str:
     return normalized
 
 
-def _validate_dada2_common(
-    *, pooling_method: str | None, chimera_method: str | None
-) -> None:
+def _validate_dada2_common(*, pooling_method: str | None, chimera_method: str | None) -> None:
     if pooling_method is not None and pooling_method not in POOLING_METHODS:
         raise MicrobiomeSuiteError(
             f"Unsupported DADA2 pooling method '{pooling_method}'. "

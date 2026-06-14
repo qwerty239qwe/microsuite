@@ -8,6 +8,7 @@ import pandas as pd
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
 from microsuite.io.h5ad import read_h5ad
+from microsuite.methods._dispatch import require_backend
 from microsuite.methods.abundance import abundance_native
 
 SUPPORTED_BACKENDS = ("native",)
@@ -22,12 +23,7 @@ def shared_taxa(
     group: str,
     force: bool = False,
 ) -> None:
-    backend = backend.lower()
-    if backend != "native":
-        raise MicrobiomeSuiteError(
-            f"Unsupported shared_taxa backend '{backend}'. "
-            f"Choose one of: {', '.join(SUPPORTED_BACKENDS)}"
-        )
+    backend = require_backend(backend, SUPPORTED_BACKENDS, "shared_taxa")
     result = shared_taxa_native(read_h5ad(ensure_input(table)), level=level, group=group)
     result.to_csv(prepare_output(output, force=force), sep="\t", index=False)
 
