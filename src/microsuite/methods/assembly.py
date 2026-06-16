@@ -8,16 +8,21 @@ from microsuite._paths import ensure_input
 from microsuite.methods._dispatch import require_backend
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
-SUPPORTED_BACKENDS = ("megahit", "metaspades", "idba-ud")
+SUPPORTED_BACKENDS = ("megahit", "metaspades", "idba-ud", "mosh-megahit")
 
 
 def assemble(
     *,
     backend: str,
-    output_dir: Path,
+    output_dir: Path | None = None,
     read1: Path | None = None,
     read2: Path | None = None,
     reads: Path | None = None,
+    output_contigs: Path | None = None,
+    presets: str = "meta-sensitive",
+    min_contig: int = 500,
+    parallel_config: Path | None = None,
+    verbose: bool = False,
     threads: int | str = "1",
     force: bool = False,
     run_dir: Path | None = None,
@@ -58,6 +63,21 @@ def assemble(
             timeout=timeout,
         )
         return
+    if backend == "mosh-megahit":
+        assemble_mosh_megahit(
+            reads=reads,
+            output_dir=output_dir,
+            output_contigs=output_contigs,
+            presets=presets,
+            min_contig=min_contig,
+            parallel_config=parallel_config,
+            verbose=verbose,
+            threads=threads,
+            force=force,
+            run_dir=run_dir,
+            timeout=timeout,
+        )
+        return
 
 
 def assemble_megahit(
@@ -71,6 +91,7 @@ def assemble_megahit(
     run_dir: Path | None,
     timeout: float | None,
 ) -> None:
+    output_dir = _require_output_dir(output_dir)
     _validate_assembly_reads(read1=read1, read2=read2, reads=reads)
     executable = _require_tool(
         "megahit",
@@ -108,6 +129,7 @@ def assemble_metaspades(
     run_dir: Path | None,
     timeout: float | None,
 ) -> None:
+    output_dir = _require_output_dir(output_dir)
     _validate_assembly_reads(read1=read1, read2=read2, reads=reads)
     executable = _require_tool(
         "metaspades.py",
@@ -143,6 +165,7 @@ def assemble_idba_ud(
     run_dir: Path | None,
     timeout: float | None,
 ) -> None:
+    output_dir = _require_output_dir(output_dir)
     if reads is None:
         raise MicrobiomeSuiteError("--reads is required for --backend idba-ud.")
     executable = _require_tool(
@@ -165,6 +188,69 @@ def assemble_idba_ud(
         backend="idba-ud",
         inputs={"reads": str(reads)},
         output_dir=output_dir,
+        run_dir=run_dir,
+        timeout=timeout,
+    )
+
+
+def assemble_mosh_megahit(
+    *,
+    reads: Path | None,
+    output_dir: Path | None,
+    output_contigs: Path | None,
+    presets: str,
+    min_contig: int,
+    parallel_config: Path | None,
+    verbose: bool,
+    threads: int | str,
+    force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
+) -> None:
+    if reads is None:
+        raise MicrobiomeSuiteError("--reads is required for --backend mosh-megahit.")
+    if min_contig < 1:
+        raise MicrobiomeSuiteError("--min-contig must be greater than zero.")
+    executable = _require_tool(
+        "mosh",
+        "MOSHPIT assembly requires the external 'mosh' command.",
+    )
+    output_contigs = _resolve_output_artifact(
+        output=output_contigs,
+        output_dir=output_dir,
+        default_name="contigs.qza",
+        force=force,
+    )
+    command = [
+        executable,
+        "assembly",
+        "assemble-megahit",
+        "--i-reads",
+        str(ensure_input(reads)),
+        "--p-presets",
+        presets,
+        "--p-num-cpu-threads",
+        str(resolve_threads(threads)),
+        "--p-min-contig",
+        str(min_contig),
+        "--o-contigs",
+        str(output_contigs),
+    ]
+    if parallel_config is not None:
+        command.extend(["--parallel-config", str(ensure_input(parallel_config))])
+    if verbose:
+        command.append("--verbose")
+    _run(
+        command,
+        "MOSHPIT MEGAHIT assembly failed.",
+        backend="mosh-megahit",
+        inputs={"reads": str(reads)},
+        outputs={"contigs": str(output_contigs)},
+        params={
+            "presets": presets,
+            "min_contig": str(min_contig),
+            "threads": str(resolve_threads(threads)),
+        },
         run_dir=run_dir,
         timeout=timeout,
     )
@@ -211,6 +297,12 @@ def _require_tool(name: str, message: str) -> str:
     return executable
 
 
+def _require_output_dir(path: Path | None) -> Path:
+    if path is None:
+        raise MicrobiomeSuiteError("--output-dir is required for this assembly backend.")
+    return path
+
+
 def _prepare_output_dir(path: Path, *, force: bool) -> Path:
     if path.exists():
         if not path.is_dir():
@@ -223,16 +315,39 @@ def _prepare_output_dir(path: Path, *, force: bool) -> Path:
     return path
 
 
+def _resolve_output_artifact(
+    *,
+    output: Path | None,
+    output_dir: Path | None,
+    default_name: str,
+    force: bool,
+) -> Path:
+    if output is None:
+        if output_dir is None:
+            raise MicrobiomeSuiteError(
+                f"--output-contigs or --output-dir is required to write {default_name}."
+            )
+        output_dir = _prepare_output_dir(output_dir, force=force)
+        output = output_dir / default_name
+    elif output.exists() and not force:
+        raise MicrobiomeSuiteError(f"Output file exists, pass --force to overwrite: {output}")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    return output
+
+
 def _run(
     command: list[str],
     failure_message: str,
     *,
     backend: str,
     inputs: dict[str, str],
-    output_dir: Path,
+    output_dir: Path | None = None,
+    outputs: dict[str, str] | None = None,
+    params: dict[str, str] | None = None,
     run_dir: Path | None,
     timeout: float | None,
 ) -> None:
+    logged_outputs = outputs or {"output_dir": str(output_dir)}
     run_command(
         command,
         failure_message,
@@ -242,6 +357,7 @@ def _run(
             task="assemble",
             backend=backend,
             inputs=inputs,
-            outputs={"output_dir": str(output_dir)},
+            outputs=logged_outputs,
+            params=params,
         ),
     )

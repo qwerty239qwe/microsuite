@@ -8,18 +8,25 @@ from microsuite._paths import ensure_input
 from microsuite.methods._dispatch import require_backend
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
-SUPPORTED_BACKENDS = ("metabat2", "maxbin2", "concoct")
+SUPPORTED_BACKENDS = ("metabat2", "maxbin2", "concoct", "mosh-metabat2")
 
 
 def bin_contigs(
     *,
     backend: str,
     contigs: Path,
-    output_dir: Path,
+    output_dir: Path | None = None,
     depth: Path | None = None,
     abundance: Path | None = None,
     coverage: Path | None = None,
+    alignment_maps: Path | None = None,
+    output_mags: Path | None = None,
+    output_contig_map: Path | None = None,
+    output_unbinned_contigs: Path | None = None,
     prefix: str = "bin",
+    seed: int = 100,
+    parallel_config: Path | None = None,
+    verbose: bool = False,
     threads: int | str = "1",
     force: bool = False,
     run_dir: Path | None = None,
@@ -32,6 +39,23 @@ def bin_contigs(
             depth=depth,
             output_dir=output_dir,
             prefix=prefix,
+            threads=threads,
+            force=force,
+            run_dir=run_dir,
+            timeout=timeout,
+        )
+        return
+    if backend == "mosh-metabat2":
+        bin_mosh_metabat2(
+            contigs=contigs,
+            alignment_maps=alignment_maps,
+            output_dir=output_dir,
+            output_mags=output_mags,
+            output_contig_map=output_contig_map,
+            output_unbinned_contigs=output_unbinned_contigs,
+            seed=seed,
+            parallel_config=parallel_config,
+            verbose=verbose,
             threads=threads,
             force=force,
             run_dir=run_dir,
@@ -74,6 +98,7 @@ def bin_metabat2(
     run_dir: Path | None,
     timeout: float | None,
 ) -> None:
+    output_dir = _require_output_dir(output_dir)
     if depth is None:
         raise MicrobiomeSuiteError("--depth is required for --backend metabat2.")
     executable = _require_tool(
@@ -116,6 +141,7 @@ def bin_maxbin2(
     run_dir: Path | None,
     timeout: float | None,
 ) -> None:
+    output_dir = _require_output_dir(output_dir)
     if abundance is None:
         raise MicrobiomeSuiteError("--abundance is required for --backend maxbin2.")
     executable = _require_tool(
@@ -157,6 +183,7 @@ def bin_concoct(
     run_dir: Path | None,
     timeout: float | None,
 ) -> None:
+    output_dir = _require_output_dir(output_dir)
     if coverage is None:
         raise MicrobiomeSuiteError("--coverage is required for --backend concoct.")
     executable = _require_tool(
@@ -187,11 +214,83 @@ def bin_concoct(
     )
 
 
+def bin_mosh_metabat2(
+    *,
+    contigs: Path,
+    alignment_maps: Path | None,
+    output_dir: Path | None,
+    output_mags: Path | None,
+    output_contig_map: Path | None,
+    output_unbinned_contigs: Path | None,
+    seed: int,
+    parallel_config: Path | None,
+    verbose: bool,
+    threads: int | str,
+    force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
+) -> None:
+    if alignment_maps is None:
+        raise MicrobiomeSuiteError("--alignment-maps is required for --backend mosh-metabat2.")
+    if seed < 0:
+        raise MicrobiomeSuiteError("--seed must be greater than or equal to zero.")
+    executable = _require_tool(
+        "mosh",
+        "MOSHPIT binning requires the external 'mosh' command.",
+    )
+    outputs = _resolve_mosh_outputs(
+        output_dir=output_dir,
+        output_mags=output_mags,
+        output_contig_map=output_contig_map,
+        output_unbinned_contigs=output_unbinned_contigs,
+        force=force,
+    )
+    command = [
+        executable,
+        "annotate",
+        "bin-contigs-metabat",
+        "--i-contigs",
+        str(ensure_input(contigs)),
+        "--i-alignment-maps",
+        str(ensure_input(alignment_maps)),
+        "--p-num-threads",
+        str(resolve_threads(threads)),
+        "--p-seed",
+        str(seed),
+        "--o-mags",
+        str(outputs["mags"]),
+        "--o-contig-map",
+        str(outputs["contig_map"]),
+        "--o-unbinned-contigs",
+        str(outputs["unbinned_contigs"]),
+    ]
+    if parallel_config is not None:
+        command.extend(["--parallel-config", str(ensure_input(parallel_config))])
+    if verbose:
+        command.append("--verbose")
+    _run(
+        command,
+        "MOSHPIT MetaBAT2 binning failed.",
+        backend="mosh-metabat2",
+        inputs={"contigs": str(contigs), "alignment_maps": str(alignment_maps)},
+        outputs={key: str(value) for key, value in outputs.items()},
+        params={"seed": str(seed), "threads": str(resolve_threads(threads))},
+        run_dir=run_dir,
+        timeout=timeout,
+    )
+
+
 def _require_tool(name: str, message: str) -> str:
     executable = shutil.which(name)
     if executable is None:
         raise MicrobiomeSuiteError(message)
     return executable
+
+
+def _require_output_dir(path: Path | None) -> Path:
+    if path is None:
+        raise MicrobiomeSuiteError("--output-dir is required for this binning backend.")
+    return path
 
 
 def _prepare_output_dir(path: Path, *, force: bool) -> Path:
@@ -206,17 +305,48 @@ def _prepare_output_dir(path: Path, *, force: bool) -> Path:
     return path
 
 
+def _resolve_mosh_outputs(
+    *,
+    output_dir: Path | None,
+    output_mags: Path | None,
+    output_contig_map: Path | None,
+    output_unbinned_contigs: Path | None,
+    force: bool,
+) -> dict[str, Path]:
+    if output_dir is None and any(
+        output is None
+        for output in (output_mags, output_contig_map, output_unbinned_contigs)
+    ):
+        raise MicrobiomeSuiteError(
+            "--output-dir or all MOSHPIT output artifacts are required for mosh-metabat2."
+        )
+    if output_dir is not None:
+        output_dir = _prepare_output_dir(output_dir, force=force)
+    outputs = {
+        "mags": output_mags or output_dir / "mags.qza",
+        "contig_map": output_contig_map or output_dir / "contig-map.qza",
+        "unbinned_contigs": output_unbinned_contigs or output_dir / "unbinned-contigs.qza",
+    }
+    for output in outputs.values():
+        if output.exists() and not force:
+            raise MicrobiomeSuiteError(f"Output file exists, pass --force to overwrite: {output}")
+        output.parent.mkdir(parents=True, exist_ok=True)
+    return outputs
+
+
 def _run(
     command: list[str],
     failure_message: str,
     *,
     backend: str,
     inputs: dict[str, str],
-    output_dir: Path,
-    params: dict[str, str],
+    output_dir: Path | None = None,
+    outputs: dict[str, str] | None = None,
+    params: dict[str, str] | None = None,
     run_dir: Path | None,
     timeout: float | None,
 ) -> None:
+    logged_outputs = outputs or {"output_dir": str(output_dir)}
     run_command(
         command,
         failure_message,
@@ -226,7 +356,7 @@ def _run(
             task="bin",
             backend=backend,
             inputs=inputs,
-            outputs={"output_dir": str(output_dir)},
+            outputs=logged_outputs,
             params=params,
         ),
     )

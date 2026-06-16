@@ -11,16 +11,6 @@ microsuite qc --backend multiqc --input-dir qc/fastqc --output-dir qc/multiqc
 microsuite qc --backend qiime2-demux --demux demux.qza -o qc/demux.qzv
 microsuite trim --backend fastp --read1 sample_R1.fastq.gz --output1 trimmed_R1.fastq.gz --html qc/fastp.html --json-report qc/fastp.json
 microsuite denoise --backend qiime2-dada2 --demux demux.qza --output-table table.qza --output-rep-seqs rep-seqs.qza --output-stats stats.qza --trunc-len 150
-
-Metagenome assembly and binning examples:
-
-```bash
-microsuite assemble --backend megahit --read1 R1.fastq.gz --read2 R2.fastq.gz --output-dir assembly
-microsuite assemble --backend idba-ud --reads reads.fa --output-dir assembly
-microsuite bin --backend metabat2 --contigs contigs.fa --depth depth.tsv --output-dir bins
-microsuite bin --backend maxbin2 --contigs contigs.fa --abundance abundance.tsv --output-dir bins
-microsuite bin --backend concoct --contigs contigs.fa --coverage coverage.tsv --output-dir bins
-```
 microsuite cluster --backend vsearch --table table.qza --rep-seqs rep-seqs.qza --output-table clustered-table.qza --output-rep-seqs clustered-rep-seqs.qza
 microsuite normalize --backend native --method clr --table table.h5ad -o clr.h5ad
 microsuite abundance --backend native --table table.h5ad --level genus -o abundance.tsv
@@ -28,6 +18,24 @@ microsuite tax_classify --backend qiime2 --rep-seqs rep-seqs.qza --classifier cl
 microsuite diff_abundance --backend ancombc --table table.h5ad --group treatment -o diff.tsv
 microsuite report --backend native --run-dir runs/table-summary -o report.html
 ```
+
+Metagenome assembly and binning examples:
+
+```bash
+microsuite assemble --backend megahit --read1 R1.fastq.gz --read2 R2.fastq.gz --output-dir assembly
+microsuite assemble --backend mosh-megahit --reads reads.qza --output-contigs contigs.qza
+microsuite assemble --backend idba-ud --reads reads.fa --output-dir assembly
+microsuite bin --backend metabat2 --contigs contigs.fa --depth depth.tsv --output-dir bins
+microsuite bin --backend mosh-metabat2 --contigs contigs.qza --alignment-maps reads-to-contigs-aln.qza --output-dir bins
+microsuite bin --backend maxbin2 --contigs contigs.fa --abundance abundance.tsv --output-dir bins
+microsuite bin --backend concoct --contigs contigs.fa --coverage coverage.tsv --output-dir bins
+```
+
+Related QIIME 2 collections:
+
+- MOSHPIT: https://moshpit.qiime2.org/en/stable/ for QIIME 2 whole-metagenome
+  read-based and assembly-based workflows. The initial microsuite wrappers cover
+  `mosh assembly assemble-megahit` and `mosh annotate bin-contigs-metabat`.
 
 Conventions:
 

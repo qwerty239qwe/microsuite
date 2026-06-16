@@ -145,6 +145,7 @@ def tax_classify_emu(
         log=CommandLog(
             task="tax_classify",
             backend="emu",
+            inputs={"reads": str(reads), **({"database": str(database)} if database else {})},
             outputs={"relative_abundance": str(output)},
             params={"input_type": emu_type},
         ),
@@ -202,6 +203,7 @@ def tax_classify_bracken(
         log=CommandLog(
             task="tax_classify",
             backend="bracken",
+            inputs={"kraken_report": str(kraken_report), "database": str(database)},
             outputs={"abundance": str(output)},
             params={"level": level, "read_length": read_length},
         ),
@@ -259,6 +261,7 @@ def tax_classify_metaphlan(
         log=CommandLog(
             task="tax_classify",
             backend="metaphlan",
+            inputs={"reads": str(reads), **({"database": str(database)} if database else {})},
             outputs={"profile": str(output), "bowtie2out": str(bowtie2out)},
             params={"input_type": input_type},
         ),
@@ -311,6 +314,7 @@ def tax_classify_kraken2(
         log=CommandLog(
             task="tax_classify",
             backend="kraken2",
+            inputs={"reads": str(reads), "database": str(database)},
             outputs={"report": str(output), "per_read": str(per_read_output)},
         ),
     )
@@ -357,5 +361,10 @@ def tax_classify_qiime2(
         "QIIME 2 classification failed.",
         run_dir=run_dir,
         timeout=timeout,
-        log=CommandLog(task="tax_classify", backend="qiime2"),
+        log=CommandLog(
+            task="tax_classify",
+            backend="qiime2",
+            inputs={"rep_seqs": str(rep_seqs), "classifier": str(classifier)},
+            outputs={"taxonomy": str(output)},
+        ),
     )

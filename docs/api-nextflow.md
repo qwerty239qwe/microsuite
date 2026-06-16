@@ -108,6 +108,26 @@ QIIME 2 databases or running heavy external tools.
 Native statistics and AnnData operations should stay in the Python SDK and CLI
 backends, not in Nextflow process scripts.
 
+## Results bundle manifest
+
+External-tool method commands that receive `--run-dir` write
+`microsuite-results.json` next to `run.json`. This manifest is intended as the
+stable file-based contract for report generators such as OmicScribe.
+
+The manifest contains:
+
+| Field | Description |
+| --- | --- |
+| `schema_version` | Current contract identifier, `microsuite-results.v1`. |
+| `producer` | Tool name and microsuite version. |
+| `run_id`, `run_dir` | Local run identity and directory path. |
+| `executions` | One entry per successful command execution with task, backend, command, inputs, outputs, params, timing, and exit code. |
+| `artifacts` | Deduplicated output records with semantic `kind`, original output `label`, path, format, task, and backend. |
+
+Consumers should prefer `microsuite-results.json` for discovery and treat
+`events.jsonl`, `stdout.log`, `stderr.log`, and `run.json` as provenance/debug
+records.
+
 Current status:
 
 - `workflows/nextflow/main.nf` orchestrates the `amplicon_qiime2` process graph.

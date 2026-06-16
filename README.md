@@ -58,6 +58,7 @@ validation. The `Status` column in the method tables describes API maturity:
 | FastQC | ready | CI smoke-tested | CLI wrapper and container are smoke-tested. |
 | MultiQC, fastp, Cutadapt, Trimmomatic, Trim Galore | ready | CI smoke-tested + unit-tested wrapper | fastp and MultiQC containers are smoke-tested; other wrappers are command-tested and user-supplied. |
 | QIIME 2 method wrappers | ready | Unit-tested wrapper + user environment | Command construction is tested; QIIME 2/plugin version validation is user supplied. |
+| QIIME 2 MOSHPIT | partial | Unit-tested wrapper + user environment | Initial `mosh` command wrappers cover MOSHPIT MEGAHIT assembly and MetaBAT2 contig binning; broader MOSHPIT actions remain planned. See https://moshpit.qiime2.org/en/stable/. |
 | R differential-abundance methods | ready | Unit-tested wrapper + user environment | Python wrappers and runtime logs are tested; R/Bioconductor runtime is user supplied or containerized. |
 | Nextflow workflows | ready | CI stub-tested + user environment | The process graph is exercised with Nextflow `-stub-run`; real QIIME 2 execution requires local tools or containers. |
 | Kraken2, Bracken, MetaPhlAn, EMU, ALDEx2, MaAsLin2, LEfSe | ready | Kraken2 CI smoke-tested; MetaPhlAn heavy image manual-gated; EMU/R wrappers unit-tested | External runtimes and databases remain user supplied. |
@@ -123,9 +124,11 @@ features clustered by sequence identity, commonly 97%.
 | Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `megahit` | MEGAHIT user env | ready | `microsuite assemble --backend megahit --read1 R1.fq.gz --read2 R2.fq.gz --output-dir assembly` | `assemble(backend="megahit", read1=..., read2=..., output_dir=...)` | External `megahit` | Fast metagenome assembler with a compact command surface; paired or single reads are supported. | Assemble metagenomic reads into contigs. |
+| `mosh-megahit` | MOSHPIT 2026.4 target | ready | `microsuite assemble --backend mosh-megahit --reads reads.qza --output-contigs contigs.qza` | `assemble(backend="mosh-megahit", reads=..., output_contigs=...)` | External MOSHPIT `mosh` CLI | QIIME 2 provenance-preserving MEGAHIT assembly over demultiplexed metagenome read artifacts. | Assemble MOSHPIT/QIIME metagenome reads into contigs artifacts. |
 | `metaspades` | SPAdes/metaSPAdes user env | ready | `microsuite assemble --backend metaspades --read1 R1.fq.gz --read2 R2.fq.gz --output-dir assembly` | `assemble(backend="metaspades", read1=..., read2=..., output_dir=...)` | External `metaspades.py` | Strong metagenome assembly option; can be heavier than MEGAHIT. | Assemble metagenomic reads into contigs. |
 | `idba-ud` | IDBA-UD user env | ready | `microsuite assemble --backend idba-ud --reads reads.fa --output-dir assembly` | `assemble(backend="idba-ud", reads=..., output_dir=...)` | External `idba_ud` | Expects FASTA input, so FASTQ conversion remains a preprocessing step. | Assemble metagenomic reads into contigs. |
 | `metabat2` | MetaBAT2 user env | ready | `microsuite bin --backend metabat2 --contigs contigs.fa --depth depth.tsv --output-dir bins` | `bin_contigs(backend="metabat2", contigs=..., depth=..., output_dir=...)` | External `metabat2` | Requires a depth matrix, usually generated from read mapping. | Bin contigs into MAG candidates. |
+| `mosh-metabat2` | MOSHPIT 2026.4 target | ready | `microsuite bin --backend mosh-metabat2 --contigs contigs.qza --alignment-maps reads-to-contigs-aln.qza --output-dir bins` | `bin_contigs(backend="mosh-metabat2", contigs=..., alignment_maps=..., output_dir=...)` | External MOSHPIT `mosh` CLI | QIIME 2 provenance-preserving MetaBAT2 binning using MOSHPIT contigs and read-alignment artifacts. | Bin MOSHPIT contigs into MAG artifacts. |
 | `maxbin2` | MaxBin2 user env | ready | `microsuite bin --backend maxbin2 --contigs contigs.fa --abundance abundance.tsv --output-dir bins` | `bin_contigs(backend="maxbin2", contigs=..., abundance=..., output_dir=...)` | External `run_MaxBin.pl` | Requires an abundance table compatible with MaxBin2. | Bin contigs into MAG candidates. |
 | `concoct` | CONCOCT user env | ready | `microsuite bin --backend concoct --contigs contigs.fa --coverage coverage.tsv --output-dir bins` | `bin_contigs(backend="concoct", contigs=..., coverage=..., output_dir=...)` | External `concoct` | Requires a coverage table; downstream bin FASTA extraction is not automated yet. | Bin contigs into MAG candidates. |
 
@@ -356,6 +359,9 @@ The run directory contains:
 - `stdout.log` and `stderr.log`: captured process streams
 - `events.jsonl`: command start/end/timeout events
 - `run.json`: structured task, backend, command, timing, and exit metadata
+- `microsuite-results.json`: a stable result-bundle manifest for downstream
+  consumers such as OmicScribe, listing executions plus semantic artifact
+  records with `kind`, `label`, `path`, `format`, `task`, and `backend`
 
 Commands that expose `--threads` accept a positive integer; method-oriented
 external wrappers also accept `--threads auto` where the backend supports

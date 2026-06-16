@@ -125,5 +125,20 @@ def diversity_calc_qiime2(
         "QIIME 2 diversity failed.",
         run_dir=run_dir,
         timeout=timeout,
-        log=CommandLog(task="diversity_calc", backend="qiime2"),
+        log=CommandLog(
+            task="diversity_calc",
+            backend="qiime2",
+            inputs={
+                "table": str(table),
+                **({"phylogeny": str(phylogeny)} if phylogeny is not None else {}),
+            },
+            outputs={
+                (
+                    "distance_matrix"
+                    if metric_spec.output_option == "--o-distance-matrix"
+                    else "vector"
+                ): str(output)
+            },
+            params={"metric": metric},
+        ),
     )

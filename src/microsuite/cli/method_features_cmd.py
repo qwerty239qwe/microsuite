@@ -282,7 +282,10 @@ def register(app: typer.Typer) -> None:
     @app.command("assemble")
     def assemble_cmd(
         backend: Annotated[str, typer.Option("--backend", help="Assembly backend.")],
-        output_dir: Annotated[Path, typer.Option("--output-dir", help="Output directory.")],
+        output_dir: Annotated[
+            Path | None,
+            typer.Option("--output-dir", help="Output directory."),
+        ] = None,
         read1: Annotated[
             Path | None, typer.Option("--read1", help="Forward or single-end FASTQ.")
         ] = None,
@@ -291,6 +294,25 @@ def register(app: typer.Typer) -> None:
             Path | None,
             typer.Option("--reads", help="Single/interleaved reads file. IDBA-UD expects FASTA."),
         ] = None,
+        output_contigs: Annotated[
+            Path | None,
+            typer.Option("--output-contigs", help="MOSHPIT output contigs artifact."),
+        ] = None,
+        presets: Annotated[
+            str,
+            typer.Option("--presets", help="MOSHPIT MEGAHIT preset."),
+        ] = "meta-sensitive",
+        min_contig: Annotated[
+            int,
+            typer.Option("--min-contig", min=1, help="MOSHPIT minimum contig length."),
+        ] = 500,
+        parallel_config: Annotated[
+            Path | None,
+            typer.Option("--parallel-config", help="MOSHPIT parsl parallel config TOML."),
+        ] = None,
+        verbose: Annotated[
+            bool, typer.Option("--verbose", help="Pass --verbose to MOSHPIT.")
+        ] = False,
         threads: Annotated[str, typer.Option("--threads", help="Thread count or 'auto'.")] = "1",
         force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
         run_dir: Annotated[
@@ -306,6 +328,11 @@ def register(app: typer.Typer) -> None:
             read2=read2,
             reads=reads,
             output_dir=output_dir,
+            output_contigs=output_contigs,
+            presets=presets,
+            min_contig=min_contig,
+            parallel_config=parallel_config,
+            verbose=verbose,
             threads=threads,
             force=force,
             run_dir=run_dir,
@@ -316,7 +343,10 @@ def register(app: typer.Typer) -> None:
     def bin_cmd(
         backend: Annotated[str, typer.Option("--backend", help="Binning backend.")],
         contigs: Annotated[Path, typer.Option("--contigs", help="Input contigs FASTA.")],
-        output_dir: Annotated[Path, typer.Option("--output-dir", help="Output directory.")],
+        output_dir: Annotated[
+            Path | None,
+            typer.Option("--output-dir", help="Output directory."),
+        ] = None,
         depth: Annotated[
             Path | None, typer.Option("--depth", help="MetaBAT2 depth matrix.")
         ] = None,
@@ -326,7 +356,35 @@ def register(app: typer.Typer) -> None:
         coverage: Annotated[
             Path | None, typer.Option("--coverage", help="CONCOCT coverage table.")
         ] = None,
+        alignment_maps: Annotated[
+            Path | None,
+            typer.Option("--alignment-maps", help="MOSHPIT read-to-contig alignment maps."),
+        ] = None,
+        output_mags: Annotated[
+            Path | None, typer.Option("--output-mags", help="MOSHPIT output MAGs artifact.")
+        ] = None,
+        output_contig_map: Annotated[
+            Path | None,
+            typer.Option("--output-contig-map", help="MOSHPIT output contig-map artifact."),
+        ] = None,
+        output_unbinned_contigs: Annotated[
+            Path | None,
+            typer.Option(
+                "--output-unbinned-contigs",
+                help="MOSHPIT output unbinned-contigs artifact.",
+            ),
+        ] = None,
         prefix: Annotated[str, typer.Option("--prefix", help="Output bin prefix.")] = "bin",
+        seed: Annotated[
+            int, typer.Option("--seed", min=0, help="MOSHPIT random seed.")
+        ] = 100,
+        parallel_config: Annotated[
+            Path | None,
+            typer.Option("--parallel-config", help="MOSHPIT parsl parallel config TOML."),
+        ] = None,
+        verbose: Annotated[
+            bool, typer.Option("--verbose", help="Pass --verbose to MOSHPIT.")
+        ] = False,
         threads: Annotated[str, typer.Option("--threads", help="Thread count or 'auto'.")] = "1",
         force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
         run_dir: Annotated[
@@ -342,8 +400,15 @@ def register(app: typer.Typer) -> None:
             depth=depth,
             abundance=abundance,
             coverage=coverage,
+            alignment_maps=alignment_maps,
+            output_mags=output_mags,
+            output_contig_map=output_contig_map,
+            output_unbinned_contigs=output_unbinned_contigs,
             output_dir=output_dir,
             prefix=prefix,
+            seed=seed,
+            parallel_config=parallel_config,
+            verbose=verbose,
             threads=threads,
             force=force,
             run_dir=run_dir,

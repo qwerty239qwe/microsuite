@@ -336,6 +336,17 @@ def denoise_qiime2_dada2(
         run_dir=run_dir,
         timeout=timeout,
         backend="qiime2-dada2",
+        inputs={"demux": str(demux)},
+        outputs={
+            "table": str(output_table),
+            "representative_sequences": str(output_rep_seqs),
+            "denoising_stats": str(output_stats),
+            **(
+                {"base_transition_stats": str(output_base_transition_stats)}
+                if output_base_transition_stats is not None
+                else {}
+            ),
+        },
         params=params,
     )
     if output_base_transition_plot is not None:
@@ -354,6 +365,8 @@ def denoise_qiime2_dada2(
             run_dir=run_dir,
             timeout=timeout,
             backend="qiime2-dada2",
+            inputs={"base_transition_stats": str(output_base_transition_stats)},
+            outputs={"base_transition_plot": str(output_base_transition_plot)},
             params={**params, "base_transition_plot": str(output_base_transition_plot)},
         )
 
@@ -404,6 +417,12 @@ def denoise_qiime2_deblur(
         run_dir=run_dir,
         timeout=timeout,
         backend="qiime2-deblur",
+        inputs={"demux": str(demux)},
+        outputs={
+            "table": str(output_table),
+            "representative_sequences": str(output_rep_seqs),
+            "stats": str(output_stats),
+        },
     )
 
 
@@ -512,6 +531,12 @@ def denoise_dada2_r(
         run_dir=run_dir,
         timeout=timeout,
         backend="dada2-r",
+        inputs={"input_dir": str(input_dir)},
+        outputs={
+            "table": str(output_table),
+            "representative_sequences": str(output_rep_seqs),
+            "denoising_stats": str(output_stats),
+        },
         params=_dada2_log_params(
             mode="paired" if paired else "single",
             max_ee=max_ee,
@@ -599,6 +624,8 @@ def _run(
     run_dir: Path | None,
     timeout: float | None,
     backend: str,
+    inputs: dict[str, str] | None = None,
+    outputs: dict[str, str] | None = None,
     params: dict[str, object] | None = None,
 ) -> None:
     run_command(
@@ -606,5 +633,11 @@ def _run(
         failure_message,
         run_dir=run_dir,
         timeout=timeout,
-        log=CommandLog(task="denoise", backend=backend, params=params or {}),
+        log=CommandLog(
+            task="denoise",
+            backend=backend,
+            inputs=inputs,
+            outputs=outputs,
+            params=params or {},
+        ),
     )

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from microsuite._errors import MicrobiomeSuiteError
+from microsuite.runtime.results import write_results_manifest
 
 
 @dataclass(frozen=True)
@@ -111,6 +112,15 @@ def run_command(
             duration_sec=duration_sec,
             exit_code=result.returncode,
         )
+        if result.returncode == 0:
+            write_results_manifest(
+                run_dir,
+                command=command,
+                log=_log_payload(log),
+                started_at=started,
+                duration_sec=duration_sec,
+                exit_code=result.returncode,
+            )
     if result.returncode != 0:
         message = result.stderr.strip() or result.stdout.strip() or failure_message
         raise MicrobiomeSuiteError(message)

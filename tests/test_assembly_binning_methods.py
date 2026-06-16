@@ -103,6 +103,11 @@ def test_metaspades_builds_single_command_and_logs(
     assert run["task"] == "assemble"
     assert run["backend"] == "metaspades"
     assert run["outputs"] == {"output_dir": str(tmp_path / "metaspades")}
+    manifest = json.loads(
+        (run_dir / "microsuite-results.json").read_text(encoding="utf-8")
+    )
+    assert manifest["artifacts"][0]["kind"] == "assemble_output_dir"
+    assert manifest["artifacts"][0]["path"] == str(tmp_path / "metaspades")
 
 
 def test_idba_ud_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -135,6 +140,78 @@ def test_idba_ud_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
             "3",
         ]
     ]
+
+
+def test_mosh_megahit_builds_artifact_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reads = touch(tmp_path / "reads.qza")
+    parallel_config = touch(tmp_path / "parallel.config.toml", "[parsl]\n")
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr(shutil, "which", lambda name: "mosh" if name == "mosh" else None)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        ),
+    )
+
+    assemble(
+        backend="mosh-megahit",
+        reads=reads,
+        output_contigs=tmp_path / "contigs.qza",
+        presets="meta-large",
+        min_contig=1000,
+        parallel_config=parallel_config,
+        verbose=True,
+        threads=8,
+    )
+
+    assert calls == [
+        [
+            "mosh",
+            "assembly",
+            "assemble-megahit",
+            "--i-reads",
+            str(reads),
+            "--p-presets",
+            "meta-large",
+            "--p-num-cpu-threads",
+            "8",
+            "--p-min-contig",
+            "1000",
+            "--o-contigs",
+            str(tmp_path / "contigs.qza"),
+            "--parallel-config",
+            str(parallel_config),
+            "--verbose",
+        ]
+    ]
+
+
+def test_mosh_megahit_defaults_output_from_output_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reads = touch(tmp_path / "reads.qza")
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr(shutil, "which", lambda name: "mosh" if name == "mosh" else None)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        ),
+    )
+
+    assemble(
+        backend="mosh-megahit",
+        reads=reads,
+        output_dir=tmp_path / "mosh-assembly",
+    )
+
+    assert "--o-contigs" in calls[0]
+    assert str(tmp_path / "mosh-assembly" / "contigs.qza") in calls[0]
 
 
 def test_assembly_validates_inputs_and_missing_tool(
@@ -267,6 +344,89 @@ def test_concoct_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     ]
 
 
+def test_mosh_metabat2_builds_artifact_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    contigs = touch(tmp_path / "contigs.qza")
+    alignment_maps = touch(tmp_path / "reads-to-contigs-aln.qza")
+    parallel_config = touch(tmp_path / "parallel.config.toml", "[parsl]\n")
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr(shutil, "which", lambda name: "mosh" if name == "mosh" else None)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        ),
+    )
+
+    bin_contigs(
+        backend="mosh-metabat2",
+        contigs=contigs,
+        alignment_maps=alignment_maps,
+        output_mags=tmp_path / "mags.qza",
+        output_contig_map=tmp_path / "contig-map.qza",
+        output_unbinned_contigs=tmp_path / "unbinned-contigs.qza",
+        seed=123,
+        parallel_config=parallel_config,
+        verbose=True,
+        threads=4,
+    )
+
+    assert calls == [
+        [
+            "mosh",
+            "annotate",
+            "bin-contigs-metabat",
+            "--i-contigs",
+            str(contigs),
+            "--i-alignment-maps",
+            str(alignment_maps),
+            "--p-num-threads",
+            "4",
+            "--p-seed",
+            "123",
+            "--o-mags",
+            str(tmp_path / "mags.qza"),
+            "--o-contig-map",
+            str(tmp_path / "contig-map.qza"),
+            "--o-unbinned-contigs",
+            str(tmp_path / "unbinned-contigs.qza"),
+            "--parallel-config",
+            str(parallel_config),
+            "--verbose",
+        ]
+    ]
+
+
+def test_mosh_metabat2_defaults_outputs_from_output_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    contigs = touch(tmp_path / "contigs.qza")
+    alignment_maps = touch(tmp_path / "alignment-maps.qza")
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr(shutil, "which", lambda name: "mosh" if name == "mosh" else None)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: (
+            calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        ),
+    )
+
+    bin_contigs(
+        backend="mosh-metabat2",
+        contigs=contigs,
+        alignment_maps=alignment_maps,
+        output_dir=tmp_path / "mosh-bins",
+    )
+
+    command = calls[0]
+    assert str(tmp_path / "mosh-bins" / "mags.qza") in command
+    assert str(tmp_path / "mosh-bins" / "contig-map.qza") in command
+    assert str(tmp_path / "mosh-bins" / "unbinned-contigs.qza") in command
+
+
 @pytest.mark.parametrize(
     ("backend", "missing"),
     [("metabat2", "--depth"), ("maxbin2", "--abundance"), ("concoct", "--coverage")],
@@ -304,18 +464,22 @@ def test_cli_assemble_and_bin_help_and_invocation(
     assert methods.exit_code == 0
     assert "assemble" in methods.stdout
     assert "megahit" in methods.stdout
+    assert "mosh-megahit" in methods.stdout
     assert "bin" in methods.stdout
     assert "metabat2" in methods.stdout
+    assert "mosh-metabat2" in methods.stdout
 
     assemble_help = runner.invoke(app, ["assemble", "--help"])
     assert assemble_help.exit_code == 0
     assert "--read1" in assemble_help.stdout
     assert "--reads" in assemble_help.stdout
+    assert "--output-contigs" in assemble_help.stdout
 
     bin_help = runner.invoke(app, ["bin", "--help"])
     assert bin_help.exit_code == 0
     assert "--contigs" in bin_help.stdout
     assert "--depth" in bin_help.stdout
+    assert "--alignment-maps" in bin_help.stdout
 
     result = runner.invoke(
         app,

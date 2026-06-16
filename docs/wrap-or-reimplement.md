@@ -15,6 +15,9 @@ Heavy, platform-sensitive, or fast-moving methods are wrapped instead:
 - BIOM import uses `biom-format`
 - QIIME2 `.qza` import reads artifact layouts and delegates BIOM tables when needed
 - ANCOM-BC is executed through external `Rscript`
+- MOSHPIT whole-metagenome workflows are wrapped through the external `mosh`
+  QIIME 2 plugin CLI where supported:
+  https://moshpit.qiime2.org/en/stable/
 
 Future releases can port selected methods after the CLI, data model, and tests
 are stable.
