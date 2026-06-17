@@ -314,8 +314,7 @@ def _resolve_mosh_outputs(
     force: bool,
 ) -> dict[str, Path]:
     if output_dir is None and any(
-        output is None
-        for output in (output_mags, output_contig_map, output_unbinned_contigs)
+        output is None for output in (output_mags, output_contig_map, output_unbinned_contigs)
     ):
         raise MicrobiomeSuiteError(
             "--output-dir or all MOSHPIT output artifacts are required for mosh-metabat2."

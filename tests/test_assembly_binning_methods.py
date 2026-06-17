@@ -103,9 +103,7 @@ def test_metaspades_builds_single_command_and_logs(
     assert run["task"] == "assemble"
     assert run["backend"] == "metaspades"
     assert run["outputs"] == {"output_dir": str(tmp_path / "metaspades")}
-    manifest = json.loads(
-        (run_dir / "microsuite-results.json").read_text(encoding="utf-8")
-    )
+    manifest = json.loads((run_dir / "microsuite-results.json").read_text(encoding="utf-8"))
     assert manifest["artifacts"][0]["kind"] == "assemble_output_dir"
     assert manifest["artifacts"][0]["path"] == str(tmp_path / "metaspades")
 

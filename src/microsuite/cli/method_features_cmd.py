@@ -375,9 +375,7 @@ def register(app: typer.Typer) -> None:
             ),
         ] = None,
         prefix: Annotated[str, typer.Option("--prefix", help="Output bin prefix.")] = "bin",
-        seed: Annotated[
-            int, typer.Option("--seed", min=0, help="MOSHPIT random seed.")
-        ] = 100,
+        seed: Annotated[int, typer.Option("--seed", min=0, help="MOSHPIT random seed.")] = 100,
         parallel_config: Annotated[
             Path | None,
             typer.Option("--parallel-config", help="MOSHPIT parsl parallel config TOML."),

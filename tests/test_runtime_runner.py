@@ -51,9 +51,7 @@ def test_run_command_writes_structured_logs(
     assert run["task"] == "trim"
     assert run["backend"] == "tool"
     assert run["command"] == ["tool", "--flag"]
-    manifest = json.loads(
-        (tmp_path / "microsuite-results.json").read_text(encoding="utf-8")
-    )
+    manifest = json.loads((tmp_path / "microsuite-results.json").read_text(encoding="utf-8"))
     assert manifest["schema_version"] == "microsuite-results.v1"
     assert manifest["producer"]["name"] == "microsuite"
     assert manifest["executions"][0]["task"] == "trim"
@@ -80,9 +78,7 @@ def test_run_command_writes_results_manifest_artifacts(
         ),
     )
 
-    manifest = json.loads(
-        (tmp_path / "microsuite-results.json").read_text(encoding="utf-8")
-    )
+    manifest = json.loads((tmp_path / "microsuite-results.json").read_text(encoding="utf-8"))
     assert manifest["run_id"] == tmp_path.name
     assert manifest["executions"][0]["inputs"] == {"table": "table.qza"}
     assert manifest["executions"][0]["params"] == {"metric": "shannon"}
@@ -115,9 +111,7 @@ def test_run_command_appends_results_manifest_without_duplicate_artifacts(
     run_command(["qiime", "dada2"], "failed", run_dir=tmp_path, log=log)
     run_command(["qiime", "dada2"], "failed", run_dir=tmp_path, log=log)
 
-    manifest = json.loads(
-        (tmp_path / "microsuite-results.json").read_text(encoding="utf-8")
-    )
+    manifest = json.loads((tmp_path / "microsuite-results.json").read_text(encoding="utf-8"))
     assert len(manifest["executions"]) == 2
     assert len(manifest["artifacts"]) == 1
     assert manifest["artifacts"][0]["kind"] == "feature_table"
