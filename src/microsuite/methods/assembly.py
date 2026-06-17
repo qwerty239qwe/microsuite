@@ -34,7 +34,7 @@ def assemble(
             read1=read1,
             read2=read2,
             reads=reads,
-            output_dir=output_dir,
+            output_dir=_require_output_dir(output_dir),
             threads=threads,
             force=force,
             run_dir=run_dir,
@@ -46,7 +46,7 @@ def assemble(
             read1=read1,
             read2=read2,
             reads=reads,
-            output_dir=output_dir,
+            output_dir=_require_output_dir(output_dir),
             threads=threads,
             force=force,
             run_dir=run_dir,
@@ -56,7 +56,7 @@ def assemble(
     if backend == "idba-ud":
         assemble_idba_ud(
             reads=reads,
-            output_dir=output_dir,
+            output_dir=_require_output_dir(output_dir),
             threads=threads,
             force=force,
             run_dir=run_dir,

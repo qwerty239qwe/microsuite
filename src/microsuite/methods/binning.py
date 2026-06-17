@@ -37,7 +37,7 @@ def bin_contigs(
         bin_metabat2(
             contigs=contigs,
             depth=depth,
-            output_dir=output_dir,
+            output_dir=_require_output_dir(output_dir),
             prefix=prefix,
             threads=threads,
             force=force,
@@ -66,7 +66,7 @@ def bin_contigs(
         bin_maxbin2(
             contigs=contigs,
             abundance=abundance,
-            output_dir=output_dir,
+            output_dir=_require_output_dir(output_dir),
             prefix=prefix,
             threads=threads,
             force=force,
@@ -78,7 +78,7 @@ def bin_contigs(
         bin_concoct(
             contigs=contigs,
             coverage=coverage,
-            output_dir=output_dir,
+            output_dir=_require_output_dir(output_dir),
             threads=threads,
             force=force,
             run_dir=run_dir,
@@ -319,18 +319,28 @@ def _resolve_mosh_outputs(
         raise MicrobiomeSuiteError(
             "--output-dir or all MOSHPIT output artifacts are required for mosh-metabat2."
         )
-    if output_dir is not None:
-        output_dir = _prepare_output_dir(output_dir, force=force)
+    resolved_output_dir = (
+        _prepare_output_dir(output_dir, force=force) if output_dir is not None else None
+    )
     outputs = {
-        "mags": output_mags or output_dir / "mags.qza",
-        "contig_map": output_contig_map or output_dir / "contig-map.qza",
-        "unbinned_contigs": output_unbinned_contigs or output_dir / "unbinned-contigs.qza",
+        "mags": output_mags or _join_output_dir(resolved_output_dir, "mags.qza"),
+        "contig_map": output_contig_map or _join_output_dir(resolved_output_dir, "contig-map.qza"),
+        "unbinned_contigs": output_unbinned_contigs
+        or _join_output_dir(resolved_output_dir, "unbinned-contigs.qza"),
     }
     for output in outputs.values():
         if output.exists() and not force:
             raise MicrobiomeSuiteError(f"Output file exists, pass --force to overwrite: {output}")
         output.parent.mkdir(parents=True, exist_ok=True)
     return outputs
+
+
+def _join_output_dir(output_dir: Path | None, filename: str) -> Path:
+    if output_dir is None:
+        raise MicrobiomeSuiteError(
+            "--output-dir or all MOSHPIT output artifacts are required for mosh-metabat2."
+        )
+    return output_dir / filename
 
 
 def _run(
