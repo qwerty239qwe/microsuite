@@ -1,5 +1,6 @@
 """Public Python SDK for table-oriented microbiome analysis."""
 
+from microsuite.api.dataset import DataAsset, MicrobiomeDataset
 from microsuite.api.ecology import (
     abundance_table,
     alpha_diversity,
@@ -44,6 +45,8 @@ from microsuite.methods.qiime2_wrappers import (
 from microsuite.methods.trim import trim
 
 __all__ = [
+    "DataAsset",
+    "MicrobiomeDataset",
     "abundance_table",
     "alpha_diversity",
     "assemble",
