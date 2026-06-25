@@ -23,6 +23,7 @@ def test_dataset_table_roundtrip(tmp_path: Path) -> None:
     dataset.write(table)
     reloaded = MicrobiomeDataset.read(table)
 
+    assert dataset.adata is not None
     assert reloaded.adata is not None
     assert reloaded.adata.shape == dataset.adata.shape
     assert read_table(table).shape == dataset.adata.shape

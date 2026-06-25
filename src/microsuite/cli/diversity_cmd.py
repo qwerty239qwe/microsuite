@@ -27,10 +27,13 @@ def alpha(
     table: Annotated[Path, typer.Argument(help="Input .h5ad table.")],
     metric: Annotated[str, typer.Option("--metric", help="Alpha metric.")],
     output: Annotated[Path, typer.Option("--output", "-o", help="Output TSV.")],
+    tree: Annotated[
+        Path | None, typer.Option("--tree", help="Newick tree for phylogenetic metrics.")
+    ] = None,
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
 ) -> None:
     adata = read_h5ad(ensure_input(table))
-    result = alpha_diversity(adata, metric)
+    result = alpha_diversity(adata, metric, tree=ensure_input(tree) if tree is not None else None)
     result.to_csv(prepare_output(output, force=force), sep="\t", index=False)
 
 

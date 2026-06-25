@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import anndata as ad
 import pandas as pd
 
@@ -61,8 +63,10 @@ def rarefy_table(adata: ad.AnnData, *, depth: int, seed: int = 0) -> ad.AnnData:
     return rarefy_native(adata, depth=depth, seed=seed)
 
 
-def alpha_diversity(adata: ad.AnnData, *, metric: str = "shannon") -> pd.DataFrame:
-    return _alpha_diversity(adata, metric)
+def alpha_diversity(
+    adata: ad.AnnData, *, metric: str = "shannon", tree: str | Path | None = None
+) -> pd.DataFrame:
+    return _alpha_diversity(adata, metric, tree=tree)
 
 
 def beta_diversity(adata: ad.AnnData, *, metric: str = "bray-curtis") -> pd.DataFrame:
