@@ -13,7 +13,13 @@ RUN apt-get update \
         curl \
         default-jre-headless \
         git \
+        cmake \
+        gfortran \
+        libbz2-dev \
         libcurl4-openssl-dev \
+        libglpk-dev \
+        libhdf5-dev \
+        liblzma-dev \
         libssl-dev \
         libxml2-dev \
         python3 \
@@ -37,7 +43,7 @@ RUN python3 -m venv /opt/venv \
     && pip install --upgrade pip \
     && pip install ".[biom,qza]"
 
-RUN Rscript -e 'install.packages(c("breakaway", "iNEXT"), repos = "https://cloud.r-project.org")'
+RUN Rscript -e 'install.packages("BiocManager", repos = "https://cloud.r-project.org"); repos <- c(adw96 = "https://adw96.r-universe.dev", BiocManager::repositories()); install.packages(c("breakaway", "iNEXT"), repos = repos, dependencies = c("Depends", "Imports", "LinkingTo"), Ncpus = max(1, parallel::detectCores() - 1)); missing <- c("breakaway", "iNEXT")[!vapply(c("breakaway", "iNEXT"), requireNamespace, logical(1), quietly = TRUE)]; if (length(missing)) stop("Missing R packages after install: ", paste(missing, collapse = ", "))'
 
 COPY cloud/prjna321534/run_prjna321534.sh /usr/local/bin/run_prjna321534
 COPY cloud/prjna321534/alpha_breakaway_inext.R /usr/local/bin/alpha_breakaway_inext.R
