@@ -35,6 +35,11 @@ def alpha_diversity(
     **kwargs: Any,
 ) -> pd.DataFrame:
     metric_name = _canonical_metric(metric)
+    if metric_name in R_ALPHA_METRICS:
+        from microsuite.diversity.r_backends import r_alpha_diversity
+
+        return r_alpha_diversity(adata, backend=metric_name, **kwargs)
+
     spec = ALPHA_METRICS.get(metric_name)
     if spec is None:
         raise MicrobiomeSuiteError(
@@ -69,7 +74,7 @@ def alpha_diversity(
 
 
 def available_alpha_metrics() -> tuple[str, ...]:
-    return tuple(sorted(ALPHA_METRICS))
+    return tuple(sorted(set(ALPHA_METRICS) | R_ALPHA_METRICS))
 
 
 def _compute(counts: np.ndarray, metric: str) -> np.ndarray:
@@ -661,3 +666,4 @@ _METRIC_DEFS: tuple[AlphaMetric, ...] = (
 
 ALPHA_METRICS = {spec.name: spec for spec in _METRIC_DEFS}
 ALPHA_METRICS["pielou"] = AlphaMetric("pielou", pielou_e, ("pielou",))
+R_ALPHA_METRICS = {"breakaway", "inext"}

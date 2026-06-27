@@ -215,52 +215,34 @@ features clustered by sequence identity, commonly 97%.
 | `native-visualize` | microsuite 0.1.0 | ready | `microsuite viz ...` | `taxonomy_barplot(adata, level=..., output=...)` | [microsuite Python](containers/microsuite/Dockerfile) | Lightweight static figures; not an interactive dashboard. | Barplots, ordination plots, and heatmaps. |
 | `native-report` | microsuite 0.1.0 | ready | `microsuite report --backend native` | `report(backend="native", run_dir=..., output=...)` | [microsuite Python](containers/microsuite/Dockerfile) | Good provenance summary; not full narrative reporting yet. | HTML provenance reports from run metadata. |
 
-## Install
+## Install And Quick Start
 
-`microsuite` targets Python 3.11 and 3.12. Use `uv` for the Python CLI/SDK
-environment:
+Start with the path that matches how you want to use `microsuite`:
+
+| You want to... | Use this path |
+| --- | --- |
+| Try the CLI or run examples from this repo | [Developer/local install](docs/installation.md#developerlocal-install) |
+| Use functions in notebooks or scripts | [Python SDK install](docs/installation.md#python-sdk-users) |
+| Run one command at a time on local files | [CLI users](docs/installation.md#cli-users) |
+| Avoid installing FastQC, VSEARCH, R, or QIIME 2 locally | [Docker users](docs/installation.md#docker-users) |
+| Run full reproducible workflows | [Nextflow/HPC users](docs/installation.md#nextflow-and-hpc-users) |
+| Run BioProject-scale jobs on cheap cloud VMs | [Cloud/Spot VM users](docs/installation.md#cloudspot-vm-users) |
+
+The shortest local setup for development and examples is:
 
 ```bash
 uv sync --extra dev
 uv run microsuite --help
 ```
 
-Optional Python extras:
+Core Python installs only provide the `microsuite` CLI/SDK and native table
+analysis. External tools remain separate: QIIME 2 commands need QIIME 2,
+R-backed methods need `Rscript` plus R packages, and taxonomy profilers need
+their own databases.
 
-```bash
-uv sync --extra biom --extra dev
-uv sync --extra qza --extra dev
-uv sync --extra all --extra dev
-```
-
-These extras cover Python-side file compatibility such as BIOM/QIIME-style
-table import. They do not install external microbiome tools.
-
-External backends must be installed in the runtime environment where you run
-the command. For example:
-
-| Backend family | Expected runtime |
-| --- | --- |
-| FastQC / MultiQC | `fastqc` or `multiqc` on `PATH`, or the corresponding container |
-| Trimming | `fastp`, `cutadapt`, `trimmomatic`, or `trim_galore` on `PATH` |
-| QIIME 2 methods | Activated QIIME 2 environment with the needed plugins |
-| R methods | `Rscript` plus required R/Bioconductor packages |
-| Kraken2-style profiling | Tool binary and database available to the process |
-
-Container definitions live in [containers/](containers/) and are documented in
-[docs/containers.md](docs/containers.md). Build from the repository root:
-
-```bash
-docker build -f containers/microsuite/Dockerfile -t microsuite:local .
-docker build -f containers/fastqc/Dockerfile -t microsuite-fastqc:local .
-```
-
-Nextflow workflows are intended for complete pipelines and should own
-container/profile selection:
-
-```bash
-nextflow run workflows/nextflow/main.nf -profile docker --help
-```
+See [docs/installation.md](docs/installation.md) for install instructions by
+user type, optional extras, external backend requirements, Docker images,
+Nextflow setup, cloud execution, and verification commands.
 
 ## CLI
 

@@ -30,10 +30,18 @@ def alpha(
     tree: Annotated[
         Path | None, typer.Option("--tree", help="Newick tree for phylogenetic metrics.")
     ] = None,
+    q: Annotated[
+        str, typer.Option("--q", help="Comma-separated iNEXT diversity orders.")
+    ] = "0,1,2",
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
 ) -> None:
     adata = read_h5ad(ensure_input(table))
-    result = alpha_diversity(adata, metric, tree=ensure_input(tree) if tree is not None else None)
+    kwargs = {}
+    if metric.lower().replace("-", "_") == "inext":
+        kwargs["q"] = _parse_float_csv(q, "--q")
+    result = alpha_diversity(
+        adata, metric, tree=ensure_input(tree) if tree is not None else None, **kwargs
+    )
     result.to_csv(prepare_output(output, force=force), sep="\t", index=False)
 
 
@@ -155,3 +163,14 @@ def _read_distance_matrix(path: Path) -> pd.DataFrame:
 
 def _read_metadata(path: Path) -> pd.DataFrame:
     return pd.read_csv(ensure_input(path), sep="\t", index_col=0)
+
+
+def _parse_float_csv(value: str, option_name: str) -> tuple[float, ...]:
+    try:
+        parsed = tuple(float(item.strip()) for item in value.split(",") if item.strip())
+    except ValueError as exc:
+        message = f"{option_name} must be a comma-separated list of numbers."
+        raise typer.BadParameter(message) from exc
+    if not parsed:
+        raise typer.BadParameter(f"{option_name} must contain at least one number.")
+    return parsed

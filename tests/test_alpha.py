@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import anndata as ad
 import numpy as np
@@ -125,7 +126,7 @@ def test_all_count_only_alpha_metrics_run_on_feature_table() -> None:
         obs=pd.DataFrame(index=pd.Index(["s1", "s2"])),
         var=pd.DataFrame(index=pd.Index(["A", "B", "C", "D"])),
     )
-    count_only = set(available_alpha_metrics()) - {"faith_pd", "phydiv"}
+    count_only = set(available_alpha_metrics()) - {"breakaway", "faith_pd", "inext", "phydiv"}
 
     for metric in count_only:
         result = alpha_diversity(adata, metric)
@@ -149,3 +150,51 @@ def test_phylogenetic_alpha_metrics_require_and_use_newick_tree() -> None:
 
     with pytest.raises(MicrobiomeSuiteError, match="requires"):
         alpha_diversity(adata, "faith_pd")
+
+
+def test_r_alpha_metrics_are_listed() -> None:
+    assert {"breakaway", "inext"}.issubset(set(available_alpha_metrics()))
+
+
+def test_breakaway_reports_missing_rscript(monkeypatch: pytest.MonkeyPatch) -> None:
+    adata = ad.AnnData(
+        X=np.array([[4, 3, 2, 1]], dtype=float),
+        obs=pd.DataFrame(index=pd.Index(["s1"])),
+        var=pd.DataFrame(index=pd.Index(["A", "B", "C", "D"])),
+    )
+    monkeypatch.setattr("shutil.which", lambda name: None)
+
+    with pytest.raises(MicrobiomeSuiteError, match="Rscript"):
+        alpha_diversity(adata, "breakaway")
+
+
+@pytest.mark.parametrize("metric", ["breakaway", "inext"])
+def test_r_alpha_metrics_invoke_packaged_scripts(
+    metric: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    adata = ad.AnnData(
+        X=np.array([[4, 3, 2, 1], [2, 1, 1, 0]], dtype=float),
+        obs=pd.DataFrame(index=pd.Index(["s1", "s2"])),
+        var=pd.DataFrame(index=pd.Index(["A", "B", "C", "D"])),
+    )
+    commands: list[list[str]] = []
+
+    monkeypatch.setattr("shutil.which", lambda name: "Rscript")
+
+    def fake_run(command: list[str], **kwargs: object) -> object:
+        commands.append(command)
+        output = Path(command[3])
+        output.write_text("sample_id\testimate\ns1\t4\ns2\t3\n", encoding="utf-8")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    result = alpha_diversity(adata, metric)
+
+    assert result["sample_id"].tolist() == ["s1", "s2"]
+    assert result["estimate"].tolist() == [4, 3]
+    assert commands
+    assert commands[0][0] == "Rscript"
+    assert commands[0][1].endswith(f"microsuite/diversity/r/{metric}_alpha.R") or commands[
+        0
+    ][1].endswith(f"microsuite\\diversity\\r\\{metric}_alpha.R")
