@@ -44,9 +44,7 @@ def test_dataset_registers_path_backed_sequence_and_read_assets(tmp_path: Path) 
     rooted_tree = dataset.add_tree("rooted_tree", tree)
     silva = dataset.add_reference("silva", classifier, kind="classifier")
 
-    assert rep_seqs == DataAsset(
-        name="rep_seqs", kind="fasta", path=fasta, format=".fasta"
-    )
+    assert rep_seqs == DataAsset(name="rep_seqs", kind="fasta", path=fasta, format=".fasta")
     assert reads.kind == "paired_fastq"
     assert reads.sample_id == "S1"
     assert reads.path == r1

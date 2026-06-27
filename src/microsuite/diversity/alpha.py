@@ -141,9 +141,7 @@ def chao1_ci(
         )
     else:
         ratio = singles_count / doubles_count
-        variance = doubles_count * (
-            0.25 * ratio**4 + ratio**3 + 0.5 * ratio**2
-        )
+        variance = doubles_count * (0.25 * ratio**4 + ratio**3 + 0.5 * ratio**2)
     lower = max(observed, estimate - zscore * np.sqrt(max(variance, 0.0)))
     upper = estimate + zscore * np.sqrt(max(variance, 0.0))
     return float(lower), float(upper)
@@ -212,9 +210,7 @@ def gini_index(counts: np.ndarray) -> float:
     sorted_counts = np.sort(counts)
     index = np.arange(1, counts.size + 1)
     numerator = 2 * np.sum(index * sorted_counts)
-    return float(
-        numerator / (counts.size * counts.sum()) - ((counts.size + 1) / counts.size)
-    )
+    return float(numerator / (counts.size * counts.sum()) - ((counts.size + 1) / counts.size))
 
 
 def goods_coverage(counts: np.ndarray) -> float:
@@ -349,9 +345,7 @@ def michaelis_menten_fit(
         s_max, b = params
         return float(np.square((s_max * x / (b + x)) - y).sum())
 
-    result = fmin_powell(
-        error, params_guess, ftol=1e-5, args=(sample_sizes, richness), disp=False
-    )
+    result = fmin_powell(error, params_guess, ftol=1e-5, args=(sample_sizes, richness), disp=False)
     return float(result[0])
 
 

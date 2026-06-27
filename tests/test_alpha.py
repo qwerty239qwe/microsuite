@@ -195,6 +195,6 @@ def test_r_alpha_metrics_invoke_packaged_scripts(
     assert result["estimate"].tolist() == [4, 3]
     assert commands
     assert commands[0][0] == "Rscript"
-    assert commands[0][1].endswith(f"microsuite/diversity/r/{metric}_alpha.R") or commands[
-        0
-    ][1].endswith(f"microsuite\\diversity\\r\\{metric}_alpha.R")
+    assert commands[0][1].endswith(f"microsuite/diversity/r/{metric}_alpha.R") or commands[0][
+        1
+    ].endswith(f"microsuite\\diversity\\r\\{metric}_alpha.R")
