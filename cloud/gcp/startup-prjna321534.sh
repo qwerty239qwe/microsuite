@@ -14,6 +14,8 @@ MAX_RUNS="$(metadata max-runs || true)"
 MAX_RUNS="${MAX_RUNS:-0}"
 THREADS="$(metadata threads || true)"
 THREADS="${THREADS:-$(nproc)}"
+DELETE_ON_FINISH="$(metadata delete-on-finish || true)"
+DELETE_ON_FINISH="${DELETE_ON_FINISH:-false}"
 WORK_ROOT="/mnt/microsuite-prjna321534"
 RESULTS_GCS="gs://${BUCKET}/results/${BIOPROJECT}"
 
@@ -53,7 +55,18 @@ gcloud storage cp /var/log/prjna321534-container.log "${RESULTS_GCS}/logs/contai
 
 if [[ "${exit_code}" -ne 0 ]]; then
   log "Container failed with exit code ${exit_code}"
-  exit "${exit_code}"
+else
+  log "Completed successfully"
 fi
 
-log "Completed successfully"
+# Stop billing immediately once results and logs are in GCS. Runs on both success
+# and failure so a silently failing run does not idle until MAX_RUN_DURATION.
+if [[ "${DELETE_ON_FINISH}" == "true" ]]; then
+  name="$(curl -fsH 'Metadata-Flavor: Google' http://metadata.google.internal/computeMetadata/v1/instance/name)"
+  zone="$(curl -fsH 'Metadata-Flavor: Google' http://metadata.google.internal/computeMetadata/v1/instance/zone)"
+  zone="${zone##*/}"
+  log "delete-on-finish set; deleting ${name} in ${zone}"
+  gcloud compute instances delete "${name}" --zone "${zone}" --quiet || true
+fi
+
+exit "${exit_code}"

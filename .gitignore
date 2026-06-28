@@ -19,3 +19,6 @@ build/
 # Coverage
 .coverage
 coverage.xml
+
+# Local state written by cloud/gcp/create_spot_vm.sh
+cloud/gcp/.last_run.env
