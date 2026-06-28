@@ -31,10 +31,11 @@ RUN apt-get update \
         vsearch \
     && rm -rf /var/lib/apt/lists/*
 
-RUN sh -c "$(curl -fsSL https://ftp.ncbi.nlm.nih.gov/entrez/entrezdirect/install-edirect.sh)" \
-    && ln -s /root/edirect/esearch /usr/local/bin/esearch \
-    && ln -s /root/edirect/efetch /usr/local/bin/efetch \
-    && ln -s /root/edirect/xtract /usr/local/bin/xtract
+# edirect's esearch/efetch are shell scripts that source ecommon.sh from their
+# own directory, so they must be run from /root/edirect on PATH -- symlinking the
+# individual tools into /usr/local/bin breaks that lookup.
+RUN sh -c "$(curl -fsSL https://ftp.ncbi.nlm.nih.gov/entrez/entrezdirect/install-edirect.sh)"
+ENV PATH="/root/edirect:${PATH}"
 
 WORKDIR /opt/microsuite
 COPY . /opt/microsuite
