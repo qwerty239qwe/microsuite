@@ -47,5 +47,6 @@ RUN Rscript -e 'install.packages("BiocManager", repos = "https://cloud.r-project
 
 COPY cloud/prjna321534/run_prjna321534.sh /usr/local/bin/run_prjna321534
 COPY cloud/prjna321534/alpha_breakaway_inext.R /usr/local/bin/alpha_breakaway_inext.R
+RUN chmod +x /usr/local/bin/run_prjna321534
 
 ENTRYPOINT ["run_prjna321534"]

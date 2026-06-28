@@ -47,4 +47,4 @@ jobs:
         run: |
           docker pull "${IMAGE_NAME}:${GITHUB_SHA}"
           docker run --rm --entrypoint bash "${IMAGE_NAME}:${GITHUB_SHA}" \
-            -lc 'command -v fasterq-dump && command -v vsearch && Rscript -e "stopifnot(requireNamespace(\"breakaway\", quietly = TRUE)); stopifnot(requireNamespace(\"iNEXT\", quietly = TRUE))"'
+            -lc 'test -x /usr/local/bin/run_prjna321534 && command -v fasterq-dump && command -v vsearch && Rscript -e "stopifnot(requireNamespace(\"breakaway\", quietly = TRUE)); stopifnot(requireNamespace(\"iNEXT\", quietly = TRUE))"'
