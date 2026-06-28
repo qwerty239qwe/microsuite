@@ -13,6 +13,8 @@ BOOT_DISK_GB="${BOOT_DISK_GB:-200}"
 BIOPROJECT="${BIOPROJECT:-PRJNA321534}"
 MAX_RUNS="${MAX_RUNS:-10}"
 THREADS="${THREADS:-16}"
+TERMINATION_ACTION="${TERMINATION_ACTION:-STOP}"
+MAX_RUN_DURATION="${MAX_RUN_DURATION:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -22,12 +24,17 @@ if ! gcloud storage buckets describe "gs://${BUCKET}" >/dev/null 2>&1; then
   gcloud storage buckets create "gs://${BUCKET}" --location="${REGION}"
 fi
 
+CREATE_ARGS=(--instance-termination-action="${TERMINATION_ACTION}")
+if [[ -n "${MAX_RUN_DURATION}" ]]; then
+  CREATE_ARGS+=(--max-run-duration="${MAX_RUN_DURATION}")
+fi
+
 gcloud compute instances create "${VM_NAME}" \
   --project="${PROJECT_ID}" \
   --zone="${ZONE}" \
   --machine-type="${MACHINE_TYPE}" \
   --provisioning-model=SPOT \
-  --instance-termination-action=STOP \
+  "${CREATE_ARGS[@]}" \
   --boot-disk-size="${BOOT_DISK_GB}GB" \
   --boot-disk-type=pd-balanced \
   --image-family=ubuntu-2404-lts-amd64 \
