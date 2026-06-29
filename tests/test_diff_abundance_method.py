@@ -16,7 +16,6 @@ from microsuite.io.h5ad import write_h5ad
 from microsuite.io.tsv import read_tsv
 from microsuite.methods.diff_abundance import diff_abundance
 
-ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = Path(__file__).parent / "fixtures" / "moving_pictures_small"
 
 
@@ -29,14 +28,10 @@ def fixture_table(tmp_path: Path) -> Path:
 
 @pytest.mark.parametrize("script_name", ["ancombc", "aldex2", "maaslin2", "lefse"])
 def test_r_diffab_scripts_are_external_assets(script_name: str) -> None:
-    script = ROOT / "scripts" / "r" / f"{script_name}.R"
     packaged_script = files("microsuite.diffab.r").joinpath(f"{script_name}.R")
 
-    assert script.exists()
-    text = script.read_text(encoding="utf-8")
-    assert "commandArgs" in text
     assert packaged_script.is_file()
-    assert packaged_script.read_text(encoding="utf-8") == text
+    assert "commandArgs" in packaged_script.read_text(encoding="utf-8")
 
 
 def test_diff_abundance_ancombc_missing_rscript(
