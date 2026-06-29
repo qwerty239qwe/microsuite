@@ -479,7 +479,7 @@ def denoise_dada2_r(
 
     command = [
         rscript,
-        str(files("microsuite.resources").joinpath(DADA2_R_SCRIPT)),
+        str(files("microsuite.methods.r").joinpath(DADA2_R_SCRIPT)),
         "--input-dir",
         str(input_dir),
         "--output-table",

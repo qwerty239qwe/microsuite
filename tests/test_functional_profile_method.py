@@ -13,19 +13,14 @@ from microsuite._errors import MicrobiomeSuiteError
 from microsuite.cli.app import app
 from microsuite.methods.functional_profile import functional_profile
 
-ROOT = Path(__file__).resolve().parents[1]
-
 
 def test_tax4fun2_r_script_is_external_asset() -> None:
-    script = ROOT / "scripts" / "r" / "tax4fun2.R"
     packaged_script = files("microsuite.functional.r").joinpath("tax4fun2.R")
 
-    assert script.exists()
-    text = script.read_text(encoding="utf-8")
+    assert packaged_script.is_file()
+    text = packaged_script.read_text(encoding="utf-8")
     assert "Tax4Fun2::runRefBlast" in text
     assert "Tax4Fun2::makeFunctionalPrediction" in text
-    assert packaged_script.is_file()
-    assert packaged_script.read_text(encoding="utf-8") == text
 
 
 def test_picrust2_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

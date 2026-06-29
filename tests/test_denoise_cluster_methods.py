@@ -439,7 +439,7 @@ def test_denoise_dada2_r_builds_rscript_command(
 
     command = calls[0]
     assert command[0] == "Rscript"
-    assert command[1].endswith(str(Path("microsuite/resources/dada2_denoise.R")))
+    assert command[1].endswith(str(Path("microsuite/methods/r/dada2_denoise.R")))
     assert command[2] == "--input-dir"
     assert str(reads) in command
     assert "--paired" in command
@@ -450,7 +450,7 @@ def test_denoise_dada2_r_builds_rscript_command(
 
 
 def test_dada2_r_script_writes_matching_asv_feature_ids() -> None:
-    script = Path("src/microsuite/resources/dada2_denoise.R").read_text(encoding="utf-8")
+    script = Path("src/microsuite/methods/r/dada2_denoise.R").read_text(encoding="utf-8")
 
     assert 'ids <- paste0("ASV", seq_along(seqs))' in script
     assert "asv_table <- t(seqtab.nochim)" in script
@@ -460,7 +460,7 @@ def test_dada2_r_script_writes_matching_asv_feature_ids() -> None:
 
 
 def test_dada2_r_script_wires_advanced_controls() -> None:
-    script = Path("src/microsuite/resources/dada2_denoise.R").read_text(encoding="utf-8")
+    script = Path("src/microsuite/methods/r/dada2_denoise.R").read_text(encoding="utf-8")
 
     assert "maxEE" in script
     assert "truncQ = trunc_q" in script

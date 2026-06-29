@@ -302,7 +302,7 @@ Move the ANCOM-BC R code out of embedded Python strings.
 Add:
 
 ```text
-scripts/r/ancombc.R
+src/microsuite/diffab/r/ancombc.R
 src/microsuite/methods/diff_abundance.py
 ```
 
@@ -327,7 +327,7 @@ Acceptance:
 - wrapper invokes packaged script path
 - `ancombc`, `aldex2`, `maaslin2`, and `lefse` wrappers invoke packaged R scripts
 - old command remains functional
-- R implementation lives in `scripts/r/ancombc.R`, not in embedded Python strings
+- R implementation lives in `src/microsuite/diffab/r/ancombc.R`, not in embedded Python strings
 
 ### Phase 3: Containers
 

@@ -16,7 +16,6 @@ from microsuite.io.h5ad import write_h5ad
 from microsuite.io.tsv import read_tsv
 from microsuite.methods.network import correlation_network, network, sparcc_network
 
-ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = Path(__file__).parent / "fixtures" / "moving_pictures_small"
 
 
@@ -31,14 +30,11 @@ def fixture_table(tmp_path: Path) -> Path:
 
 
 def test_network_runner_scripts_are_external_assets() -> None:
-    r_script = ROOT / "scripts" / "r" / "spieceasi_network.R"
     packaged_r = files("microsuite.networks.r").joinpath("spieceasi_network.R")
     packaged_julia = files("microsuite.networks.julia").joinpath("flashweave_network.jl")
 
-    assert r_script.exists()
-    assert "SpiecEasi::spiec.easi" in r_script.read_text(encoding="utf-8")
     assert packaged_r.is_file()
-    assert packaged_r.read_text(encoding="utf-8") == r_script.read_text(encoding="utf-8")
+    assert "SpiecEasi::spiec.easi" in packaged_r.read_text(encoding="utf-8")
     assert packaged_julia.is_file()
     assert "learn_network" in packaged_julia.read_text(encoding="utf-8")
 
