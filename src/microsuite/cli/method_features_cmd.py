@@ -244,6 +244,14 @@ def register(app: typer.Typer) -> None:
                 "--table", help="Input feature table artifact. Required for qiime2-vsearch."
             ),
         ] = None,
+        reads: Annotated[
+            Path | None,
+            typer.Option(
+                "--reads",
+                help="Full read set (vsearch backend). When given, reads are mapped back to "
+                "the centroids for correct per-sample counts after dereplication.",
+            ),
+        ] = None,
         output_uc: Annotated[
             Path | None,
             typer.Option("--output-uc", help="Optional USEARCH/VSEARCH .uc cluster mapping."),
@@ -270,6 +278,7 @@ def register(app: typer.Typer) -> None:
             output_table=output_table,
             output_rep_seqs=output_rep_seqs,
             table=table,
+            reads=reads,
             identity=identity,
             output_uc=output_uc,
             sample_delimiter=sample_delimiter,
