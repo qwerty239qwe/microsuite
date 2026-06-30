@@ -612,8 +612,7 @@ def test_cluster_vsearch_remaps_reads_for_per_sample_counts(
             )
         else:
             Path(command[command.index("--uc") + 1]).write_text(
-                "S\t0\t20\t*\t*\t*\t*\t*\tOTU_1\t*\n"
-                "S\t1\t20\t*\t*\t*\t*\t*\tOTU_2\t*\n",
+                "S\t0\t20\t*\t*\t*\t*\t*\tOTU_1\t*\nS\t1\t20\t*\t*\t*\t*\t*\tOTU_2\t*\n",
                 encoding="utf-8",
             )
         return subprocess.CompletedProcess(command, 0, "", "")
