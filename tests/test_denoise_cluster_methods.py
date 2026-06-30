@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 import microsuite.api as api
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite.cli.app import app
-from microsuite.methods.cluster import cluster
+from microsuite.methods.cluster import cluster, write_otu_table_from_uc
 from microsuite.methods.denoise import denoise
 
 
@@ -581,6 +581,77 @@ def test_cluster_vsearch_builds_table_from_uc(
     assert (tmp_path / "otu-table.tsv").read_text(encoding="utf-8") == (
         "feature-id\ts1\ts2\ns1_read1\t2\t0\ns2_read1\t0\t1\n"
     )
+
+
+def test_cluster_vsearch_remaps_reads_for_per_sample_counts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # When rep_seqs are dereplicated (one representative per unique), counting
+    # the clustering .uc would mis-attribute counts to the representative's
+    # sample. Passing the full reads makes cluster map them back to the
+    # centroids so the OTU table reflects true per-sample abundances.
+    rep_seqs = touch(tmp_path / "uniques.fasta")
+    reads = touch(tmp_path / "all_reads.fasta")
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr("shutil.which", lambda name: "vsearch" if name == "vsearch" else None)
+
+    def fake_run(
+        command: list[str], *, check: bool, text: bool, capture_output: bool
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        if "--usearch_global" in command:
+            # map every original read back to a centroid (query in field 8,
+            # target OTU in field 9)
+            Path(command[command.index("--uc") + 1]).write_text(
+                "H\t0\t20\t99.0\t+\t0\t0\t20M\ts1_read1\tOTU_1\n"
+                "H\t0\t20\t99.0\t+\t0\t0\t20M\ts1_read2\tOTU_1\n"
+                "H\t0\t20\t99.0\t+\t0\t0\t20M\ts2_read1\tOTU_1\n"
+                "H\t1\t20\t98.0\t+\t0\t0\t20M\ts2_read2\tOTU_2\n",
+                encoding="utf-8",
+            )
+        else:
+            Path(command[command.index("--uc") + 1]).write_text(
+                "S\t0\t20\t*\t*\t*\t*\t*\tOTU_1\t*\nS\t1\t20\t*\t*\t*\t*\t*\tOTU_2\t*\n",
+                encoding="utf-8",
+            )
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    cluster(
+        backend="vsearch",
+        rep_seqs=rep_seqs,
+        reads=reads,
+        output_table=tmp_path / "otu-table.tsv",
+        output_rep_seqs=tmp_path / "centroids.fasta",
+        identity=0.97,
+    )
+
+    # clustering runs on the (dereplicated) rep_seqs, then reads are mapped back
+    assert any("--cluster_fast" in c and str(rep_seqs) in c for c in calls)
+    remap = next(c for c in calls if "--usearch_global" in c)
+    assert str(reads) in remap
+    assert "--db" in remap and str(tmp_path / "centroids.fasta") in remap
+    # OTU_1 seen in s1 (x2) and s2 (x1); OTU_2 in s2 (x1)
+    assert (tmp_path / "otu-table.tsv").read_text(encoding="utf-8") == (
+        "feature-id\ts1\ts2\nOTU_1\t2\t1\nOTU_2\t0\t1\n"
+    )
+
+
+def test_write_otu_table_from_uc_honors_size_annotation(tmp_path: Path) -> None:
+    # vsearch ;size= annotations carry abundance after dereplication; counting
+    # each .uc record as 1 would silently undercount.
+    uc = tmp_path / "clusters.uc"
+    uc.write_text(
+        "S\t0\t20\t*\t*\t*\t*\t*\ts1_read1;size=5\t*\n"
+        "H\t0\t20\t99.0\t+\t0\t0\t20M\ts2_read1;size=3\ts1_read1;size=5\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "table.tsv"
+    write_otu_table_from_uc(uc, out, sample_delimiter="_", sample_field=0)
+
+    assert out.read_text(encoding="utf-8") == ("feature-id\ts1\ts2\ns1_read1\t5\t3\n")
 
 
 def test_cluster_usearch_builds_table_from_uc(

@@ -24,6 +24,9 @@ MAX_RUN_DURATION="${MAX_RUN_DURATION:-}"
 # When true, the VM deletes itself after results sync so a finished or failed
 # run stops billing immediately instead of idling until MAX_RUN_DURATION.
 DELETE_ON_FINISH="${DELETE_ON_FINISH:-false}"
+# raw = raw esearch/vsearch/breakaway plumbing; microsuite = drive the
+# microsuite CLI (cluster/import/diversity/workflow) on the same data.
+DRIVER="${DRIVER:-raw}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -52,7 +55,7 @@ gcloud compute instances create "${VM_NAME}" \
   --image-family=ubuntu-2404-lts-amd64 \
   --image-project=ubuntu-os-cloud \
   --scopes=https://www.googleapis.com/auth/cloud-platform \
-  --metadata="image=${IMAGE},bucket=${BUCKET},bioproject=${BIOPROJECT},max-runs=${MAX_RUNS},threads=${THREADS},delete-on-finish=${DELETE_ON_FINISH}" \
+  --metadata="image=${IMAGE},bucket=${BUCKET},bioproject=${BIOPROJECT},max-runs=${MAX_RUNS},threads=${THREADS},delete-on-finish=${DELETE_ON_FINISH},driver=${DRIVER}" \
   --metadata-from-file="startup-script=${SCRIPT_DIR}/startup-prjna321534.sh,shutdown-script=${SCRIPT_DIR}/shutdown-prjna321534.sh" \
   --tags=microsuite-prjna321534
 

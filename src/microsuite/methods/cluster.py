@@ -18,6 +18,7 @@ def cluster(
     output_table: Path,
     output_rep_seqs: Path,
     table: Path | None = None,
+    reads: Path | None = None,
     identity: float = 0.97,
     output_uc: Path | None = None,
     sample_delimiter: str = "_",
@@ -44,6 +45,7 @@ def cluster(
     if backend == "vsearch":
         cluster_vsearch(
             rep_seqs=rep_seqs,
+            reads=reads,
             output_table=output_table,
             output_centroids=output_rep_seqs,
             output_uc=output_uc,
@@ -132,6 +134,7 @@ def cluster_vsearch(
     force: bool,
     run_dir: Path | None,
     timeout: float | None,
+    reads: Path | None = None,
 ) -> None:
     if not 0 < identity <= 1:
         raise MicrobiomeSuiteError("--identity must be greater than 0 and less than or equal to 1.")
@@ -143,31 +146,62 @@ def cluster_vsearch(
         )
 
     ensure_input(rep_seqs)
+    if reads is not None:
+        ensure_input(reads)
     prepare_output(output_table, force=force)
     prepare_output(output_centroids, force=force)
     output_uc = output_uc or output_table.with_suffix(".uc")
     prepare_output(output_uc, force=force)
 
-    command = [
-        vsearch,
-        "--cluster_fast",
-        str(rep_seqs),
-        "--id",
-        str(identity),
-        "--centroids",
-        str(output_centroids),
-        "--uc",
-        str(output_uc),
-    ]
     run_command(
-        command,
+        [
+            vsearch,
+            "--cluster_fast",
+            str(rep_seqs),
+            "--id",
+            str(identity),
+            "--centroids",
+            str(output_centroids),
+            "--uc",
+            str(output_uc),
+        ],
         "VSEARCH clustering failed.",
         run_dir=run_dir,
         timeout=timeout,
         log=CommandLog(task="cluster", backend="vsearch"),
     )
+
+    # The clustering .uc only describes the (possibly dereplicated) rep_seqs, so
+    # counting it would mis-attribute per-sample abundances. When the full read
+    # set is supplied, map every read back to the centroids and build the table
+    # from that mapping instead, matching the standard derep -> cluster -> remap
+    # OTU workflow.
+    if reads is not None:
+        map_uc = output_table.with_suffix(".map.uc")
+        prepare_output(map_uc, force=force)
+        run_command(
+            [
+                vsearch,
+                "--usearch_global",
+                str(reads),
+                "--db",
+                str(output_centroids),
+                "--id",
+                str(identity),
+                "--uc",
+                str(map_uc),
+            ],
+            "VSEARCH read mapping failed.",
+            run_dir=run_dir,
+            timeout=timeout,
+            log=CommandLog(task="cluster", backend="vsearch"),
+        )
+        table_uc = map_uc
+    else:
+        table_uc = output_uc
+
     write_otu_table_from_uc(
-        output_uc,
+        table_uc,
         output_table,
         sample_delimiter=sample_delimiter,
         sample_field=sample_field,
@@ -250,9 +284,10 @@ def write_otu_table_from_uc(
             sample = _sample_from_label(
                 query, sample_delimiter=sample_delimiter, sample_field=sample_field
             )
+            size = _size_from_label(fields[8])
             samples.add(sample)
             counts.setdefault(otu, {})
-            counts[otu][sample] = counts[otu].get(sample, 0) + 1
+            counts[otu][sample] = counts[otu].get(sample, 0) + size
 
     ordered_samples = sorted(samples)
     with output.open("w", encoding="utf-8", newline="") as handle:
@@ -264,6 +299,18 @@ def write_otu_table_from_uc(
 
 def _clean_uc_label(label: str) -> str:
     return label.split(";", 1)[0]
+
+
+def _size_from_label(label: str) -> int:
+    # vsearch annotates dereplicated abundance as ';size=N'; absent it, each
+    # .uc record represents a single read.
+    for part in label.split(";"):
+        if part.startswith("size="):
+            try:
+                return int(part[len("size=") :])
+            except ValueError:
+                return 1
+    return 1
 
 
 def _sample_from_label(label: str, *, sample_delimiter: str, sample_field: int) -> str:

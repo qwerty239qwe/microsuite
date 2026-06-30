@@ -16,6 +16,15 @@ THREADS="$(metadata threads || true)"
 THREADS="${THREADS:-$(nproc)}"
 DELETE_ON_FINISH="$(metadata delete-on-finish || true)"
 DELETE_ON_FINISH="${DELETE_ON_FINISH:-false}"
+# raw = raw esearch/vsearch/breakaway plumbing (run_prjna321534);
+# microsuite = drive the microsuite CLI (run_prjna321534_microsuite).
+DRIVER="$(metadata driver || true)"
+DRIVER="${DRIVER:-raw}"
+if [[ "${DRIVER}" == "microsuite" ]]; then
+  ENTRY="run_prjna321534_microsuite"
+else
+  ENTRY="run_prjna321534"
+fi
 WORK_ROOT="/mnt/microsuite-prjna321534"
 RESULTS_GCS="gs://${BUCKET}/results/${BIOPROJECT}"
 
@@ -35,10 +44,11 @@ mkdir -p "${WORK_ROOT}"
 log "Pulling ${IMAGE}"
 docker pull "${IMAGE}"
 
-log "Running ${BIOPROJECT}; MAX_RUNS=${MAX_RUNS}; THREADS=${THREADS}"
+log "Running ${BIOPROJECT}; MAX_RUNS=${MAX_RUNS}; THREADS=${THREADS}; DRIVER=${DRIVER}"
 set +e
 docker run --rm \
   --name prjna321534-alpha \
+  --entrypoint "${ENTRY}" \
   -e BIOPROJECT="${BIOPROJECT}" \
   -e MAX_RUNS="${MAX_RUNS}" \
   -e THREADS="${THREADS}" \
