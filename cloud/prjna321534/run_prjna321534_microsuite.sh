@@ -134,11 +134,24 @@ cat "${FASTA_DIR}"/*.fasta > "${RESULTS_DIR}/all_samples.fasta"
   done < "${MANIFEST_DIR}/runs.txt"
 } > "${RESULTS_DIR}/metadata.tsv"
 
-# --- 4. Cluster into an OTU table via the microsuite CLI -----------------------
-log "Clustering OTUs with: microsuite cluster --backend vsearch"
+# --- 4. Dereplicate, then cluster into an OTU table via the microsuite CLI -----
+# Dereplicate with singleton removal first (microsuite has no derep CLI), so
+# clustering operates on quality reads, then hand microsuite both the unique
+# rep-seqs (what to cluster) and the full reads (--reads, what to count) so the
+# OTU table has correct per-sample abundances.
+log "Dereplicating reads (vsearch --derep_fulllength --minuniquesize 2)"
+vsearch --derep_fulllength "${RESULTS_DIR}/all_samples.fasta" \
+  --output "${RESULTS_DIR}/uniques.fasta" \
+  --sizeout \
+  --minuniquesize 2 \
+  --threads "${THREADS}" \
+  2>&1 | tee -a "${LOG_DIR}/vsearch.derep.log"
+
+log "Clustering OTUs with: microsuite cluster --backend vsearch --reads"
 microsuite cluster \
   --backend vsearch \
-  --rep-seqs "${RESULTS_DIR}/all_samples.fasta" \
+  --rep-seqs "${RESULTS_DIR}/uniques.fasta" \
+  --reads "${RESULTS_DIR}/all_samples.fasta" \
   --output-table "${RESULTS_DIR}/otu_table.tsv" \
   --output-rep-seqs "${RESULTS_DIR}/otus.fasta" \
   --identity "${OTU_ID}" \
