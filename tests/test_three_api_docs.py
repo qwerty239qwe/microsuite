@@ -54,12 +54,12 @@ def test_existing_docs_reflect_three_api_model() -> None:
     assert ".h5ad" in python_api
 
 
-def test_readme_names_backend_validation_levels() -> None:
-    readme = (DOCS.parent / "README.md").read_text(encoding="utf-8")
+def test_methods_doc_names_backend_validation_levels() -> None:
+    methods = (DOCS / "methods.md").read_text(encoding="utf-8")
 
-    assert "Backend Validation Status" in readme
-    assert "CI smoke-tested" in readme
-    assert "Unit-tested wrapper" in readme
-    assert "Static only" in readme
-    assert "User environment" in readme
-    assert "API status" in readme
+    assert "Backend Validation Status" in methods
+    assert "CI smoke-tested" in methods
+    assert "Unit-tested wrapper" in methods
+    assert "Static only" in methods
+    assert "User environment" in methods
+    assert "API status" in methods
