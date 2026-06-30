@@ -55,6 +55,33 @@ manifest -> FastQC -> MultiQC
 manifest + reads -> QIIME 2 import -> DADA2 -> taxonomy -> phylogeny -> diversity -> report
 ```
 
+## `amplicon_microsuite` workflow
+
+`amplicon_microsuite` drives the microsuite CLI end to end instead of calling
+QIIME 2 directly. It takes a combined FASTA of per-sample, sample-labelled reads
+(headers like `>SRR..._1;sample=SRR...;`) plus sample metadata:
+
+```text
+reads.fasta -> derep + microsuite cluster --reads -> microsuite import tsv
+            -> microsuite diversity alpha (breakaway/iNEXT/native)
+            -> microsuite functional_profile --backend picrust2
+            -> report
+```
+
+```bash
+nextflow run workflows/nextflow/main.nf \
+  -profile docker \
+  --workflow amplicon_microsuite \
+  --reads_fasta reads.fasta \
+  --metadata metadata.tsv \
+  --outdir results
+```
+
+Each step runs in its own lean container (separated-image model) rather than one
+monolithic image: `MS_CLUSTER`/`MS_IMPORT`/`MS_DIVERSITY`/`MS_REPORT` use the
+`microsuite_amplicon` image (microsuite CLI + vsearch + R), and `MS_FUNCTIONAL`
+uses the `microsuite_picrust2` image, pulled only when functional profiling runs.
+
 ## Manifest contract
 
 Raw-read workflows should use a tab-separated manifest with one row per sample.

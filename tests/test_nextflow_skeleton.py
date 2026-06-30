@@ -46,6 +46,48 @@ def test_nextflow_amplicon_modules_are_declared() -> None:
         assert profile in config
 
 
+def test_nextflow_amplicon_microsuite_workflow_drives_cli() -> None:
+    modules = [
+        "ms_cluster.nf",
+        "ms_import.nf",
+        "ms_diversity.nf",
+        "ms_functional.nf",
+        "ms_report.nf",
+    ]
+    for module in modules:
+        assert (NEXTFLOW / "modules" / module).exists(), module
+
+    main = (NEXTFLOW / "main.nf").read_text(encoding="utf-8")
+    assert "amplicon_microsuite" in main
+    assert "reads_fasta" in main
+    for module in modules:
+        assert f"./modules/{module.removesuffix('.nf')}" in main
+    # every microsuite step is driven through the CLI
+    for call in [
+        "MS_CLUSTER",
+        "MS_IMPORT",
+        "MS_DIVERSITY",
+        "MS_FUNCTIONAL",
+        "MS_REPORT",
+    ]:
+        assert call in main
+
+
+def test_nextflow_microsuite_modules_use_cli_and_stubs() -> None:
+    expected_commands = {
+        "ms_cluster.nf": ["microsuite cluster", "--reads", "vsearch --derep_fulllength", "stub:"],
+        "ms_import.nf": ["microsuite import tsv", "stub:"],
+        "ms_diversity.nf": ["microsuite diversity alpha", "breakaway", "inext", "stub:"],
+        "ms_functional.nf": ["microsuite functional_profile", "picrust2", "stub:"],
+        "ms_report.nf": ["report.html", "run.json", "stub:"],
+    }
+    for module, tokens in expected_commands.items():
+        text = (NEXTFLOW / "modules" / module).read_text(encoding="utf-8")
+        for token in tokens:
+            assert token in text, f"{module}: {token}"
+        assert "placeholder" not in text
+
+
 def test_nextflow_modules_use_real_commands_and_stubs() -> None:
     expected_commands = {
         "fastqc.nf": ["fastqc --outdir", "stub:"],
@@ -69,7 +111,14 @@ def test_nextflow_profiles_assign_process_containers() -> None:
     singularity = (NEXTFLOW / "profiles" / "singularity.config").read_text(encoding="utf-8")
 
     for text in [docker, singularity]:
-        for label in ["fastqc", "multiqc", "qiime2", "microsuite"]:
+        for label in [
+            "fastqc",
+            "multiqc",
+            "qiime2",
+            "microsuite",
+            "microsuite_amplicon",
+            "microsuite_picrust2",
+        ]:
             assert f"withLabel: {label}" in text
         assert "process.container =" not in text
 
@@ -78,6 +127,8 @@ def test_nextflow_profiles_assign_process_containers() -> None:
         "microsuite/multiqc:ci",
         "microsuite/qiime2-amplicon:ci",
         "microsuite/microsuite:ci",
+        "microsuite/prjna321534-alpha:ci",
+        "microsuite/microsuite-picrust2:ci",
     ]:
         assert image in docker
 

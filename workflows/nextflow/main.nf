@@ -7,6 +7,11 @@ include { QIIME2_TAXONOMY } from './modules/qiime2_taxonomy'
 include { QIIME2_PHYLOGENY } from './modules/qiime2_phylogeny'
 include { QIIME2_DIVERSITY } from './modules/qiime2_diversity'
 include { REPORT } from './modules/report'
+include { MS_CLUSTER } from './modules/ms_cluster'
+include { MS_IMPORT } from './modules/ms_import'
+include { MS_DIVERSITY } from './modules/ms_diversity'
+include { MS_FUNCTIONAL } from './modules/ms_functional'
+include { MS_REPORT } from './modules/ms_report'
 
 params.workflow = params.workflow ?: 'amplicon_qiime2'
 params.manifest = params.manifest ?: null
@@ -21,6 +26,10 @@ params.trunc_len_f = params.trunc_len_f ?: 0
 params.trim_left_r = params.trim_left_r ?: 0
 params.trunc_len_r = params.trunc_len_r ?: 0
 params.sampling_depth = params.sampling_depth ?: 1000
+// amplicon_microsuite inputs: a combined FASTA of per-sample, sample-labelled
+// reads (e.g. ">SRR..._1;sample=SRR...;") plus sample metadata.
+params.reads_fasta = params.reads_fasta ?: null
+params.otu_identity = params.otu_identity ?: 0.97
 
 def resolveManifestPath(manifest_path, raw_path) {
     if (raw_path == null) {
@@ -34,7 +43,35 @@ def resolveManifestPath(manifest_path, raw_path) {
     return candidate.isAbsolute() ? candidate : file("${manifest_path.parent}/${value}")
 }
 
+workflow amplicon_microsuite {
+    // Drives the microsuite CLI end to end on a combined, sample-labelled read
+    // FASTA: cluster -> import -> diversity + functional profiling -> report.
+    if (!params.reads_fasta) {
+        error "Missing required parameter: --reads_fasta"
+    }
+    if (!params.metadata) {
+        error "Missing required parameter: --metadata"
+    }
+
+    reads_ch = Channel.value(file(params.reads_fasta))
+    metadata_ch = Channel.value(file(params.metadata))
+
+    MS_CLUSTER(reads_ch)
+    MS_IMPORT(MS_CLUSTER.out.table, metadata_ch)
+    MS_DIVERSITY(MS_IMPORT.out.table)
+    MS_FUNCTIONAL(MS_CLUSTER.out.table, MS_CLUSTER.out.rep_seqs)
+    MS_REPORT(
+        MS_CLUSTER.out.table,
+        MS_DIVERSITY.out.alpha_dir,
+        MS_FUNCTIONAL.out.functional_dir
+    )
+}
+
 workflow {
+    if (params.workflow == 'amplicon_microsuite') {
+        amplicon_microsuite()
+        return
+    }
     if (params.workflow != 'amplicon_qiime2') {
         error "Unsupported workflow: ${params.workflow}"
     }

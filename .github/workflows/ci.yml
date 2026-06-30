@@ -77,7 +77,7 @@ jobs:
         with:
           version: "25.10.0"
 
-      - name: Run amplicon workflow stub
+      - name: Run amplicon_qiime2 workflow stub
         run: |
           nextflow run -stub-run workflows/nextflow/main.nf \
             -profile local \
@@ -85,6 +85,15 @@ jobs:
             --metadata tests/fixtures/nextflow/metadata.tsv \
             --classifier tests/fixtures/nextflow/classifier.qza \
             --outdir results/nextflow-smoke
+
+      - name: Run amplicon_microsuite workflow stub
+        run: |
+          nextflow run -stub-run workflows/nextflow/main.nf \
+            -profile local \
+            --workflow amplicon_microsuite \
+            --reads_fasta tests/fixtures/nextflow/reads.fasta \
+            --metadata tests/fixtures/nextflow/metadata.tsv \
+            --outdir results/nextflow-microsuite-smoke
 
   external-integration:
     name: External tool Python API integration
