@@ -80,8 +80,9 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "image: qiime2-amplicon" in text
     assert "image: r-dada2" in text
     assert "image: r-diffab" in text
+    assert "image: microsuite-picrust2" in text
     assert text.count("heavy: false") == 11
-    assert text.count("heavy: true") == 4
+    assert text.count("heavy: true") == 5
     assert "load: ${{ !matrix.heavy }}" in text
     assert "Run FastQC tiny example" in text
     assert "Run MultiQC tiny example" in text

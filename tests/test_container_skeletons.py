@@ -28,6 +28,7 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
         "r-dada2": ["Rscript", "dada2"],
         "r-diffab": ["Rscript", "ANCOMBC", "ALDEx2", "MaAsLin2", "lefser"],
         "kraken2": ["kraken2", "bracken"],
+        "microsuite-picrust2": ["microsuite", "picrust2"],
     }
 
     for name, tokens in expected.items():

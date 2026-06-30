@@ -99,6 +99,10 @@ jobs:
             dockerfile: containers/r-diffab/Dockerfile
             context: .
             heavy: true
+          - image: microsuite-picrust2
+            dockerfile: containers/microsuite-picrust2/Dockerfile
+            context: .
+            heavy: true
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
