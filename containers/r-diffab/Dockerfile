@@ -16,9 +16,9 @@ RUN micromamba install -y -n base -c conda-forge -c bioconda \
     micromamba clean -a -y && \
     Rscript -e "stopifnot(requireNamespace('ANCOMBC', quietly = TRUE)); stopifnot(requireNamespace('ALDEx2', quietly = TRUE)); stopifnot(requireNamespace('Maaslin2', quietly = TRUE)); stopifnot(requireNamespace('lefser', quietly = TRUE))"
 
-COPY scripts/r/ancombc.R /opt/microsuite/ancombc.R
-COPY scripts/r/aldex2.R /opt/microsuite/aldex2.R
-COPY scripts/r/maaslin2.R /opt/microsuite/maaslin2.R
-COPY scripts/r/lefse.R /opt/microsuite/lefse.R
+COPY src/microsuite/diffab/r/ancombc.R /opt/microsuite/ancombc.R
+COPY src/microsuite/diffab/r/aldex2.R /opt/microsuite/aldex2.R
+COPY src/microsuite/diffab/r/maaslin2.R /opt/microsuite/maaslin2.R
+COPY src/microsuite/diffab/r/lefse.R /opt/microsuite/lefse.R
 
 ENTRYPOINT ["Rscript"]
