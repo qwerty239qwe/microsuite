@@ -21,6 +21,8 @@ containers/qiime2-amplicon/    QIIME 2 amplicon workflows
 containers/r-dada2/            R DADA2 ASV inference
 containers/r-diffab/           R differential-abundance tools
 containers/kraken2/            Kraken2 taxonomy profiling and Bracken abundance
+containers/microsuite-picrust2/  microsuite CLI + PICRUSt2 functional profiling
+containers/prjna321534-alpha/    BioProject PRJNA321534 alpha-diversity cloud runner
 ```
 
 | Image | Purpose | Expected commands | Build status |
@@ -40,6 +42,8 @@ containers/kraken2/            Kraken2 taxonomy profiling and Bracken abundance
 | `r-dada2` | R DADA2 ASV inference | `Rscript`, `dada2` | implemented |
 | `r-diffab` | R differential abundance backend | `Rscript`, `ANCOMBC`, `ALDEx2`, `MaAsLin2`, `lefser` | implemented |
 | `kraken2` | Kraken2 taxonomy profiling and Bracken abundance | `kraken2`, `bracken` | implemented |
+| `microsuite-picrust2` | microsuite CLI + PICRUSt2 functional profiling | `picrust2_pipeline.py`, `microsuite` | implemented (heavy) |
+| `prjna321534-alpha` | PRJNA321534 alpha-diversity cloud runner (SRA/VSEARCH/breakaway/iNEXT) | `microsuite`, `vsearch`, `Rscript` | implemented (cloud) |
 
 Default unit tests validate container files statically. The separate Docker
 GitHub Actions workflow builds the lighter `microsuite`, `fastqc`, trimming,
@@ -73,12 +77,18 @@ containers/qiime2-amplicon/Dockerfile
 containers/r-dada2/Dockerfile
 containers/r-diffab/Dockerfile
 containers/kraken2/Dockerfile
+containers/microsuite-picrust2/Dockerfile
+containers/prjna321534-alpha/Dockerfile
 ```
 
-Heavy images remain explicit validation steps because QIIME 2 and
-R/Bioconductor images can be large and network-sensitive. Use the manual
-GitHub Actions `build-heavy-containers=true` input to build `metaphlan`,
-`qiime2-amplicon`, `r-dada2`, and `r-diffab` in CI.
+Heavy images remain explicit validation steps because QIIME 2,
+R/Bioconductor, and PICRUSt2 images can be large and network-sensitive. Use the
+manual GitHub Actions `build-heavy-containers=true` input to build `metaphlan`,
+`qiime2-amplicon`, `r-dada2`, `r-diffab`, and `microsuite-picrust2` in CI.
+
+The `prjna321534-alpha` image is a dedicated cloud runner for the BioProject
+PRJNA321534 alpha-diversity pipeline and is not part of the standard Docker
+build matrix.
 
 Build from the repository root so Dockerfiles that copy project files have the
 right context:
@@ -99,4 +109,6 @@ docker build -f containers/qiime2-amplicon/Dockerfile -t microsuite-qiime2-ampli
 docker build -f containers/r-dada2/Dockerfile -t microsuite-r-dada2:local .
 docker build -f containers/r-diffab/Dockerfile -t microsuite-r-diffab:local .
 docker build -f containers/kraken2/Dockerfile -t microsuite-kraken2:local .
+docker build -f containers/microsuite-picrust2/Dockerfile -t microsuite-picrust2:local .
+docker build -f containers/prjna321534-alpha/Dockerfile -t microsuite-prjna321534-alpha:local .
 ```
