@@ -42,9 +42,15 @@ def rarefy_native(adata: ad.AnnData, *, depth: int, seed: int = 0) -> ad.AnnData
 
     rng = np.random.default_rng(seed)
     rarefied = np.zeros_like(counts, dtype=np.float64)
+    n_features = counts.shape[1]
     for index, row in enumerate(counts):
-        probabilities = row / row.sum()
-        rarefied[index] = rng.multinomial(depth, probabilities)
+        # Subsample WITHOUT replacement: expand the row into one entry per read,
+        # shuffle, keep the first `depth`, then re-bin. Matches QIIME 2 / scikit-bio
+        # rarefaction (a with-replacement draw would allow a feature to exceed its
+        # original count and would not return the table unchanged at depth == total).
+        reads = np.repeat(np.arange(n_features), row.astype(np.int64))
+        rng.shuffle(reads)
+        rarefied[index] = np.bincount(reads[:depth], minlength=n_features)
 
     result = cast(Any, adata).copy()
     result.X = rarefied

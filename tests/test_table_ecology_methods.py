@@ -67,6 +67,27 @@ def test_rarefy_native_rejects_low_depth_samples() -> None:
         rarefy_native(fixture_adata(), depth=20)
 
 
+def test_rarefy_native_never_exceeds_original_counts() -> None:
+    # Without-replacement subsampling can never draw a feature more times than it
+    # was originally observed. A with-replacement (multinomial) draw would.
+    adata = fixture_adata()
+    original = np.asarray(adata.X, dtype=np.float64)
+    for seed in range(50):
+        result = np.asarray(rarefy_native(adata, depth=10, seed=seed).X)
+        assert np.all(result <= original)
+
+
+def test_rarefy_native_at_full_depth_returns_table_unchanged() -> None:
+    # At depth == sample total, true rarefaction returns the original counts exactly.
+    adata = fixture_adata()
+    original = np.asarray(adata.X, dtype=np.float64)
+    depth = int(original.sum(axis=1).min())
+    result = np.asarray(rarefy_native(adata, depth=depth, seed=1).X)
+    unchanged = original[original.sum(axis=1) == depth]
+    got = result[original.sum(axis=1) == depth]
+    assert np.array_equal(got, unchanged)
+
+
 def test_h5ad_roundtrip_for_normalize(tmp_path: Path) -> None:
     table = tmp_path / "table.h5ad"
     output = tmp_path / "relative.h5ad"
