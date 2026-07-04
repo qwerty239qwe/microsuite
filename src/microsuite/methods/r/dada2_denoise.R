@@ -59,6 +59,17 @@ dir.create(dirname(output_stats), recursive = TRUE, showWarnings = FALSE)
 
 getN <- function(x) sum(getUniques(x))
 
+# dada() and mergePairs() return a bare per-sample object for a single sample and
+# a named list for multiple samples. Wrap the single-sample case so the read
+# tallies below work either way (otherwise vapply() iterates the object's
+# internal slots and getUniques() errors on them).
+count_reads <- function(x) {
+  if (is.data.frame(x) || inherits(x, "dada") || inherits(x, "derep")) {
+    return(getN(x))
+  }
+  vapply(x, getN, numeric(1))
+}
+
 if (paired) {
   fnFs <- fastqs[grepl("(_R1_|_1\\.|forward)", basename(fastqs), ignore.case = TRUE)]
   fnRs <- fastqs[grepl("(_R2_|_2\\.|reverse)", basename(fastqs), ignore.case = TRUE)]
@@ -100,9 +111,9 @@ if (paired) {
   track <- data.frame(
     input = out[, "reads.in"],
     filtered = out[, "reads.out"],
-    denoised_f = vapply(dadaFs, getN, numeric(1)),
-    denoised_r = vapply(dadaRs, getN, numeric(1)),
-    merged = vapply(mergers, getN, numeric(1)),
+    denoised_f = count_reads(dadaFs),
+    denoised_r = count_reads(dadaRs),
+    merged = count_reads(mergers),
     nonchim = rowSums(seqtab.nochim),
     row.names = sampleFs
   )
@@ -132,7 +143,7 @@ if (paired) {
   track <- data.frame(
     input = out[, "reads.in"],
     filtered = out[, "reads.out"],
-    denoised = vapply(dada_out, getN, numeric(1)),
+    denoised = count_reads(dada_out),
     nonchim = rowSums(seqtab.nochim),
     row.names = samples
   )
