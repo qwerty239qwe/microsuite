@@ -42,38 +42,44 @@ specified here; B–D are stubs to be brainstormed when reached.
 ### Out of scope for A
 - The consensus-taxonomy backend itself (sub-project B).
 - Any change to how workflows are composed (sub-project C).
-- Fetchers for DBs beyond the FOMC set + SILVA/GG2 (others follow the same
-  provider pattern later).
-- New capability inside biodbs beyond amplicon-reference fetchers (see below).
+- Fetchers for DBs beyond the target amplicon set (SILVA, NCBI 16S, GTDB, UNITE,
+  GG2, HOMD, MOMD); anything further follows the same provider pattern later.
+- Non-amplicon biodbs work (its existing gene/protein/pathway coverage is
+  untouched).
 
 ## Design
 
-### The acquisition split (load-bearing decision)
+### Acquisition strategy (load-bearing decision)
 
-Base QIIME2 has no fetch functions, but its ecosystem does:
+Base QIIME2 has no fetch functions. The QIIME2 ecosystem's RESCRIPt plugin
+(`q2-rescript`) can fetch SILVA/NCBI/GTDB/UNITE, but **biodbs is the default
+acquisition provider** and will be extended to cover *all* reference DBs —
+including SILVA, NCBI 16S, GTDB, UNITE, GreenGenes2, HOMD, and MOMD. RESCRIPt is
+kept as an **optional alternate provider** for users who prefer it or already
+have a QIIME2 environment, but it is not the default and is not required.
 
-| Lane | DBs | Tool | Notes |
+| Provider | Role | DBs | Notes |
 |---|---|---|---|
-| RESCRIPt-covered | SILVA, NCBI 16S, GTDB, UNITE, GreenGenes2 | `q2-rescript` (+ `q2-greengenes2`) | Already fetches **and** builds QIIME2 `.qza` artifacts; also direct pre-built classifier download from data.qiime2.org. |
-| Custom fetch needed | **HOMD, MOMD** | biodbs new fetchers + microsuite build step | No RESCRIPt fetcher exists. These are the FOMC-distinctive DBs. |
-
-Therefore refdb does **not** reimplement SILVA/NCBI fetching — it wraps RESCRIPt
-for that lane. biodbs earns its place only on the DBs RESCRIPt cannot get
-(HOMD/MOMD). The provider interface has exactly two implementations at first:
-`rescript` and `biodbs`.
+| **`biodbs`** (default) | Primary acquisition for every DB | SILVA, NCBI 16S, GTDB, UNITE, GreenGenes2, **HOMD, MOMD** | Upstream biodbs gains amplicon-reference fetchers (this sub-project). Returns raw sequences + taxonomy; microsuite builds artifacts. |
+| `rescript` (optional) | Alternate for RESCRIPt-covered DBs | SILVA, NCBI 16S, GTDB, UNITE, GG2 | Wrapped only when explicitly selected. Already emits `.qza`. Requires a QIIME2 env. |
 
 **biodbs division of labor.** biodbs
 ([github.com/qwerty239qwe/biodbs](https://github.com/qwerty239qwe/biodbs)) is a
-REST-API fetch framework for gene/protein/pathway/chemical DBs (BioMart, KEGG,
-QuickGO, HPA, Ensembl, ChEMBL, UniProt, PubChem, …) with a clean
-`fetch/<db>/` base-fetcher pattern (`biodbs/fetch/_base.py`). It does **not**
-currently cover amplicon reference DBs. This sub-project adds HOMD/MOMD fetchers
-to biodbs following that existing pattern. biodbs stays acquisition-only — it
-returns raw sequence + taxonomy files. The **build** step (FASTA+taxonomy →
-vsearch reference / BLAST db / QIIME2 `.qza`) lives in microsuite, because it is
-bioinformatics-tool invocation (`makeblastdb`, `qiime tools import`), not
-REST fetching. microsuite must remain usable without biodbs installed: a raw
-`--classifier` path and RESCRIPt-lane DBs work independently.
+REST-API fetch framework with a clean `fetch/<db>/` base-fetcher pattern
+(`biodbs/fetch/_base.py`), today covering gene/protein/pathway/chemical DBs
+(BioMart, KEGG, QuickGO, HPA, Ensembl, ChEMBL, UniProt, PubChem, …). This
+sub-project extends biodbs upstream with amplicon-reference fetchers for the
+full DB set above, following that existing pattern. biodbs stays
+**acquisition-only** — it returns raw sequence + taxonomy files. The **build**
+step (FASTA+taxonomy → vsearch reference / BLAST db / QIIME2 `.qza`) lives in
+microsuite, because it is bioinformatics-tool invocation (`makeblastdb`,
+`qiime tools import`), not REST fetching. Because biodbs is acquisition-only,
+the microsuite `build.py` layer is the **primary** build path (the RESCRIPt
+provider is the only one that can short-circuit to a pre-built `.qza`).
+
+microsuite must stay usable when a provider's optional dependency is absent: a
+raw `--classifier` path always works; selecting `--provider rescript` without a
+QIIME2 env yields a clear error rather than a crash.
 
 ### Package layout
 
@@ -86,8 +92,8 @@ refdb/
   registry.py    # JSON manifest cache: resolve/record built DBs by (name, version, build_target)
   providers/
     _base.py     # RefDbProvider: fetch(spec) -> RawRefDb ; build(raw, build_target) -> BuiltArtifact
-    rescript.py  # wraps q2-rescript get-silva-data/get-ncbi-data/get-gtdb-data/get-unite-data (+ classifier download)
-    biodbs.py    # HOMD/MOMD via biodbs fetchers; normalize to FASTA + taxonomy TSV
+    biodbs.py    # DEFAULT: all DBs via biodbs fetchers; normalize to FASTA + taxonomy TSV
+    rescript.py  # OPTIONAL alternate: wraps q2-rescript get-silva-data/get-ncbi-data/... (+ classifier download)
   build.py       # RawRefDb -> vsearch reference | BLAST db (makeblastdb) | qiime2 .qza (qiime tools import); concat+dedup for merges
 ```
 
@@ -103,12 +109,12 @@ refdb/
 
 ### Provider interface
 
-Both lanes implement the same two methods (`providers/_base.py`):
+Both providers implement the same two methods (`providers/_base.py`):
 
 - `fetch(spec) -> RawRefDb` — obtain sequences + taxonomy locally.
 - `build(raw, build_target) -> BuiltArtifact` — produce a backend-ready artifact.
-  RESCRIPt already emits `.qza` and may short-circuit; the biodbs lane routes
-  through `build.py`.
+  The default `biodbs` provider always routes through `build.py`; the optional
+  `rescript` provider already emits `.qza` and may short-circuit.
 
 ### Registry & caching
 
@@ -128,8 +134,10 @@ This is the versioning/caching/validation the repo lacks today.
 
 ```
 microsuite refdb fetch <name> --version <v> \
-    --provider <rescript|biodbs> --build <vsearch|blast|qiime2>
+    [--provider biodbs|rescript] --build <vsearch|blast|qiime2>
 ```
+
+`--provider` defaults to `biodbs`; `rescript` is opt-in.
 
 Prints the built artifact path and records it in the registry.
 `tax_classify --classifier` accepts **either**:
@@ -168,21 +176,26 @@ Real fetches are large and network-bound, so tests must not pull real DBs.
 
 ## Success criteria
 
-1. `microsuite refdb fetch` can build and register a DB via both providers
-   (biodbs lane proven with the fixture set; RESCRIPt lane proven by
-   argv-assertion + opt-in integration).
-2. The FOMC combined DB can be produced as a single registered artifact from a
+1. `microsuite refdb fetch` (default `--provider biodbs`) can build and register
+   a DB from the biodbs lane, proven with the fixture set.
+2. The optional `rescript` provider is proven by argv-assertion + opt-in
+   integration; selecting it without a QIIME2 env gives a clear error.
+3. The FOMC combined DB can be produced as a single registered artifact from a
    multi-source spec (fixture-scale in CI).
-3. `tax_classify --classifier` resolves both a raw path and a `refdb:` reference,
+4. `tax_classify --classifier` resolves both a raw path and a `refdb:` reference,
    with the raw-path behavior unchanged.
-4. Re-running a fetch reuses the cached artifact (no re-download/rebuild) and a
+5. Re-running a fetch reuses the cached artifact (no re-download/rebuild) and a
    checksum mismatch forces a rebuild.
-5. Full unit suite runs offline; real-tool paths are opt-in.
-6. biodbs gains HOMD/MOMD fetchers following its existing `fetch/<db>/` pattern.
+6. Full unit suite runs offline; real-tool paths are opt-in.
+7. biodbs gains amplicon-reference fetchers for the full DB set (SILVA, NCBI 16S,
+   GTDB, UNITE, GG2, HOMD, MOMD) following its existing `fetch/<db>/` pattern.
 
 ## Open questions / dependencies
 
-- biodbs may need upstream changes to expose HOMD/MOMD fetchers; that work is
-  part of this sub-project and lands in the biodbs repo.
-- Exact RESCRIPt subcommand flags to be pinned during implementation against the
-  installed `q2-rescript` version.
+- biodbs needs upstream extension to fetch every amplicon reference DB (SILVA,
+  NCBI 16S, GTDB, UNITE, GG2, HOMD, MOMD). That work is part of this sub-project
+  and lands in the biodbs repo. Since it is the default provider, the microsuite
+  side can be developed against the `FakeProvider` and fixtures while the biodbs
+  fetchers land in parallel.
+- Exact RESCRIPt subcommand flags (optional provider) to be pinned during
+  implementation against the installed `q2-rescript` version.
