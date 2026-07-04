@@ -38,6 +38,11 @@ def test_github_actions_ci_runs_project_quality_gate() -> None:
     assert "uv pip install cutadapt multiqc" in text
     assert "uv run pytest tests/integration/test_external_tools.py" in text
     assert "docker-build:" not in text
+    # A real (non-stub) end-to-end run is available on demand.
+    assert "nextflow-real:" in text
+    assert "run-real-nextflow" in text
+    assert "nextflow run workflows/nextflow/main.nf" in text
+    assert "results/nextflow-real/report/report.html" in text
 
 
 def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
@@ -113,6 +118,12 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "docker run --rm --entrypoint bracken microsuite/${{ matrix.image }}:ci -h" in text
     assert "command -v mafft && command -v FastTree" in text
     assert "microsuite/${{ matrix.image }}:ci --version" in text
+    # Built + smoke-tested images are published to GHCR (main only).
+    assert "packages: write" in text
+    assert "docker/login-action@v3" in text
+    assert "ghcr.io/${owner}/microsuite/${{ matrix.image }}" in text
+    assert 'sha="sha-$(git rev-parse --short HEAD)"' in text
+    assert "docker push" in text
 
 
 def test_source_data_package_is_not_ignored() -> None:

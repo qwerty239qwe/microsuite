@@ -110,6 +110,8 @@ def test_nextflow_profiles_assign_process_containers() -> None:
     docker = (NEXTFLOW / "profiles" / "docker.config").read_text(encoding="utf-8")
     singularity = (NEXTFLOW / "profiles" / "singularity.config").read_text(encoding="utf-8")
 
+    config = (NEXTFLOW / "nextflow.config").read_text(encoding="utf-8")
+
     for text in [docker, singularity]:
         for label in [
             "fastqc",
@@ -121,16 +123,27 @@ def test_nextflow_profiles_assign_process_containers() -> None:
         ]:
             assert f"withLabel: {label}" in text
         assert "process.container =" not in text
+        # Images resolve from configurable registry/tag, not floating :ci tags.
+        assert "${params.container_registry}" in text
+        assert "${params.container_tag}" in text
+        assert ":ci" not in text
 
+    # Published GHCR registry is the default source; tag is pinnable.
+    assert "ghcr.io/qwerty239qwe/microsuite" in config
+    assert "container_registry" in config
+    assert "container_tag" in config
     for image in [
-        "microsuite/fastqc:ci",
-        "microsuite/multiqc:ci",
-        "microsuite/qiime2-amplicon:ci",
-        "microsuite/microsuite:ci",
-        "microsuite/prjna321534-alpha:ci",
-        "microsuite/microsuite-picrust2:ci",
+        "fastqc",
+        "multiqc",
+        "qiime2-amplicon",
+        "prjna321534-alpha",
+        "microsuite-picrust2",
     ]:
-        assert image in docker
+        assert f"{image}:${{params.container_tag}}" in docker
+    # Singularity pulls the same images over docker:// (no phantom .sif paths).
+    assert "docker://${params.container_registry}" in singularity
+    assert "containers/singularity" not in singularity
+    assert ".sif'" not in singularity
 
 
 def test_nextflow_docs_state_profiles_and_stub_status() -> None:
