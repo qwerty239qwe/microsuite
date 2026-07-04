@@ -81,8 +81,9 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "image: r-dada2" in text
     assert "image: r-diffab" in text
     assert "image: microsuite-picrust2" in text
+    assert "image: microsuite-dada2" in text
     assert text.count("heavy: false") == 11
-    assert text.count("heavy: true") == 5
+    assert text.count("heavy: true") == 6
     assert "load: true" in text
     assert "Run FastQC tiny example" in text
     assert "Run MultiQC tiny example" in text
@@ -95,6 +96,10 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "Smoke test MAFFT/FastTree image" in text
     assert "Smoke test MetaPhlAn image" in text
     assert "Smoke test R diffab image" in text
+    assert "Smoke test microsuite-dada2 image" in text
+    assert "containers/microsuite-dada2/Dockerfile" in text
+    assert "denoise --backend dada2-r" in text
+    assert "test -s tmp/docker-dada2/rep-seqs.fasta" in text
     assert 'c("ANCOMBC", "ALDEx2", "Maaslin2", "lefser")' in text
     assert 'c("ancombc", "aldex2", "maaslin2", "lefse")' in text
     assert "--cluster_fast /input/tiny.fasta" in text

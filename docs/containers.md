@@ -39,7 +39,8 @@ containers/prjna321534-alpha/    BioProject PRJNA321534 alpha-diversity cloud ru
 | `mafft-fasttree` | Standalone alignment and phylogeny | `mafft`, `FastTree` | implemented |
 | `metaphlan` | MetaPhlAn marker-gene profiling | `metaphlan` | implemented |
 | `qiime2-amplicon` | QIIME 2 amplicon backend | `qiime` | skeleton |
-| `r-dada2` | R DADA2 ASV inference | `Rscript`, `dada2` | implemented |
+| `r-dada2` | R DADA2 ASV inference (runtime only; no microsuite) | `Rscript`, `dada2` | implemented |
+| `microsuite-dada2` | microsuite CLI + R DADA2 backend in one image | `microsuite`, `uv`, `Rscript`, `dada2` | implemented (heavy) |
 | `r-diffab` | R differential abundance backend | `Rscript`, `ANCOMBC`, `ALDEx2`, `MaAsLin2`, `lefser` | implemented |
 | `kraken2` | Kraken2 taxonomy profiling and Bracken abundance | `kraken2`, `bracken` | implemented |
 | `microsuite-picrust2` | microsuite CLI + PICRUSt2 functional profiling | `picrust2_pipeline.py`, `microsuite` | implemented (heavy) |
@@ -75,6 +76,7 @@ containers/mafft-fasttree/Dockerfile
 containers/metaphlan/Dockerfile
 containers/qiime2-amplicon/Dockerfile
 containers/r-dada2/Dockerfile
+containers/microsuite-dada2/Dockerfile
 containers/r-diffab/Dockerfile
 containers/kraken2/Dockerfile
 containers/microsuite-picrust2/Dockerfile
@@ -84,7 +86,19 @@ containers/prjna321534-alpha/Dockerfile
 Heavy images remain explicit validation steps because QIIME 2,
 R/Bioconductor, and PICRUSt2 images can be large and network-sensitive. Use the
 manual GitHub Actions `build-heavy-containers=true` input to build `metaphlan`,
-`qiime2-amplicon`, `r-dada2`, `r-diffab`, and `microsuite-picrust2` in CI.
+`qiime2-amplicon`, `r-dada2`, `r-diffab`, `microsuite-picrust2`, and
+`microsuite-dada2` in CI.
+
+Unlike the runtime-only `r-dada2` image (R + `dada2`, no microsuite), the
+`microsuite-dada2` image bundles the CLI and the packaged `dada2_denoise.R`, so
+`microsuite denoise --backend dada2-r` runs end-to-end in one container. Its
+heavy smoke test builds an ASV table from a tiny FASTQ fixture.
+
+Both dada2 images pin the Bioconductor release they build from (the
+`BIOC_VERSION` build arg, default `3.20`, the stable Bioconductor for the R 4.4
+base) so rebuilds resolve the same dada2 version. Bump `BIOC_VERSION` together
+with the R base image when moving toward the DADA2 roadmap target in
+[methods.md](methods.md).
 
 The `prjna321534-alpha` image is a dedicated cloud runner for the BioProject
 PRJNA321534 alpha-diversity pipeline and is not part of the standard Docker
@@ -107,6 +121,7 @@ docker build -f containers/mafft-fasttree/Dockerfile -t microsuite-mafft-fasttre
 docker build -f containers/metaphlan/Dockerfile -t microsuite-metaphlan:local .
 docker build -f containers/qiime2-amplicon/Dockerfile -t microsuite-qiime2-amplicon:local .
 docker build -f containers/r-dada2/Dockerfile -t microsuite-r-dada2:local .
+docker build -f containers/microsuite-dada2/Dockerfile -t microsuite-dada2:local .
 docker build -f containers/r-diffab/Dockerfile -t microsuite-r-diffab:local .
 docker build -f containers/kraken2/Dockerfile -t microsuite-kraken2:local .
 docker build -f containers/microsuite-picrust2/Dockerfile -t microsuite-picrust2:local .

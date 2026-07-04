@@ -103,6 +103,10 @@ jobs:
             dockerfile: containers/microsuite-picrust2/Dockerfile
             context: .
             heavy: true
+          - image: microsuite-dada2
+            dockerfile: containers/microsuite-dada2/Dockerfile
+            context: .
+            heavy: true
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -279,6 +283,32 @@ jobs:
         run: |
           docker run --rm microsuite/${{ matrix.image }}:ci -e \
             'for (pkg in c("ANCOMBC", "ALDEx2", "Maaslin2", "lefser")) stopifnot(requireNamespace(pkg, quietly = TRUE)); for (script in c("ancombc", "aldex2", "maaslin2", "lefse")) stopifnot(file.exists(sprintf("/opt/microsuite/%s.R", script)))'
+
+      - name: Smoke test microsuite-dada2 image
+        if: ${{ matrix.image == 'microsuite-dada2' && github.event.inputs.build-heavy-containers == 'true' }}
+        run: |
+          set -euo pipefail
+          # Wiring: prove both halves live in one image (this is what the split
+          # microsuite / r-dada2 images cannot do on their own).
+          docker run --rm --entrypoint Rscript microsuite/${{ matrix.image }}:ci -e 'library(dada2)'
+          docker run --rm microsuite/${{ matrix.image }}:ci denoise --help >/dev/null
+          # Functional: DADA2 filterAndTrim + ASV inference on a tiny FASTQ,
+          # driven end-to-end through the microsuite CLI backend.
+          mkdir -p tmp/docker-dada2
+          docker run --rm \
+            -v "${PWD}/tests/fixtures/dada2:/input:ro" \
+            -v "${PWD}/tmp/docker-dada2:/output" \
+            microsuite/${{ matrix.image }}:ci \
+            denoise --backend dada2-r \
+            --demux /input \
+            --output-table /output/table.tsv \
+            --output-rep-seqs /output/rep-seqs.fasta \
+            --output-stats /output/stats.tsv \
+            --trunc-len 0 --max-ee 2 --threads 2
+          test -s tmp/docker-dada2/table.tsv
+          test -s tmp/docker-dada2/rep-seqs.fasta
+          test -s tmp/docker-dada2/stats.tsv
+          grep -q '^>ASV1' tmp/docker-dada2/rep-seqs.fasta
 
       - name: Skip heavy container image
         if: ${{ matrix.heavy && github.event.inputs.build-heavy-containers != 'true' }}
