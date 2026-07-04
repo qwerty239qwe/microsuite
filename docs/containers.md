@@ -94,10 +94,12 @@ Unlike the runtime-only `r-dada2` image (R + `dada2`, no microsuite), the
 `microsuite denoise --backend dada2-r` runs end-to-end in one container. Its
 heavy smoke test builds an ASV table from a tiny FASTQ fixture.
 
-Both dada2 images pin the Bioconductor release they build from (the
-`BIOC_VERSION` build arg, default `3.20`, the stable Bioconductor for the R 4.4
-base) so rebuilds resolve the same dada2 version. Bump `BIOC_VERSION` together
-with the R base image when moving toward the DADA2 roadmap target in
+Both dada2 images build from the `bioconductor/bioconductor_docker:RELEASE_3_20`
+base, which pins R, Bioconductor 3.20, and a matching CRAN snapshot together, so
+dada2 and its dependency tree resolve to the same versions on every rebuild.
+Each image ends its dada2 install with `Rscript -e "library(dada2)"` so a failed
+install fails the build instead of silently shipping a broken image. Bump the
+`RELEASE_3_2x` base tag when moving toward the DADA2 roadmap target in
 [methods.md](methods.md).
 
 The `prjna321534-alpha` image is a dedicated cloud runner for the BioProject
