@@ -90,9 +90,17 @@ def _gtdb_adapter(bd, spec: RefDbSpec, out_dir: Path) -> RawRefDb:
     domain = "bac120"
     release = spec.version or "latest"
     ssu = _gunzip(
-        Path(bd.gtdb_download_file(f"{release}/genomic_files_reps/{domain}_ssu_reps.fna.gz", str(out_dir)))
+        Path(
+            bd.gtdb_download_file(
+                f"{release}/genomic_files_reps/{domain}_ssu_reps.fna.gz", str(out_dir)
+            )
+        )
     )
-    tax_gz = Path(bd.gtdb_download_taxonomy(domain=domain, dest=str(out_dir), release=release, compressed=True))
+    tax_gz = Path(
+        bd.gtdb_download_taxonomy(
+            domain=domain, dest=str(out_dir), release=release, compressed=True
+        )
+    )
     tax_file = _gunzip(tax_gz)
     acc_to_lineage: dict[str, str] = {}
     for row in tax_file.read_text().splitlines():
