@@ -14,11 +14,20 @@ runner = CliRunner()
 def test_refdb_fetch_prints_artifact_path(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("MICROSUITE_REFDB_DIR", str(tmp_path / "cache"))
 
-    def fake_fetch(name, version, out_dir):
-        return (str(FIXTURE / "source_a.fasta"), str(FIXTURE / "source_a.tax.tsv"))
+    class _FakeBiodbs:
+        _SRC = {
+            "HOMD_16S_rRNA_RefSeq_V16.03.fasta": FIXTURE / "source_a.fasta",
+            "HOMD_16S_rRNA_RefSeq_V16.03.qiime.taxonomy": FIXTURE / "source_a.tax.tsv",
+        }
+
+        def homd_download_file(self, path_or_url, dest, overwrite=False):
+            name = Path(path_or_url).name
+            target = Path(dest) / name
+            target.write_text(self._SRC[name].read_text(encoding="utf-8"), encoding="utf-8")
+            return target
 
     monkeypatch.setattr(
-        "microsuite.refdb.providers.biodbs._load_biodbs_fetch", lambda: fake_fetch
+        "microsuite.refdb.providers.biodbs._load_biodbs", lambda: _FakeBiodbs()
     )
     result = runner.invoke(
         app, ["refdb", "fetch", "homd", "--version", "15.22", "--build", "vsearch"]
