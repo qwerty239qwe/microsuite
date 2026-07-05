@@ -419,20 +419,34 @@ Add `"silva": _silva_adapter, "gtdb": _gtdb_adapter` to `_DB_ADAPTERS`.
 ### Task R4: GreenGenes + UNITE + PR2 adapters
 
 **Files:**
-- Modify: `src/microsuite/refdb/providers/biodbs.py` (add three adapters, register them)
-- Test: `tests/test_refdb_provider_biodbs.py` (three fake-biodbs cases)
+- Modify: `src/microsuite/refdb/providers/biodbs.py` (add `_extract_zip_member`, three adapters; register them)
+- Test: `tests/test_refdb_provider_biodbs.py` (three offline fake-biodbs cases)
 
-**Interfaces (finalize exact args from the R1 probe doc):**
-- GreenGenes: `bd.greengenes_list_files(...)` → locate seqs + taxonomy, `bd.greengenes_download_file(path, out_dir)`.
-- UNITE: `bd.unite_download(version=spec.version, dest=out_dir, taxon_group="fungi")` → a bundled archive; adapter extracts/points sequences + taxonomy.
-- PR2: `bd.pr2_download_asset(...)` → seqs + taxonomy assets.
+**Verified facts (from the R1 probe; each DB has a DIFFERENT container):**
+- **GreenGenes** ships QIIME2 `.qza` artifacts (which are ZIP files). Smallest usable pair under release `2022.7-rc1`: `2022.7.backbone.v4.fna.qza` (`FeatureData[Sequence]`, member `*/data/dna-sequences.fasta`) + `2022.7.backbone.tax.qza` (`FeatureData[Taxonomy]`, member `*/data/taxonomy.tsv`). Fetch each via `bd.greengenes_download_file(path, dest)`. The taxonomy.tsv has a QIIME2 header row `Feature ID<TAB>Taxon[<TAB>Confidence]` — strip the header and keep columns 0 (id) and 1 (lineage).
+- **UNITE** (ITS/fungal — `target="ITS"`) ships ONE `.tgz`/`.tar.gz` via `bd.unite_download(version, dest, taxon_group="fungi", singletons=False)`. Inside are RESCRIPt-style members: a sequences fasta (`*.fasta`/`*.fna`) and a taxonomy text file (`*taxonomy*.txt`, id-first `accession<TAB>k__...;p__...`). `version` default `"2020-02-20"` (smallest, ~39 MB).
+- **PR2** ships SEPARATE gzipped assets via `bd.pr2_download_asset(name, dest)`: `pr2_version_{v}_SSU_mothur.fasta.gz` (sequences) + `pr2_version_{v}_SSU_mothur.tax.gz` (mothur taxonomy, already id-first `accession<TAB>lineage;`). `v` default `"5.1.1"`.
 
-- [ ] **Step 1: Write failing tests** (fake biodbs per DB; assert seqs FASTA + id-first taxonomy TSV).
-- [ ] **Step 2: Run to verify fail.**
-- [ ] **Step 3: Implement the three adapters; register in `_DB_ADAPTERS`.**
-- [ ] **Step 4: Run to verify pass.**
-- [ ] **Step 5: Full refdb suite regression.**
-- [ ] **Step 6: Commit.** `git commit -m "feat(refdb): GreenGenes, UNITE, PR2 biodbs adapters"`
+**Interfaces produced:**
+- `_extract_zip_member(zip_path: Path, suffix: str, out_path: Path) -> Path` — extract the single member whose name ends with `suffix` from a `.qza`/zip into `out_path`; raise `MicrobiomeSuiteError` if not found.
+- `_greengenes_adapter`, `_unite_adapter`, `_pr2_adapter`, each `-> RawRefDb(sequences, taxonomy)` with an id-first taxonomy TSV whose first column matches the emitted FASTA record ids. Register under `"greengenes"`, `"unite"`, `"pr2"`. Reuse `_gunzip` from R3.
+
+**IMPLEMENTER MUST live-verify the internal member names/formats on a SMALL sample** (read the zip/tar directory listing and the first few records; for UNITE's ~39 MB tgz, stream/inspect the member list without extracting everything into a committed test) and adjust member-matching/parsing if reality differs; record any correction in the probe doc. If a DB genuinely cannot yield (sequences + id-matched taxonomy) from biodbs 0.4.0, raise `MicrobiomeSuiteError` in that adapter and report it as a concern rather than shipping a guess.
+
+- [ ] **Step 1: Write failing offline tests (fake biodbs returning tiny zip/tgz/gz fixtures)**
+
+Each fake builds a minimal real container in `tmp`: GreenGenes → two `.qza` zips each containing `<uuid>/data/dna-sequences.fasta` / `<uuid>/data/taxonomy.tsv`; UNITE → one `.tgz` (via `tarfile`) containing a `.fasta` + a `*taxonomy*.txt`; PR2 → two `.gz` (via `gzip`) for the mothur fasta + tax. Assert each adapter emits an id-only FASTA and an id-first taxonomy TSV whose ids match. Follow the R2/R3 fixture style (`monkeypatch.setattr(_biodbs, "_load_biodbs", ...)`), using realistic ids/lineages.
+
+- [ ] **Step 2: Run to verify fail.** `uv run pytest tests/test_refdb_provider_biodbs.py -v`
+
+- [ ] **Step 3: Implement `_extract_zip_member` + the three adapters; register in `_DB_ADAPTERS`.**
+  - GreenGenes: download both `.qza`; `_extract_zip_member(seq_qza, "data/dna-sequences.fasta", ...)` → sequences; `_extract_zip_member(tax_qza, "data/taxonomy.tsv", ...)` then drop the header row and keep cols 0,1 → taxonomy TSV.
+  - UNITE: `bd.unite_download(...)`; open the returned archive with `tarfile`, extract the fasta member and the taxonomy `.txt` member; if UNITE fasta headers carry the taxonomy inline, split it out to keep the FASTA id-only and build the taxonomy TSV (same shape as SILVA in R3).
+  - PR2: download both assets; `_gunzip` each; fasta → sequences; the mothur `.tax` is already `id<TAB>lineage` (strip any trailing `;`).
+
+- [ ] **Step 4: Run to verify pass.** `uv run pytest tests/test_refdb_provider_biodbs.py -v` (HOMD/SILVA/GTDB + GreenGenes/UNITE/PR2 + error cases).
+- [ ] **Step 5: Full refdb suite regression.** `uv run pytest tests/test_refdb_*.py -q` — report count.
+- [ ] **Step 6: Commit.** Stage `src/microsuite/refdb/providers/biodbs.py` + `tests/test_refdb_provider_biodbs.py` (+ probe doc if corrected). `git commit -m "feat(refdb): GreenGenes, UNITE, PR2 biodbs adapters"`
 
 ---
 
