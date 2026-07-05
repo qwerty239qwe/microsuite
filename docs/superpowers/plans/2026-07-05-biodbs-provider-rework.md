@@ -107,7 +107,7 @@ git commit -m "feat(refdb): add biodbs v0.4.0 optional extra + capture API probe
 
 ---
 
-### Task R2: Rework BiodbsProvider to per-DB dispatch + HOMD adapter + taxonomy helper
+### Task R2: Rework BiodbsProvider to per-DB dispatch + HOMD adapter
 
 **Files:**
 - Rewrite: `src/microsuite/refdb/providers/biodbs.py`
@@ -116,11 +116,14 @@ git commit -m "feat(refdb): add biodbs v0.4.0 optional extra + capture API probe
 **Interfaces:**
 - Produces (module-level, monkeypatchable):
   - `_load_biodbs()` — returns the imported `biodbs` module; raises `MicrobiomeSuiteError` on `ImportError`.
-  - `_write_taxonomy_tsv(table, path) -> Path` — materializes a biodbs `*TableData` into an id-first TSV, using `.as_dataframe()` when available, else `.to_csv(path)`, else a documented parse of `_content`; the exact branch chosen is per the probe doc.
   - `_DB_ADAPTERS: dict[str, Callable[[object, RefDbSpec, Path], RawRefDb]]` keyed by lowercased db name (first key: `"homd"`).
   - `BiodbsProvider.fetch(spec, out_dir)` — looks up `spec.name.lower()` in `_DB_ADAPTERS`; unknown name raises `MicrobiomeSuiteError` listing supported DBs; otherwise calls the adapter with the loaded biodbs module.
 
-**HOMD adapter behavior (verified against v0.4.0):** `biodbs.homd_download_16s_refseq(dest, filename="")` downloads the first FASTA-like 16S RefSeq file to `dest` and returns its `Path`; `biodbs.homd_get_hmt_lineage()` returns a `HOMDTableData` used to build the taxonomy TSV. `spec.version` is ignored (HOMD serves a single current 16S RefSeq set).
+**HOMD adapter behavior — CORRECTED per the R1 probe (`docs/superpowers/specs/biodbs-v040-probe.md`):**
+The convenience wrappers `homd_download_16s_refseq()` / `homd_get_hmt_lineage()` are BROKEN against the live HOMD site (see probe TL;DR #2 and #5). The working path is the generic `biodbs.homd_download_file(path_or_url, dest, overwrite=False) -> Path` against the real `current/` subdirectory, downloading BOTH:
+- sequences: `ftp/16S_rRNA_refseq/HOMD_16S_rRNA_RefSeq/current/HOMD_16S_rRNA_RefSeq_V16.03.fasta`
+- taxonomy: the sibling `.../current/HOMD_16S_rRNA_RefSeq_V16.03.qiime.taxonomy` — this file is ALREADY a QIIME-style id-first `seqID<TAB>lineage` TSV, so it is used directly as `RawRefDb.taxonomy` with NO `*TableData`/`as_dataframe` serialization.
+`homd_download_file`'s `dest` may be a directory (it appends the URL basename) — pass `out_dir` (already created by `fetch()`). Store the current filename stem as a module constant `_HOMD_STEM = "HOMD_16S_rRNA_RefSeq_V16.03"`; `spec.version` is ignored (HOMD serves a single `current` set; the stem tracks HOMD's `current/` symlink and R5's live test will catch drift). The `_write_taxonomy_tsv` helper is NOT needed here — it is introduced in R3 for GTDB, the first DB whose taxonomy arrives as a `*TableData`.
 
 - [ ] **Step 1: Write the failing unit tests (offline, fake biodbs)**
 
@@ -138,23 +141,20 @@ from microsuite.refdb.providers import biodbs as _biodbs  # noqa: F401  (registr
 from microsuite.refdb.spec import RefDbSpec
 
 
-class _FakeTable:
-    def as_dataframe(self, engine="pandas"):
-        import pandas as pd
-        return pd.DataFrame({"id": ["seqA", "seqB"], "lineage": ["k__B;s__x", "k__B;s__y"]})
-
-
 class _FakeBiodbs:
-    def __init__(self, seqs: Path) -> None:
-        self._seqs = seqs
+    """Mimics biodbs.homd_download_file: dest is a dir, basename taken from the URL path.
+    Writes fixture content for the two HOMD files the adapter requests."""
 
-    def homd_download_16s_refseq(self, dest, filename="", overwrite=False) -> Path:
-        target = Path(dest) / "homd_16s.fasta"
-        target.write_text(">seqA\nACGT\n>seqB\nTGCA\n", encoding="utf-8")
+    _CONTENT = {
+        "HOMD_16S_rRNA_RefSeq_V16.03.fasta": ">seqA\nACGT\n>seqB\nTGCA\n",
+        "HOMD_16S_rRNA_RefSeq_V16.03.qiime.taxonomy": "seqA\tk__B;s__x\nseqB\tk__B;s__y\n",
+    }
+
+    def homd_download_file(self, path_or_url, dest, overwrite=False) -> Path:
+        name = Path(path_or_url).name
+        target = Path(dest) / name
+        target.write_text(self._CONTENT[name], encoding="utf-8")
         return target
-
-    def homd_get_hmt_lineage(self):
-        return _FakeTable()
 
 
 def test_biodbs_is_default_provider() -> None:
@@ -162,7 +162,7 @@ def test_biodbs_is_default_provider() -> None:
 
 
 def test_homd_adapter_produces_seqs_and_taxonomy(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr(_biodbs, "_load_biodbs", lambda: _FakeBiodbs(tmp_path))
+    monkeypatch.setattr(_biodbs, "_load_biodbs", lambda: _FakeBiodbs())
     provider = get_provider("biodbs")
     raw = provider.fetch(RefDbSpec(name="homd", version="15.22"), out_dir=tmp_path)
     assert raw.sequences.exists()
@@ -173,7 +173,7 @@ def test_homd_adapter_produces_seqs_and_taxonomy(tmp_path: Path, monkeypatch) ->
 
 
 def test_unknown_db_raises(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr(_biodbs, "_load_biodbs", lambda: _FakeBiodbs(tmp_path))
+    monkeypatch.setattr(_biodbs, "_load_biodbs", lambda: _FakeBiodbs())
     provider = get_provider("biodbs")
     with pytest.raises(MicrobiomeSuiteError):
         provider.fetch(RefDbSpec(name="not-a-db", version="1"), out_dir=tmp_path)
@@ -220,21 +220,17 @@ def _load_biodbs():
     return biodbs
 
 
-def _write_taxonomy_tsv(table, path: Path) -> Path:
-    # biodbs *TableData: prefer a dataframe (id-first), fall back to to_csv.
-    # Exact branch confirmed against docs/superpowers/specs/biodbs-v040-probe.md.
-    try:
-        frame = table.as_dataframe(engine="pandas")
-    except (NotImplementedError, AttributeError):
-        table.to_csv(path)
-        return path
-    frame.to_csv(path, sep="\t", header=False, index=False)
-    return path
+# HOMD serves 16S RefSeq under a `current/` symlink dir; the wrapper
+# homd_download_16s_refseq() is broken (probe TL;DR #2/#5), so download the
+# fasta and its sibling QIIME-style taxonomy via the generic homd_download_file.
+_HOMD_BASE = "ftp/16S_rRNA_refseq/HOMD_16S_rRNA_RefSeq/current"
+_HOMD_STEM = "HOMD_16S_rRNA_RefSeq_V16.03"
 
 
 def _homd_adapter(bd, spec: RefDbSpec, out_dir: Path) -> RawRefDb:
-    seqs = Path(bd.homd_download_16s_refseq(str(out_dir)))
-    tax = _write_taxonomy_tsv(bd.homd_get_hmt_lineage(), out_dir / "homd.tax.tsv")
+    seqs = Path(bd.homd_download_file(f"{_HOMD_BASE}/{_HOMD_STEM}.fasta", str(out_dir)))
+    # The .qiime.taxonomy file is already an id-first `seqID<TAB>lineage` TSV.
+    tax = Path(bd.homd_download_file(f"{_HOMD_BASE}/{_HOMD_STEM}.qiime.taxonomy", str(out_dir)))
     return RawRefDb(sequences=seqs, taxonomy=tax)
 
 
