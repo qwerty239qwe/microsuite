@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 from pathlib import Path
 
 import pytest
@@ -55,3 +56,46 @@ def test_missing_biodbs_raises(tmp_path: Path, monkeypatch) -> None:
     provider = get_provider("biodbs")
     with pytest.raises(MicrobiomeSuiteError):
         provider.fetch(RefDbSpec(name="homd", version="15.22"), out_dir=tmp_path)
+
+
+class _FakeSilvaGtdb:
+    def __init__(self, tmp: Path) -> None:
+        self._tmp = tmp
+
+    def silva_download_file(self, url, dest, overwrite=False) -> Path:
+        target = Path(dest) / Path(url).name  # ...SSURef_NR99_tax_silva.fasta.gz
+        body = b">AY855839.1.1390 Bacteria;Firmicutes;Bacilli\nACGT\n>FJ12.1.1500 Bacteria;Bacteroidetes\nTTTT\n"
+        target.write_bytes(gzip.compress(body))
+        return target
+
+    def gtdb_download_file(self, path, dest, overwrite=False) -> Path:
+        target = Path(dest) / Path(path).name  # bac120_ssu_reps.fna.gz
+        body = b">RS_GCF_1~ctg1 desc\nACGT\n>RS_GCF_2~ctg9 desc\nGGGG\n"
+        target.write_bytes(gzip.compress(body))
+        return target
+
+    def gtdb_download_taxonomy(self, domain, dest, release="latest", compressed=True, overwrite=False) -> Path:
+        target = Path(dest) / f"{domain}_taxonomy.tsv.gz"
+        body = b"RS_GCF_1\td__Bacteria;p__Firmicutes\nRS_GCF_2\td__Bacteria;p__Actinobacteria\n"
+        target.write_bytes(gzip.compress(body))
+        return target
+
+
+def test_silva_adapter_parses_headers(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(_biodbs, "_load_biodbs", lambda: _FakeSilvaGtdb(tmp_path))
+    raw = get_provider("biodbs").fetch(RefDbSpec(name="silva", version="138.2"), out_dir=tmp_path)
+    ids = [l[1:].strip() for l in raw.sequences.read_text().splitlines() if l.startswith(">")]
+    assert ids == ["AY855839.1.1390", "FJ12.1.1500"]  # id only, lineage stripped from header
+    tax = dict(r.split("\t", 1) for r in raw.taxonomy.read_text().splitlines() if r.strip())
+    assert tax["AY855839.1.1390"] == "Bacteria;Firmicutes;Bacilli"
+
+
+def test_gtdb_adapter_joins_ssu_to_taxonomy(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(_biodbs, "_load_biodbs", lambda: _FakeSilvaGtdb(tmp_path))
+    raw = get_provider("biodbs").fetch(RefDbSpec(name="gtdb", version="latest"), out_dir=tmp_path)
+    ids = [l[1:].split()[0] for l in raw.sequences.read_text().splitlines() if l.startswith(">")]
+    assert ids == ["RS_GCF_1~ctg1", "RS_GCF_2~ctg9"]
+    tax = dict(r.split("\t", 1) for r in raw.taxonomy.read_text().splitlines() if r.strip())
+    # taxonomy keyed by the SSU record id, lineage looked up via genome accession before '~'
+    assert tax["RS_GCF_1~ctg1"] == "d__Bacteria;p__Firmicutes"
+    assert tax["RS_GCF_2~ctg9"] == "d__Bacteria;p__Actinobacteria"

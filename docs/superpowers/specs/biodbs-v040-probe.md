@@ -113,6 +113,35 @@ downloads).
 | Current GTDB release | `latest` resolves to `v232` (per `gtdb_get_version()`). |
 | Smallest real reference file (for R5) | `ar53_taxonomy.tsv.gz` (~312 KB compressed; ~3.18 MB decompressed, 22,343 rows) — much smaller than `bac120_taxonomy.tsv.gz` (~9.9 MB). Call: `gtdb_download_taxonomy(domain="ar53", dest=..., release="latest", compressed=True)`. |
 
+**R3 correction (verified live 2026-07-06):** `gtdb_download_file()` is a thin
+wrapper around `GTDB_Fetcher.download_file`, which resolves a relative
+`path_or_url` via a plain `urljoin` against `base_url =
+"https://data.gtdb.ecogenomic.org/releases/"` — it does **not** insert the
+release segment for you (unlike `download_taxonomy`, which resolves the full
+URL via `_find_release_file`/`list_release_files`). So
+`gtdb_download_file("genomic_files_reps/bac120_ssu_reps.fna.gz", dest)`
+404s; the release must be included explicitly:
+`gtdb_download_file(f"{release}/genomic_files_reps/{domain}_ssu_reps.fna.gz", dest)`.
+Confirmed live: dropping `latest/` 404s
+(`https://data.gtdb.ecogenomic.org/releases/genomic_files_reps/bac120_ssu_reps.fna.gz`),
+while the full path returns 200
+(`https://data.gtdb.ecogenomic.org/releases/latest/genomic_files_reps/bac120_ssu_reps.fna.gz`,
+~30.8 MB).
+
+Also, R3 originally assumed (per an earlier design note) that the SSU FASTA
+header's first token is `{genome_accession}~{contig}...`. **Live sampling of
+the real `bac120_ssu_reps.fna.gz` (50 records) shows no `~` at all** — the
+header is simply `>{genome_accession} {lineage}[bracketed locus/location
+metadata]`, e.g. `>RS_GCF_031457235.1
+d__Bacteria;p__Pseudomonadota;...;s__Hydrogenophaga laconesensis
+[locus_tag=...] [location=...] [ssu_len=...] [contig_len=...]`, and this
+accession matches the taxonomy TSV's first column (`{accession}\t{lineage}`,
+headerless) exactly. The implemented adapter still does
+`rec_id.split("~", 1)[0]` to derive the taxonomy join key — that is a no-op
+when `~` is absent, so it produces correct output against the real live file
+without any special-casing, while remaining compatible with any
+tilde-suffixed id shape should one appear for a different release/domain.
+
 ### GreenGenes
 
 | Aspect | Finding |
