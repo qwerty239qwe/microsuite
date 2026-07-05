@@ -32,12 +32,13 @@ def register(app: typer.Typer) -> None:
         ],
         output: Annotated[Path, typer.Option("--output", "-o", help="Classification output.")],
         classifier: Annotated[
-            Path | None,
+            str | None,
             typer.Option(
                 "--classifier",
                 help=(
                     "QIIME classifier, Kraken2/Bracken database, optional MetaPhlAn database, "
-                    "or optional EMU database."
+                    "or optional EMU database, as a path OR a cached reference as "
+                    "'refdb:<name>@<version>[:<build>]'."
                 ),
             ),
         ] = None,

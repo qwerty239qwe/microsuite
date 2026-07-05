@@ -16,7 +16,7 @@ def tax_classify(
     backend: str,
     rep_seqs: Path,
     output: Path,
-    classifier: Path | None = None,
+    classifier: Path | str | None = None,
     input_type: str = "fastq",
     level: str = "S",
     read_length: int = 150,
@@ -25,6 +25,11 @@ def tax_classify(
     run_dir: Path | None = None,
     timeout: float | None = None,
 ) -> None:
+    from microsuite.refdb.service import resolve_classifier
+
+    if classifier is not None:
+        classifier = resolve_classifier(str(classifier))
+
     backend = require_backend(backend, SUPPORTED_METHODS, "taxonomy classification")
     resolved_threads = resolve_threads(threads)
     if backend == "qiime2":
