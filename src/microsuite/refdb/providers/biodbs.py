@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import gzip
 import shutil
+import tarfile
+import zipfile
 from collections.abc import Callable
 from pathlib import Path
 
@@ -44,6 +46,21 @@ def _gunzip(path: Path) -> Path:
     with gzip.open(path, "rb") as src, out.open("wb") as dst:
         shutil.copyfileobj(src, dst)
     return out
+
+
+def _extract_zip_member(zip_path: Path, suffix: str, out_path: Path) -> Path:
+    """Extract the single member of `zip_path` whose name ends with `suffix`
+    (e.g. a QIIME2 .qza artifact's "data/dna-sequences.fasta") to `out_path`."""
+    with zipfile.ZipFile(zip_path) as zf:
+        candidates = [n for n in zf.namelist() if n.endswith(suffix)]
+        if len(candidates) != 1:
+            raise MicrobiomeSuiteError(
+                f"Expected exactly one member ending with '{suffix}' in {zip_path}, "
+                f"found {len(candidates)}: {candidates}."
+            )
+        with zf.open(candidates[0]) as src, out_path.open("wb") as dst:
+            shutil.copyfileobj(src, dst)
+    return out_path
 
 
 # biodbs's SILVA_Fetcher joins relative paths against a stale, broken base URL
@@ -123,10 +140,118 @@ def _gtdb_adapter(bd, spec: RefDbSpec, out_dir: Path) -> RawRefDb:
     return RawRefDb(sequences=seqs, taxonomy=tax)
 
 
+# GreenGenes ships QIIME2 .qza artifacts (which are plain ZIP files) under a
+# release directory, e.g. "2022.7-rc1/2022.7.backbone.v4.fna.qza" — like GTDB,
+# greengenes_download_file() needs the release segment in the path (verified
+# live 2026-07-06: "2022.7.backbone.tax.qza" with no release prefix 404s;
+# "2022.7-rc1/2022.7.backbone.tax.qza" returns 200). Verified live that the
+# sequence .qza's data/dna-sequences.fasta member already has id-only headers
+# (e.g. ">MJ006-1-barcode39-umi49105bins-ubs-7"), and the taxonomy .qza's
+# data/taxonomy.tsv has a QIIME2 header row ("Feature ID\tTaxon\n") followed by
+# id-first rows whose ids match the fasta headers exactly — so we strip the
+# header and keep columns 0 (id) and 1 (lineage).
+_GREENGENES_RELEASE = "2022.7-rc1"
+_GREENGENES_SEQ_FILE = "2022.7.backbone.v4.fna.qza"
+_GREENGENES_TAX_FILE = "2022.7.backbone.tax.qza"
+
+
+def _greengenes_adapter(bd, spec: RefDbSpec, out_dir: Path) -> RawRefDb:
+    release = spec.version or _GREENGENES_RELEASE
+    seq_qza = Path(bd.greengenes_download_file(f"{release}/{_GREENGENES_SEQ_FILE}", str(out_dir)))
+    tax_qza = Path(bd.greengenes_download_file(f"{release}/{_GREENGENES_TAX_FILE}", str(out_dir)))
+    seqs = _extract_zip_member(
+        seq_qza, "data/dna-sequences.fasta", out_dir / "greengenes_seqs.fasta"
+    )
+    raw_tax = _extract_zip_member(tax_qza, "data/taxonomy.tsv", out_dir / "greengenes_raw_tax.tsv")
+    tax = out_dir / "greengenes.tax.tsv"
+    with raw_tax.open() as src, tax.open("w") as dst:
+        rows = iter(src)
+        next(rows, None)  # drop the QIIME2 header row ("Feature ID\tTaxon[\tConfidence]")
+        for row in rows:
+            if not row.strip():
+                continue
+            fields = row.rstrip("\n").split("\t")
+            dst.write(f"{fields[0]}\t{fields[1]}\n")
+    return RawRefDb(sequences=seqs, taxonomy=tax)
+
+
+# UNITE ships ONE .tgz containing several RESCRIPt-style fasta+taxonomy pairs
+# clustered at different thresholds (e.g. "dynamic", "97", "99"), each
+# duplicated again under a developer/ subdirectory (verified live 2026-07-06
+# against the 2020-02-20 fungi release: 6 top-level *.fasta candidates and 6
+# *.txt candidates, not the single pair the initial brief assumed). The
+# "dynamic" clustering is UNITE's recommended general-purpose release, so we
+# select the member containing "dynamic" in its name, outside any developer/
+# path, and require the selection to be unambiguous. Fasta headers are
+# id-only (">SH1546528.08FU_JF832665_refs") and the matching taxonomy .txt is
+# already an id-first "accession\tlineage" TSV with no header row.
+def _select_unite_member(names: list[str], *, suffix: str, keyword: str = "dynamic") -> str:
+    candidates = [n for n in names if n.endswith(suffix) and "developer" not in Path(n).parts]
+    preferred = [n for n in candidates if keyword in Path(n).name]
+    pool = preferred or candidates
+    if len(pool) != 1:
+        raise MicrobiomeSuiteError(
+            f"Expected exactly one non-developer '{keyword}' member ending with "
+            f"'{suffix}' in the UNITE archive, found {len(pool)}: {pool or candidates}."
+        )
+    return pool[0]
+
+
+def _unite_adapter(bd, spec: RefDbSpec, out_dir: Path) -> RawRefDb:
+    version = spec.version or "2020-02-20"
+    archive = Path(bd.unite_download(version, str(out_dir), taxon_group="fungi", singletons=False))
+    seqs = out_dir / "unite_seqs.fasta"
+    tax = out_dir / "unite.tax.tsv"
+    with tarfile.open(archive, "r:*") as tf:
+        names = tf.getnames()
+        fasta_name = _select_unite_member(names, suffix=".fasta")
+        tax_name = _select_unite_member(names, suffix=".txt")
+        fasta_src = tf.extractfile(fasta_name)
+        if fasta_src is None:
+            raise MicrobiomeSuiteError(f"UNITE archive member '{fasta_name}' is not a file.")
+        with seqs.open("wb") as dst:
+            shutil.copyfileobj(fasta_src, dst)
+        tax_src = tf.extractfile(tax_name)
+        if tax_src is None:
+            raise MicrobiomeSuiteError(f"UNITE archive member '{tax_name}' is not a file.")
+        with tax.open("wb") as dst:
+            shutil.copyfileobj(tax_src, dst)
+    return RawRefDb(sequences=seqs, taxonomy=tax)
+
+
+# PR2 ships sequences and taxonomy as two separate gzipped GitHub-release
+# assets in "mothur" format: "pr2_version_{v}_SSU_mothur.fasta.gz" (id-only
+# headers, e.g. ">AB353770.1.1740_U") and "pr2_version_{v}_SSU_mothur.tax.gz"
+# (id-first "accession\tlineage;" TSV, headerless, verified live 2026-07-06).
+# The lineage has a trailing ";" that we strip so it matches the SILVA/GTDB
+# adapters' lineage shape.
+_PR2_FASTA_TMPL = "pr2_version_{v}_SSU_mothur.fasta.gz"
+_PR2_TAX_TMPL = "pr2_version_{v}_SSU_mothur.tax.gz"
+
+
+def _pr2_adapter(bd, spec: RefDbSpec, out_dir: Path) -> RawRefDb:
+    version = spec.version or "5.1.1"
+    seq_gz = Path(bd.pr2_download_asset(_PR2_FASTA_TMPL.format(v=version), str(out_dir)))
+    tax_gz = Path(bd.pr2_download_asset(_PR2_TAX_TMPL.format(v=version), str(out_dir)))
+    seqs = _gunzip(seq_gz)
+    raw_tax = _gunzip(tax_gz)
+    tax = out_dir / "pr2.tax.tsv"
+    with raw_tax.open() as src, tax.open("w") as dst:
+        for row in src:
+            if not row.strip():
+                continue
+            acc, _, lineage = row.rstrip("\n").partition("\t")
+            dst.write(f"{acc}\t{lineage.rstrip(';')}\n")
+    return RawRefDb(sequences=seqs, taxonomy=tax)
+
+
 _DB_ADAPTERS: dict[str, Callable[[object, RefDbSpec, Path], RawRefDb]] = {
     "homd": _homd_adapter,
     "silva": _silva_adapter,
     "gtdb": _gtdb_adapter,
+    "greengenes": _greengenes_adapter,
+    "unite": _unite_adapter,
+    "pr2": _pr2_adapter,
 }
 
 

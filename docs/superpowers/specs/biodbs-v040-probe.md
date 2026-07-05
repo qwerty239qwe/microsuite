@@ -193,3 +193,50 @@ object at all in 0.4.0 — for those four, taxonomy always arrives as a
 downloaded file (fasta headers, `.txt`/`.tsv` archive members, or an `.xlsx`)
 that microsuite's own provider code must parse after `*_download_*`/
 `*_download_asset` completes.
+
+---
+
+## R4 corrections (verified live 2026-07-06)
+
+**GreenGenes:** the brief's assumed shape held exactly. `greengenes_download_file()`
+needs the release segment in the path — like `gtdb_download_file()`, a bare
+`"2022.7.backbone.tax.qza"` 404s (`http://ftp.microbio.me/greengenes_release/2022.7.backbone.tax.qza`);
+the working call is `greengenes_download_file("2022.7-rc1/2022.7.backbone.tax.qza", dest)`.
+Both `.qza` files are ordinary zips containing a single `<uuid>/data/...` member each:
+`data/dna-sequences.fasta` (already id-only headers, e.g.
+`>MJ006-1-barcode39-umi49105bins-ubs-7`) and `data/taxonomy.tsv` (header row
+`Feature ID\tTaxon\n` — no `Confidence` column in this file — followed by
+id-first rows matching the fasta ids exactly). Implemented as designed:
+`_extract_zip_member` + drop header row, keep columns 0/1.
+
+**UNITE: the brief's "one fasta + one taxonomy member" assumption did NOT
+hold.** Live sampling of the real `2020-02-20` fungi tgz
+(`sh_qiime_release_04.02.2020/`, 15 members) shows **three** fasta/taxonomy
+pairs at different clustering thresholds — `dynamic`, `99`, `97` — each
+**duplicated again** under a `developer/` subdirectory (6 `*.fasta` files and
+6 `*taxonomy*.txt` files total, not 1+1). A naive "single member ending with
+suffix" match (as used for GreenGenes/GTDB) is ambiguous here and would raise.
+The adapter (`_select_unite_member`) instead: excludes any member under a
+`developer/` path, then prefers the member whose basename contains
+`"dynamic"` (UNITE's recommended general-purpose release), and raises
+`MicrobiomeSuiteError` if the result isn't unique. Content shape itself
+matched the brief: fasta headers are id-only (e.g.
+`>SH1546528.08FU_JF832665_refs`) and the taxonomy `.txt` is an id-first,
+headerless `accession\tlineage` TSV with matching ids — no inline-taxonomy
+splitting was needed.
+
+**PR2:** the brief's assumed shape held exactly. `pr2_download_asset()` names
+verified via `pr2_list_assets()` for `v5.1.1`:
+`pr2_version_5.1.1_SSU_mothur.fasta.gz` (id-only headers, e.g.
+`>AB353770.1.1740_U`) and `pr2_version_5.1.1_SSU_mothur.tax.gz` (id-first,
+headerless `accession\tlineage;` TSV, e.g.
+`AB353770.1.1740_U\tEukaryota;TSAR;Alveolata;...;`). Verified via partial
+HTTP range reads (first ~100-200 KB of each `.gz`) rather than downloading
+the full 51 MB/4.7 MB assets. Implemented as designed: `_gunzip` both, strip
+the taxonomy lineage's trailing `;`.
+
+All three DBs yielded a working (sequences + id-matched taxonomy) adapter —
+no DB required raising a "cannot support this DB" `MicrobiomeSuiteError`.
+UNITE required an adapter-side disambiguation strategy beyond what the brief
+described, but the underlying data shape (id-only fasta, id-first taxonomy)
+was otherwise as assumed.
