@@ -279,19 +279,140 @@ git commit -m "feat(refdb): biodbs per-DB dispatch with HOMD adapter"
 ### Task R3: SILVA + GTDB adapters
 
 **Files:**
-- Modify: `src/microsuite/refdb/providers/biodbs.py` (add `_silva_adapter`, `_gtdb_adapter`, register in `_DB_ADAPTERS`)
-- Test: `tests/test_refdb_provider_biodbs.py` (add SILVA + GTDB cases with fake biodbs)
+- Modify: `src/microsuite/refdb/providers/biodbs.py` (add `_gunzip`, `_silva_adapter`, `_gtdb_adapter`; register both in `_DB_ADAPTERS`)
+- Test: `tests/test_refdb_provider_biodbs.py` (add offline SILVA + GTDB cases with fake biodbs)
 
-**Interfaces (finalize exact file paths from the R1 probe doc):**
-- SILVA: use `bd.silva_list_current_files(...)` to locate the SSU Ref NR99 FASTA + taxonomy, then `bd.silva_download_file(path, out_dir)` for each; `spec.version` selects release. Return `RawRefDb(sequences, taxonomy)`.
-- GTDB: `bd.gtdb_download_file(<seq path>, out_dir)` for sequences and `bd.gtdb_download_taxonomy(domain="bac120", dest=out_dir, release=spec.version)` for taxonomy; return `RawRefDb(sequences, taxonomy)`.
+**Verified facts (controller-probed against biodbs 0.4.0 live, 2026-07-06):**
+- Both DBs deliver **gzipped** files; each adapter must gunzip. Neither has a usable `*TableData` taxonomy object — `_write_taxonomy_tsv` is NOT introduced; taxonomy is derived/parsed from files.
+- **SILVA:** biodbs's listing/base-URL is broken, but `silva_download_file(ABSOLUTE_URL, dest)` works (absolute URLs bypass the broken join). The SSU Ref NR99 FASTA embeds taxonomy in each header: `>{id} {lineage}` (id like `AY855839.1.1390`, lineage a `;`-delimited path). One file yields both sequences and taxonomy. URL: `https://ftp.arb-silva.de/current/Exports/SILVA_{version}_SSURef_NR99_tax_silva.fasta.gz` (`version` default `"138.2"`).
+- **GTDB:** SSU (16S) reps live at `genomic_files_reps/{domain}_ssu_reps.fna.gz` (`domain` default `"bac120"`), fetched via `gtdb_download_file(path, dest)`. Taxonomy via `gtdb_download_taxonomy(domain=domain, dest=out_dir, release=release, compressed=True)` → `{domain}_taxonomy.tsv.gz`, a headerless `{genome_accession}\t{lineage}` TSV. The SSU fasta header's first token is `{genome_accession}~{contig}...`; the genome accession (substring before `~`) is the join key to the taxonomy file. `release` default `"latest"`.
 
-- [ ] **Step 1: Write failing tests (fake biodbs exposing silva_*/gtdb_* used by the adapters)** — assert each adapter writes a sequences FASTA and an id-first taxonomy TSV; unknown-DB path already covered in R2.
-- [ ] **Step 2: Run to verify fail.** `uv run pytest tests/test_refdb_provider_biodbs.py -v`
-- [ ] **Step 3: Implement `_silva_adapter` and `_gtdb_adapter`; add both to `_DB_ADAPTERS`.** Use the exact biodbs call arguments recorded in `docs/superpowers/specs/biodbs-v040-probe.md`.
-- [ ] **Step 4: Run to verify pass.**
-- [ ] **Step 5: Full refdb suite regression.** `uv run pytest tests/test_refdb_*.py -q`
-- [ ] **Step 6: Commit.** `git commit -m "feat(refdb): SILVA and GTDB biodbs adapters"`
+**Interfaces produced:**
+- `_gunzip(path: Path) -> Path` — if `path` ends `.gz`, decompress to the sibling path without `.gz` and return it; else return `path` unchanged.
+- `_silva_adapter(bd, spec, out_dir) -> RawRefDb` and `_gtdb_adapter(bd, spec, out_dir) -> RawRefDb`, both registered in `_DB_ADAPTERS` under `"silva"` / `"gtdb"`. Each returns `RawRefDb(sequences=<id-only FASTA>, taxonomy=<id\tlineage TSV>)` where the taxonomy's first column matches the emitted FASTA record ids (so `merge_raw`/build stay consistent).
+
+**IMPLEMENTER MUST verify header formats on a SMALL live sample** (download the real gz, read only the first few records — do NOT parse the whole multi-GB file in a test) and adjust the parsing token rules if the real format differs from the above; record any correction in the probe doc.
+
+- [ ] **Step 1: Write failing offline tests (fake biodbs returning tiny gzipped fixtures)**
+
+```python
+# add to tests/test_refdb_provider_biodbs.py
+import gzip
+
+
+class _FakeSilvaGtdb:
+    def __init__(self, tmp: Path) -> None:
+        self._tmp = tmp
+
+    def silva_download_file(self, url, dest, overwrite=False) -> Path:
+        target = Path(dest) / Path(url).name  # ...SSURef_NR99_tax_silva.fasta.gz
+        body = b">AY855839.1.1390 Bacteria;Firmicutes;Bacilli\nACGT\n>FJ12.1.1500 Bacteria;Bacteroidetes\nTTTT\n"
+        target.write_bytes(gzip.compress(body))
+        return target
+
+    def gtdb_download_file(self, path, dest, overwrite=False) -> Path:
+        target = Path(dest) / Path(path).name  # bac120_ssu_reps.fna.gz
+        body = b">RS_GCF_1~ctg1 desc\nACGT\n>RS_GCF_2~ctg9 desc\nGGGG\n"
+        target.write_bytes(gzip.compress(body))
+        return target
+
+    def gtdb_download_taxonomy(self, domain, dest, release="latest", compressed=True, overwrite=False) -> Path:
+        target = Path(dest) / f"{domain}_taxonomy.tsv.gz"
+        body = b"RS_GCF_1\td__Bacteria;p__Firmicutes\nRS_GCF_2\td__Bacteria;p__Actinobacteria\n"
+        target.write_bytes(gzip.compress(body))
+        return target
+
+
+def test_silva_adapter_parses_headers(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(_biodbs, "_load_biodbs", lambda: _FakeSilvaGtdb(tmp_path))
+    raw = get_provider("biodbs").fetch(RefDbSpec(name="silva", version="138.2"), out_dir=tmp_path)
+    ids = [l[1:].strip() for l in raw.sequences.read_text().splitlines() if l.startswith(">")]
+    assert ids == ["AY855839.1.1390", "FJ12.1.1500"]  # id only, lineage stripped from header
+    tax = dict(r.split("\t", 1) for r in raw.taxonomy.read_text().splitlines() if r.strip())
+    assert tax["AY855839.1.1390"] == "Bacteria;Firmicutes;Bacilli"
+
+
+def test_gtdb_adapter_joins_ssu_to_taxonomy(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(_biodbs, "_load_biodbs", lambda: _FakeSilvaGtdb(tmp_path))
+    raw = get_provider("biodbs").fetch(RefDbSpec(name="gtdb", version="latest"), out_dir=tmp_path)
+    ids = [l[1:].split()[0] for l in raw.sequences.read_text().splitlines() if l.startswith(">")]
+    assert ids == ["RS_GCF_1~ctg1", "RS_GCF_2~ctg9"]
+    tax = dict(r.split("\t", 1) for r in raw.taxonomy.read_text().splitlines() if r.strip())
+    # taxonomy keyed by the SSU record id, lineage looked up via genome accession before '~'
+    assert tax["RS_GCF_1~ctg1"] == "d__Bacteria;p__Firmicutes"
+    assert tax["RS_GCF_2~ctg9"] == "d__Bacteria;p__Actinobacteria"
+```
+
+- [ ] **Step 2: Run to verify fail.** `uv run pytest tests/test_refdb_provider_biodbs.py -v` — the two new tests fail (adapters absent).
+
+- [ ] **Step 3: Implement `_gunzip`, `_silva_adapter`, `_gtdb_adapter`; register in `_DB_ADAPTERS`.**
+
+```python
+import gzip
+import shutil
+
+
+def _gunzip(path: Path) -> Path:
+    if path.suffix != ".gz":
+        return path
+    out = path.with_suffix("")
+    with gzip.open(path, "rb") as src, out.open("wb") as dst:
+        shutil.copyfileobj(src, dst)
+    return out
+
+
+_SILVA_HOST = "https://ftp.arb-silva.de/current/Exports"
+
+
+def _silva_adapter(bd, spec: RefDbSpec, out_dir: Path) -> RawRefDb:
+    version = spec.version or "138.2"
+    url = f"{_SILVA_HOST}/SILVA_{version}_SSURef_NR99_tax_silva.fasta.gz"
+    raw_fa = _gunzip(Path(bd.silva_download_file(url, str(out_dir))))
+    seqs = out_dir / "silva_seqs.fasta"
+    tax = out_dir / "silva.tax.tsv"
+    with raw_fa.open() as src, seqs.open("w") as sfh, tax.open("w") as tfh:
+        for line in src:
+            if line.startswith(">"):
+                header = line[1:].rstrip("\n")
+                sid, _, lineage = header.partition(" ")
+                sfh.write(f">{sid}\n")
+                tfh.write(f"{sid}\t{lineage}\n")
+            else:
+                sfh.write(line)
+    return RawRefDb(sequences=seqs, taxonomy=tax)
+
+
+def _gtdb_adapter(bd, spec: RefDbSpec, out_dir: Path) -> RawRefDb:
+    domain = "bac120"
+    release = spec.version or "latest"
+    ssu = _gunzip(Path(bd.gtdb_download_file(f"genomic_files_reps/{domain}_ssu_reps.fna.gz", str(out_dir))))
+    tax_gz = Path(bd.gtdb_download_taxonomy(domain=domain, dest=str(out_dir), release=release, compressed=True))
+    tax_file = _gunzip(tax_gz)
+    acc_to_lineage: dict[str, str] = {}
+    for row in tax_file.read_text().splitlines():
+        if not row.strip():
+            continue
+        acc, _, lineage = row.partition("\t")
+        acc_to_lineage[acc] = lineage
+    seqs = out_dir / "gtdb_seqs.fasta"
+    tax = out_dir / "gtdb.tax.tsv"
+    with ssu.open() as src, seqs.open("w") as sfh, tax.open("w") as tfh:
+        for line in src:
+            if line.startswith(">"):
+                rec_id = line[1:].split()[0]           # RS_GCF_1~ctg1
+                genome_acc = rec_id.split("~", 1)[0]    # RS_GCF_1
+                lineage = acc_to_lineage.get(genome_acc, "")
+                sfh.write(f">{rec_id}\n")
+                tfh.write(f"{rec_id}\t{lineage}\n")
+            else:
+                sfh.write(line)
+    return RawRefDb(sequences=seqs, taxonomy=tax)
+```
+Add `"silva": _silva_adapter, "gtdb": _gtdb_adapter` to `_DB_ADAPTERS`.
+
+- [ ] **Step 4: Run to verify pass.** `uv run pytest tests/test_refdb_provider_biodbs.py -v` (HOMD + SILVA + GTDB + error cases pass).
+- [ ] **Step 5: Full refdb suite regression.** `uv run pytest tests/test_refdb_*.py -q` — report count.
+- [ ] **Step 6: Commit.** Stage `src/microsuite/refdb/providers/biodbs.py` + `tests/test_refdb_provider_biodbs.py`. `git commit -m "feat(refdb): SILVA and GTDB biodbs adapters"`
 
 ---
 
