@@ -154,3 +154,29 @@ def test_nextflow_docs_state_profiles_and_stub_status() -> None:
     assert "-profile singularity" in docs
     assert "module files contain runnable commands" in docs
     assert "Nextflow `-stub-run`" in docs
+
+
+def test_nextflow_fastp_module_exists_and_declares_process() -> None:
+    fastp = NEXTFLOW / "modules" / "fastp.nf"
+    assert fastp.exists(), fastp
+    text = fastp.read_text(encoding="utf-8")
+    assert "process FASTP" in text
+    assert "label 'fastp'" in text
+    assert "params.fastp_cpus" in text
+    assert "emit: trimmed" in text
+    assert "emit: report" in text
+    # PE and SE fastp invocations
+    assert "--in1" in text and "--out1" in text
+    assert "--in2" in text and "--out2" in text
+    assert "params.fastp_args" in text
+    assert "stub:" in text
+
+
+def test_nextflow_fastp_params_and_container_labels() -> None:
+    config = (NEXTFLOW / "nextflow.config").read_text(encoding="utf-8")
+    for key in ("trim", "fastp_cpus", "fastp_args"):
+        assert key in config, key
+    docker = (NEXTFLOW / "profiles" / "docker.config").read_text(encoding="utf-8")
+    singularity = (NEXTFLOW / "profiles" / "singularity.config").read_text(encoding="utf-8")
+    assert "withLabel: fastp" in docker
+    assert "withLabel: fastp" in singularity
