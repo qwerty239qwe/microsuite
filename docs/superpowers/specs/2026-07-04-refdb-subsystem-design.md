@@ -63,6 +63,17 @@ have a QIIME2 environment, but it is not the default and is not required.
 | **`biodbs`** (default) | Primary acquisition for every DB | SILVA, NCBI 16S, GTDB, UNITE, GreenGenes2, **HOMD, MOMD** | Upstream biodbs gains amplicon-reference fetchers (this sub-project). Returns raw sequences + taxonomy; microsuite builds artifacts. |
 | `rescript` (optional) | Alternate for RESCRIPt-covered DBs | SILVA, NCBI 16S, GTDB, UNITE, GG2 | Wrapped only when explicitly selected. Already emits `.qza`. Requires a QIIME2 env. |
 
+> **As-built reconciliation (2026-07-06).** biodbs **v0.4.0** ships fetchers for
+> **HOMD, SILVA, GTDB, GreenGenes, UNITE, and PR2** — this is what the delivered
+> `biodbs` provider supports. It does **not** provide **MOMD** or an **NCBI 16S
+> Microbial sequence** download (its NCBI functions are gene/taxonomy REST, not
+> 16S RefSeq sequences). The provider's `_DB_ADAPTERS` therefore has exactly
+> those six DBs, and an unsupported name (including `momd`/`ncbi-16s`) raises a
+> clear error. Consequence: the flagship **FOMC "HOMD+MOMD+NCBI combined"
+> reference cannot yet be produced through this provider** — the HOMD arm works;
+> MOMD and NCBI 16S need a separate source (a future sub-project). Treat the
+> MOMD/NCBI-16S entries above as aspirational, not delivered.
+
 **biodbs division of labor.** biodbs
 ([github.com/qwerty239qwe/biodbs](https://github.com/qwerty239qwe/biodbs)) is a
 REST-API fetch framework with a clean `fetch/<db>/` base-fetcher pattern
@@ -151,6 +162,13 @@ Providers fetch each source; `build.py` concatenates and de-duplicates into one
 artifact registered as `refdb:fomc-combined@20221029`. This provides the
 reference that sub-project B's consensus-taxonomy backend will align against at
 98% identity / 98% coverage.
+
+> **As-built (2026-07-06):** the multi-source merge *machinery* is delivered and
+> tested (fixture-scale), but the specific FOMC combined DB is **not yet
+> producible** because the delivered biodbs provider supplies HOMD but not MOMD
+> or NCBI 16S sequences (see the reconciliation note under Acquisition
+> strategy). The HOMD arm can be fetched today; wiring MOMD + NCBI 16S sources is
+> a follow-up.
 
 ## Testing & robustness
 
