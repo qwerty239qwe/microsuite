@@ -117,8 +117,9 @@ workflow {
         trimmed_ch = FASTP.out.trimmed
         dada2_manifest = trimmed_ch
             .map { sid, reads ->
-                def r2 = reads.size() > 1 ? reads[1].name : ''
-                "${sid}\t${reads[0].name}\t${r2}\n"
+                def rs = reads instanceof List ? reads : [reads]
+                def r2 = rs.size() > 1 ? rs[1].name : ''
+                "${sid}\t${rs[0].name}\t${r2}\n"
             }
             .collectFile(name: 'trimmed_manifest.tsv', seed: 'sample_id\tread1\tread2\n', sort: true)
         fastqc_input = trimmed_ch

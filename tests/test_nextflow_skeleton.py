@@ -196,3 +196,7 @@ def test_nextflow_main_wires_fastp_trim() -> None:
     # FASTQC and DADA2 each still invoked exactly once, via the toggled inputs
     assert main.count("FASTQC(") == 1
     assert "QIIME2_DADA2(dada2_manifest, metadata_ch, dada2_reads)" in main
+    # trimmed-manifest closure must normalize FASTP.out.trimmed's reads element
+    # before indexing: single-end samples yield a scalar Path (not a List) from
+    # the module's glob output, so unguarded reads.size()/reads[0] crashes.
+    assert "reads instanceof List ? reads : [reads]" in main
