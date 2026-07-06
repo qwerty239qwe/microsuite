@@ -190,6 +190,14 @@ def test_greengenes_adapter_extracts_qza_members(tmp_path: Path, monkeypatch) ->
     assert "Feature ID" not in tax
 
 
+def test_greengenes_rejects_unsupported_version(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(_biodbs, "_load_biodbs", lambda: _FakeGreenGenes())
+    with pytest.raises(MicrobiomeSuiteError):
+        get_provider("biodbs").fetch(
+            RefDbSpec(name="greengenes", version="2024.09"), out_dir=tmp_path
+        )
+
+
 class _FakeUnite:
     """Mimics unite_download: writes a tiny real .tgz fixture that mirrors the
     live-verified UNITE archive layout — multiple fasta/taxonomy candidates

@@ -154,9 +154,22 @@ _GREENGENES_RELEASE = "2022.7-rc1"
 _GREENGENES_SEQ_FILE = "2022.7.backbone.v4.fna.qza"
 _GREENGENES_TAX_FILE = "2022.7.backbone.tax.qza"
 
+# The adapter only knows how to build paths for the 2022.7 backbone pair above:
+# _GREENGENES_SEQ_FILE/_GREENGENES_TAX_FILE are hardcoded filenames, so a
+# spec.version other than _GREENGENES_RELEASE would only change the release
+# directory segment while still requesting the 2022.7 filenames underneath it
+# (e.g. "2024.09/2022.7.backbone.v4.fna.qza"), which 404s or fetches the wrong
+# file. Fail loudly instead of silently building a mismatched path.
+_GREENGENES_SUPPORTED = _GREENGENES_RELEASE
+
 
 def _greengenes_adapter(bd, spec: RefDbSpec, out_dir: Path) -> RawRefDb:
-    release = spec.version or _GREENGENES_RELEASE
+    if spec.version and spec.version != _GREENGENES_SUPPORTED:
+        raise MicrobiomeSuiteError(
+            "GreenGenes support is currently limited to the "
+            f"{_GREENGENES_SUPPORTED} backbone pair; got version '{spec.version}'."
+        )
+    release = spec.version or _GREENGENES_SUPPORTED
     seq_qza = Path(bd.greengenes_download_file(f"{release}/{_GREENGENES_SEQ_FILE}", str(out_dir)))
     tax_qza = Path(bd.greengenes_download_file(f"{release}/{_GREENGENES_TAX_FILE}", str(out_dir)))
     seqs = _extract_zip_member(
