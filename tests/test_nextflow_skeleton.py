@@ -180,3 +180,19 @@ def test_nextflow_fastp_params_and_container_labels() -> None:
     singularity = (NEXTFLOW / "profiles" / "singularity.config").read_text(encoding="utf-8")
     assert "withLabel: fastp" in docker
     assert "withLabel: fastp" in singularity
+
+
+def test_nextflow_main_wires_fastp_trim() -> None:
+    main = (NEXTFLOW / "main.nf").read_text(encoding="utf-8")
+    assert "include { FASTP } from './modules/fastp'" in main
+    assert "FASTP(samples_ch)" in main
+    assert "params.trim" in main
+    assert "collectFile" in main
+    assert "trimmed_manifest.tsv" in main
+    assert ".mix(extra_qc)" in main
+    # raw (non-breaking) path preserved in the else branch
+    assert "dada2_manifest = manifest_ch" in main
+    assert "dada2_reads  = reads_ch" in main or "dada2_reads = reads_ch" in main
+    # FASTQC and DADA2 each still invoked exactly once, via the toggled inputs
+    assert main.count("FASTQC(") == 1
+    assert "QIIME2_DADA2(dada2_manifest, metadata_ch, dada2_reads)" in main

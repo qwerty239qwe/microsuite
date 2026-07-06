@@ -1,6 +1,7 @@
 nextflow.enable.dsl = 2
 
 include { FASTQC } from './modules/fastqc'
+include { FASTP } from './modules/fastp'
 include { MULTIQC } from './modules/multiqc'
 include { QIIME2_DADA2 } from './modules/qiime2_dada2'
 include { QIIME2_TAXONOMY } from './modules/qiime2_taxonomy'
@@ -111,9 +112,28 @@ workflow {
         }
     reads_ch = samples_ch.map { sample_id, reads -> reads }.flatten().collect()
 
-    FASTQC(samples_ch)
-    MULTIQC(FASTQC.out.qc_dir.collect())
-    QIIME2_DADA2(manifest_ch, metadata_ch, reads_ch)
+    if (params.trim) {
+        FASTP(samples_ch)
+        trimmed_ch = FASTP.out.trimmed
+        dada2_manifest = trimmed_ch
+            .map { sid, reads ->
+                def r2 = reads.size() > 1 ? reads[1].name : ''
+                "${sid}\t${reads[0].name}\t${r2}\n"
+            }
+            .collectFile(name: 'trimmed_manifest.tsv', seed: 'sample_id\tread1\tread2\n', sort: true)
+        fastqc_input = trimmed_ch
+        dada2_reads  = trimmed_ch.map { sid, reads -> reads }.flatten().collect()
+        extra_qc     = FASTP.out.report
+    } else {
+        fastqc_input = samples_ch
+        dada2_manifest = manifest_ch
+        dada2_reads  = reads_ch
+        extra_qc     = Channel.empty()
+    }
+
+    FASTQC(fastqc_input)
+    MULTIQC(FASTQC.out.qc_dir.mix(extra_qc).collect())
+    QIIME2_DADA2(dada2_manifest, metadata_ch, dada2_reads)
     QIIME2_TAXONOMY(QIIME2_DADA2.out.rep_seqs, classifier_ch)
     QIIME2_PHYLOGENY(QIIME2_DADA2.out.rep_seqs)
     QIIME2_DIVERSITY(QIIME2_DADA2.out.table, QIIME2_PHYLOGENY.out.rooted_tree, metadata_ch)
