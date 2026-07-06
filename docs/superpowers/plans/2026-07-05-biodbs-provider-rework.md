@@ -456,14 +456,36 @@ Each fake builds a minimal real container in `tmp`: GreenGenes → two `.qza` zi
 - Create: `tests/integration/test_refdb_biodbs_live.py`
 
 **Interfaces:**
-- Consumes: `microsuite.refdb.service.fetch_refdb`, the real biodbs package, network.
-- Behavior: one test per DB, marked with the repo's existing external-integration marker (inspect `tests/integration/` and `pyproject.toml`/`conftest.py` for the exact marker name and skip convention). Each test does the smallest real acquisition identified in the R1 probe (e.g. HOMD 16S RefSeq → build vsearch → assert the artifact FASTA is non-empty and the registry records it). Guarded so a normal `uv run pytest` (no marker/opt-in flag) skips them.
+- Consumes: `microsuite.refdb.service.fetch_refdb`, `microsuite.refdb.spec.RefDbSpec`, the real biodbs package, network.
+- Opt-in gate (reuse the repo's EXACT existing convention from `tests/integration/test_external_tools.py`):
+  ```python
+  pytestmark = [
+      pytest.mark.skipif(
+          os.environ.get("MICROSUITE_RUN_EXTERNAL_INTEGRATION") != "1",
+          reason="set MICROSUITE_RUN_EXTERNAL_INTEGRATION=1 to run external-tool integration tests",
+      ),
+  ]
+  ```
+  Also `pytest.importorskip("biodbs")` at import so the module skips cleanly if biodbs is absent.
+- One test per DB: `fetch_refdb(RefDbSpec(name=<db>, version=<v>), "vsearch")` → assert the returned `BuiltArtifact.path` exists and its FASTA has ≥1 `>` record, and that a sibling id-first taxonomy TSV was produced (non-empty). Use a per-test `tmp_path`-based `MICROSUITE_REFDB_DIR` (monkeypatch the env var) so live artifacts land in tmp, not the user's real cache.
 
-- [ ] **Step 1: Confirm the marker convention.** Read `tests/integration/` + `conftest.py` for how existing external-tool tests opt in; reuse that exact mechanism (do not invent a new one).
-- [ ] **Step 2: Write one live test (HOMD end-to-end).** `fetch_refdb(RefDbSpec(name="homd", version="15.22"), "vsearch")` → assert artifact exists and FASTA has ≥1 record.
-- [ ] **Step 3: Verify it SKIPS by default.** `uv run pytest tests/integration/test_refdb_biodbs_live.py -q` → skipped without the opt-in flag.
-- [ ] **Step 4: Add the remaining DB live tests** (SILVA/GTDB/GreenGenes/UNITE/PR2), each smallest-possible.
-- [ ] **Step 5: Commit.** `git commit -m "test(refdb): opt-in live biodbs integration tests"`
+**Per-DB params (from the R1 probe + R2–R4 live corrections). Mark the heavy ones so runners know:**
+
+| DB | `name` / `version` | Live download size | Note |
+|---|---|---|---|
+| HOMD | `homd` / `"15.22"` (ignored) | ~11 MB | light — full end-to-end |
+| GreenGenes | `greengenes` / `"2022.7-rc1"` | ~11 MB | light — full end-to-end |
+| PR2 | `pr2` / `"5.1.1"` | ~56 MB | heavy |
+| SILVA | `silva` / `"138.2"` | ~200 MB (NR99 fasta) | heavy — the largest |
+| GTDB | `gtdb` / `"latest"` | ~large (bac120_ssu_reps) | heavy |
+| UNITE | `unite` / `"2020-02-20"` | ~39 MB | heavy |
+
+- [ ] **Step 1: Write the module** with the opt-in gate + `importorskip`, and a light end-to-end test for HOMD and GreenGenes first (`fetch_refdb(...) -> vsearch`, assert artifact FASTA ≥1 record + non-empty taxonomy).
+- [ ] **Step 2: Verify it SKIPS by default.** `uv run pytest tests/integration/test_refdb_biodbs_live.py -q` → all skipped (no env var set). Confirm the skip reason.
+- [ ] **Step 3: Verify the two light tests actually PASS live once.** Run just HOMD + GreenGenes with `MICROSUITE_RUN_EXTERNAL_INTEGRATION=1 uv run pytest tests/integration/test_refdb_biodbs_live.py -k "homd or greengenes" -q` and confirm they pass against real endpoints. Record the result in the report. (Do NOT run the heavy four in CI; writing them is enough — but you MAY spot-run one heavy DB if time permits and record it.)
+- [ ] **Step 4: Add the remaining DB tests** (PR2, SILVA, GTDB, UNITE), each parametrized/marked so the heavy download is clear; they stay gated by the same env var.
+- [ ] **Step 5: Full offline suite still green + new module skips.** `uv run pytest tests/test_refdb_*.py tests/integration/test_refdb_biodbs_live.py -q` → refdb unit tests pass, live module skips.
+- [ ] **Step 6: Commit.** `git commit -m "test(refdb): opt-in live biodbs integration tests"`
 
 ---
 
