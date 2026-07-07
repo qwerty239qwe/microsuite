@@ -159,6 +159,8 @@ nextflow run workflows/nextflow/main.nf \
 See [api-nextflow.md](api-nextflow.md) for the manifest contract and workflow
 parameters.
 
+> Running many samples? See [multisample runs and concurrency](multisample.md).
+
 ## R And QIIME 2 Backends
 
 Python extras do not install R packages or QIIME 2.

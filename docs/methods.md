@@ -61,6 +61,8 @@ or `planned`. Runtime validation is tracked separately:
 | `trim-galore` | Trim Galore 0.6.x or v2.x user env | ready | `microsuite trim --backend trim-galore` | `trim(backend="trim-galore", read1=..., output1=..., trim_galore_version="auto")` | [Trim Galore](../containers/trim-galore/Dockerfile) or external `trim_galore` | Lets users keep tool-default behavior or explicitly select the v2 mode; output names are tool-controlled and validated. | Adapter/quality trimming with integrated QC conventions. |
 | `qiime2-cutadapt` | QIIME 2 2024.10 | ready | `microsuite trim --backend qiime2-cutadapt --read1 demux.qza --output1 trimmed.qza` | `trim(backend="qiime2-cutadapt", read1=demux, output1=trimmed, adapter=...)` | [QIIME 2 amplicon](../containers/qiime2-amplicon/Dockerfile) | Fits QIIME artifact workflows; less convenient for raw FASTQ-only runs. | QIIME 2 Cutadapt wrapper. |
 
+> For batching many samples and choosing threads vs parallel jobs, see [multisample runs and concurrency](multisample.md).
+
 ### Feature Table Generation
 
 ASV tables contain inferred exact sequence variants. OTU-style tables contain

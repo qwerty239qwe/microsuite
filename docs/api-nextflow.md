@@ -113,6 +113,8 @@ S1	reads/S1_R1.fastq.gz	reads/S1_R2.fastq.gz	paired-end
 S2	reads/S2_R1.fastq.gz	reads/S2_R2.fastq.gz	paired-end
 ```
 
+> The manifest format is shared with `scripts/run_fastp_multiqc.sh`; see [multisample runs and concurrency](multisample.md).
+
 Runtime parameters:
 
 | Parameter | Default | Description |
