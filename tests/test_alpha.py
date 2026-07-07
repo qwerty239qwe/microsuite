@@ -16,6 +16,7 @@ from microsuite.diversity.alpha import (
     dominance,
     goods_coverage,
     inv_simpson,
+    kempton_taylor_q,
     margalef,
     menhinick,
     osd,
@@ -32,6 +33,16 @@ def test_alpha_observed_features() -> None:
     result = alpha_diversity(adata, "observed_features")
 
     assert result["observed_features"].tolist() == [2.0, 3.0, 3.0, 3.0]
+
+
+def test_kempton_taylor_q_equal_counts_is_nan() -> None:
+    # log(upper/lower) is 0 when the quartile boundaries share a value.
+    assert np.isnan(kempton_taylor_q(np.array([5.0, 5.0, 5.0, 5.0])))
+
+
+def test_kempton_taylor_q_single_feature_is_nan() -> None:
+    # A one-feature sample has no interior quartile band to index.
+    assert np.isnan(kempton_taylor_q(np.array([7.0])))
 
 
 def test_alpha_shannon_known_value() -> None:

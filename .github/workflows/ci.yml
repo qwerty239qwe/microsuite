@@ -6,6 +6,15 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      run-real-nextflow:
+        description: "Run the amplicon_microsuite workflow for real (not -stub-run) via -profile docker against published GHCR images"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 permissions:
   contents: read
@@ -128,3 +137,58 @@ jobs:
 
       - name: Run Python API external integration tests
         run: uv run pytest tests/integration/test_external_tools.py
+
+  nextflow-real:
+    name: Nextflow real end-to-end (amplicon_microsuite)
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run-real-nextflow == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Nextflow
+        uses: nf-core/setup-nextflow@v2
+        with:
+          version: "25.10.0"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Real run (no -stub-run): vsearch clustering, microsuite import/diversity,
+      # PICRUSt2 functional profiling, and the HTML report actually execute
+      # inside the published GHCR images. Requires the heavy images to have been
+      # built and pushed first (Docker workflow, build-heavy-containers=true).
+      - name: Run amplicon_microsuite for real
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          nextflow run workflows/nextflow/main.nf \
+            -profile docker \
+            --workflow amplicon_microsuite \
+            --container_registry "ghcr.io/${owner}/microsuite" \
+            --container_tag latest \
+            --reads_fasta tests/fixtures/nextflow/reads.fasta \
+            --metadata tests/fixtures/nextflow/metadata.tsv \
+            --outdir results/nextflow-real
+
+      - name: Assert real outputs exist
+        run: |
+          set -euo pipefail
+          test -s results/nextflow-real/cluster/otu_table.tsv
+          test -s results/nextflow-real/import/table.h5ad
+          test -d results/nextflow-real/diversity
+          test -d results/nextflow-real/functional
+          test -s results/nextflow-real/report/report.html

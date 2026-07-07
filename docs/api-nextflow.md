@@ -124,13 +124,33 @@ Runtime parameters:
 | `--sampling_depth` | `1000` | Sampling depth for `qiime diversity core-metrics-phylogenetic`. |
 
 The local profile expects `fastqc`, `multiqc`, and `qiime` on `PATH`. The Docker
-profile assigns process-specific images for FastQC, MultiQC, QIIME 2, and the
-microsuite report step. The Singularity profile expects matching `.sif` files
-under `containers/singularity/`.
+and Singularity profiles pull process-specific images from the registry and tag
+set in `nextflow.config` (`params.container_registry`, default
+`ghcr.io/qwerty239qwe/microsuite`, and `params.container_tag`, default
+`latest`), which the Docker CI workflow publishes to GHCR. The Singularity
+profile references the same images over `docker://` URIs, so Apptainer builds
+and caches each `.sif` on first use — no pre-built `.sif` files are shipped.
+
+For a reproducible run, pin `container_tag` to an immutable tag instead of
+`latest`. Every image build pushes a `sha-<commit>` tag:
+
+```bash
+nextflow run workflows/nextflow/main.nf -profile docker \
+  --workflow amplicon_microsuite \
+  --container_tag sha-0dd0ae6 \
+  --reads_fasta reads.fasta --metadata metadata.tsv --outdir results
+```
+
+`nextflow.config` also pins `manifest.nextflowVersion` (`>=25.10.0`), so an
+incompatible Nextflow engine fails fast instead of drifting silently.
 
 Continuous integration runs the workflow with Nextflow `-stub-run` against tiny
-FASTQ fixtures. This validates the executable process graph without downloading
-QIIME 2 databases or running heavy external tools.
+FASTQ fixtures on every push. This validates the executable process graph
+without downloading QIIME 2 databases or running heavy external tools. A real
+(non-stub) end-to-end run of `amplicon_microsuite` — actually executing VSEARCH,
+the microsuite CLI, PICRUSt2, and the HTML report inside the published images —
+is available on demand via the CI workflow's `run-real-nextflow` dispatch input
+(build the heavy images first).
 
 Native statistics and AnnData operations should stay in the Python SDK and CLI
 backends, not in Nextflow process scripts.

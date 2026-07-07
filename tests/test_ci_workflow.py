@@ -38,6 +38,11 @@ def test_github_actions_ci_runs_project_quality_gate() -> None:
     assert "uv pip install cutadapt multiqc" in text
     assert "uv run pytest tests/integration/test_external_tools.py" in text
     assert "docker-build:" not in text
+    # A real (non-stub) end-to-end run is available on demand.
+    assert "nextflow-real:" in text
+    assert "run-real-nextflow" in text
+    assert "nextflow run workflows/nextflow/main.nf" in text
+    assert "results/nextflow-real/report/report.html" in text
 
 
 def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
@@ -81,8 +86,9 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "image: r-dada2" in text
     assert "image: r-diffab" in text
     assert "image: microsuite-picrust2" in text
+    assert "image: microsuite-dada2" in text
     assert text.count("heavy: false") == 11
-    assert text.count("heavy: true") == 5
+    assert text.count("heavy: true") == 6
     assert "load: true" in text
     assert "Run FastQC tiny example" in text
     assert "Run MultiQC tiny example" in text
@@ -95,6 +101,10 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "Smoke test MAFFT/FastTree image" in text
     assert "Smoke test MetaPhlAn image" in text
     assert "Smoke test R diffab image" in text
+    assert "Smoke test microsuite-dada2 image" in text
+    assert "containers/microsuite-dada2/Dockerfile" in text
+    assert "denoise --backend dada2-r" in text
+    assert "test -s tmp/docker-dada2/out/rep-seqs.fasta" in text
     assert 'c("ANCOMBC", "ALDEx2", "Maaslin2", "lefser")' in text
     assert 'c("ancombc", "aldex2", "maaslin2", "lefse")' in text
     assert "--cluster_fast /input/tiny.fasta" in text
@@ -108,6 +118,12 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "docker run --rm --entrypoint bracken microsuite/${{ matrix.image }}:ci -h" in text
     assert "command -v mafft && command -v FastTree" in text
     assert "microsuite/${{ matrix.image }}:ci --version" in text
+    # Built + smoke-tested images are published to GHCR (main only).
+    assert "packages: write" in text
+    assert "docker/login-action@v3" in text
+    assert "ghcr.io/${owner}/microsuite/${{ matrix.image }}" in text
+    assert 'sha="sha-$(git rev-parse --short HEAD)"' in text
+    assert "docker push" in text
 
 
 def test_source_data_package_is_not_ignored() -> None:

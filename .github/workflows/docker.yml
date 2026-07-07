@@ -26,6 +26,7 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -101,6 +102,10 @@ jobs:
             heavy: true
           - image: microsuite-picrust2
             dockerfile: containers/microsuite-picrust2/Dockerfile
+            context: .
+            heavy: true
+          - image: microsuite-dada2
+            dockerfile: containers/microsuite-dada2/Dockerfile
             context: .
             heavy: true
     steps:
@@ -279,6 +284,78 @@ jobs:
         run: |
           docker run --rm microsuite/${{ matrix.image }}:ci -e \
             'for (pkg in c("ANCOMBC", "ALDEx2", "Maaslin2", "lefser")) stopifnot(requireNamespace(pkg, quietly = TRUE)); for (script in c("ancombc", "aldex2", "maaslin2", "lefse")) stopifnot(file.exists(sprintf("/opt/microsuite/%s.R", script)))'
+
+      - name: Smoke test microsuite-dada2 image
+        if: ${{ matrix.image == 'microsuite-dada2' && github.event.inputs.build-heavy-containers == 'true' }}
+        run: |
+          set -euo pipefail
+          # Wiring: prove both halves live in one image (this is what the split
+          # microsuite / r-dada2 images cannot do on their own).
+          docker run --rm --entrypoint Rscript microsuite/${{ matrix.image }}:ci -e 'library(dada2)'
+          docker run --rm microsuite/${{ matrix.image }}:ci denoise --help >/dev/null
+          # Generate a DADA2-learnable FASTQ: enough reads with position-dependent,
+          # jittered quality (several Phred bins) and quality-correlated substitution
+          # errors, so learnErrors can actually fit an error model. Uniform-quality
+          # or too-clean reads make learnErrors return a NULL error matrix.
+          mkdir -p tmp/docker-dada2/input tmp/docker-dada2/out
+          python3 - <<'PY'
+          import random
+          rng = random.Random(7)
+          bases = "ACGT"
+          templates = ["".join(rng.choice(bases) for _ in range(150)) for _ in range(3)]
+          reads = []
+          for i in range(5000):
+              tpl = rng.choice(templates)
+              seq, qual = [], []
+              for pos, base in enumerate(tpl):
+                  q = max(20, min(40, int(38 - pos * 0.13) + rng.randint(-3, 3)))
+                  if rng.random() < 10 ** (-q / 10.0):
+                      base = rng.choice([b for b in bases if b != base])
+                  seq.append(base)
+                  qual.append(chr(q + 33))
+              reads.append(f"@r{i + 1}\n{''.join(seq)}\n+\n{''.join(qual)}")
+          with open("tmp/docker-dada2/input/sample1.fastq", "w") as fh:
+              fh.write("\n".join(reads) + "\n")
+          PY
+          # Functional: DADA2 filterAndTrim + ASV inference, end-to-end via the CLI.
+          docker run --rm \
+            -v "${PWD}/tmp/docker-dada2/input:/input:ro" \
+            -v "${PWD}/tmp/docker-dada2/out:/output" \
+            microsuite/${{ matrix.image }}:ci \
+            denoise --backend dada2-r \
+            --demux /input \
+            --output-table /output/table.tsv \
+            --output-rep-seqs /output/rep-seqs.fasta \
+            --output-stats /output/stats.tsv \
+            --trunc-len 0 --max-ee 2 --threads 2
+          test -s tmp/docker-dada2/out/table.tsv
+          test -s tmp/docker-dada2/out/rep-seqs.fasta
+          test -s tmp/docker-dada2/out/stats.tsv
+          grep -q '^>ASV1' tmp/docker-dada2/out/rep-seqs.fasta
+
+      # Publish images that were built and passed their smoke test. Only on the
+      # main branch (never PRs), and only for images actually built this run.
+      - name: Log in to GitHub Container Registry
+        if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && (!matrix.heavy || github.event.inputs.build-heavy-containers == 'true') }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image to GHCR
+        if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && (!matrix.heavy || github.event.inputs.build-heavy-containers == 'true') }}
+        run: |
+          set -euo pipefail
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          src="microsuite/${{ matrix.image }}:ci"
+          dest="ghcr.io/${owner}/microsuite/${{ matrix.image }}"
+          sha="sha-$(git rev-parse --short HEAD)"
+          docker tag "$src" "$dest:$sha"
+          docker tag "$src" "$dest:latest"
+          docker push "$dest:$sha"
+          docker push "$dest:latest"
+          echo "Published $dest:$sha and $dest:latest"
 
       - name: Skip heavy container image
         if: ${{ matrix.heavy && github.event.inputs.build-heavy-containers != 'true' }}
