@@ -16,16 +16,35 @@ has_flag <- function(flag) {
   flag %in% args
 }
 
-sample_name <- function(path, marker) {
+stem_without_fastq_suffix <- function(path) {
   name <- basename(path)
-  name <- sub("\\.(fastq|fq)(\\.gz)?$", "", name, ignore.case = TRUE)
-  sub(marker, "", name, ignore.case = TRUE)
+  sub("\\.(fastq|fq)(\\.gz)?$", "", name, ignore.case = TRUE)
+}
+
+read_suffix_pattern <- function(read) {
+  direction <- if (read == 1) "forward" else "reverse"
+  paste0(
+    "([._-]R", read, "([._-]001)?",
+    "|[._-]read", read, "([._-]001)?",
+    "|[._-]", read, "([._-]001)?",
+    "|[._-]?", direction,
+    ")$"
+  )
+}
+
+is_read <- function(path, read) {
+  grepl(read_suffix_pattern(read), stem_without_fastq_suffix(path), ignore.case = TRUE)
+}
+
+sample_name <- function(path, read) {
+  sub(read_suffix_pattern(read), "", stem_without_fastq_suffix(path), ignore.case = TRUE)
 }
 
 input_dir <- value_after("--input-dir")
 output_table <- value_after("--output-table")
 output_rep_seqs <- value_after("--output-rep-seqs")
 output_stats <- value_after("--output-stats")
+output_plot_dir <- value_after("--output-plot-dir")
 threads <- as.integer(value_after("--threads", "1"))
 paired <- has_flag("--paired")
 max_n <- as.integer(value_after("--max-n", "0"))
@@ -56,14 +75,44 @@ if (length(fastqs) == 0) {
 dir.create(dirname(output_table), recursive = TRUE, showWarnings = FALSE)
 dir.create(dirname(output_rep_seqs), recursive = TRUE, showWarnings = FALSE)
 dir.create(dirname(output_stats), recursive = TRUE, showWarnings = FALSE)
+if (!is.null(output_plot_dir)) {
+  dir.create(output_plot_dir, recursive = TRUE, showWarnings = FALSE)
+}
 
 getN <- function(x) sum(getUniques(x))
 
+write_error_plot <- function(err, output) {
+  png(output, width = 1400, height = 1000, res = 150)
+  on.exit(dev.off(), add = TRUE)
+  print(plotErrors(err, nominalQ = TRUE))
+}
+
+write_retention_plot <- function(track, output) {
+  png(output, width = 1600, height = 1000, res = 150)
+  on.exit(dev.off(), add = TRUE)
+  values <- as.matrix(track)
+  input <- pmax(values[, "input"], 1)
+  proportions <- sweep(values, 1, input, "/")
+  matplot(
+    t(proportions),
+    type = "l",
+    lty = 1,
+    col = grDevices::hcl.colors(nrow(proportions), "Dark 3"),
+    xaxt = "n",
+    ylim = c(0, 1),
+    xlab = "DADA2 step",
+    ylab = "Fraction of input reads",
+    main = "DADA2 read retention"
+  )
+  axis(1, at = seq_len(ncol(proportions)), labels = colnames(proportions), las = 2)
+  grid()
+}
+
 if (paired) {
-  fnFs <- fastqs[grepl("(_R1_|_1\\.|forward)", basename(fastqs), ignore.case = TRUE)]
-  fnRs <- fastqs[grepl("(_R2_|_2\\.|reverse)", basename(fastqs), ignore.case = TRUE)]
-  sampleFs <- sample_name(fnFs, "(_R1_|_1\\.|forward)")
-  sampleRs <- sample_name(fnRs, "(_R2_|_2\\.|reverse)")
+  fnFs <- fastqs[vapply(fastqs, is_read, logical(1), read = 1)]
+  fnRs <- fastqs[vapply(fastqs, is_read, logical(1), read = 2)]
+  sampleFs <- sample_name(fnFs, 1)
+  sampleRs <- sample_name(fnRs, 2)
   if (length(fnFs) == 0 || length(fnFs) != length(fnRs) || !identical(sampleFs, sampleRs)) {
     stop("Paired DADA2 mode requires matching R1/R2 FASTQ files with consistent sample names.")
   }
@@ -81,6 +130,10 @@ if (paired) {
   )
   errF <- learnErrors(filtFs, nbases = n_reads_learn, multithread = threads)
   errR <- learnErrors(filtRs, nbases = n_reads_learn, multithread = threads)
+  if (!is.null(output_plot_dir)) {
+    write_error_plot(errF, file.path(output_plot_dir, "error_rates_forward.png"))
+    write_error_plot(errR, file.path(output_plot_dir, "error_rates_reverse.png"))
+  }
   dadaFs <- dada(filtFs, err = errF, pool = pool, multithread = threads)
   dadaRs <- dada(filtRs, err = errR, pool = pool, multithread = threads)
   mergers <- mergePairs(
@@ -120,6 +173,9 @@ if (paired) {
     multithread = threads
   )
   err <- learnErrors(filt, nbases = n_reads_learn, multithread = threads)
+  if (!is.null(output_plot_dir)) {
+    write_error_plot(err, file.path(output_plot_dir, "error_rates.png"))
+  }
   dada_out <- dada(filt, err = err, pool = pool, multithread = threads)
   seqtab <- makeSequenceTable(dada_out)
   seqtab.nochim <- removeBimeraDenovo(
@@ -145,3 +201,6 @@ rownames(asv_table) <- ids
 write.table(asv_table, output_table, sep = "\t", quote = FALSE, col.names = NA)
 writeLines(as.vector(rbind(paste0(">", ids), seqs)), output_rep_seqs)
 write.table(track, output_stats, sep = "\t", quote = FALSE, col.names = NA)
+if (!is.null(output_plot_dir)) {
+  write_retention_plot(track, file.path(output_plot_dir, "read_retention.png"))
+}

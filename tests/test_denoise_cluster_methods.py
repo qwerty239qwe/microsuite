@@ -429,6 +429,7 @@ def test_denoise_dada2_r_builds_rscript_command(
         output_table=tmp_path / "table.tsv",
         output_rep_seqs=tmp_path / "rep-seqs.fasta",
         output_stats=tmp_path / "stats.tsv",
+        output_plot_dir=tmp_path / "plots",
         paired=True,
         trim_left_f=7,
         trunc_len_f=151,
@@ -447,6 +448,8 @@ def test_denoise_dada2_r_builds_rscript_command(
     assert "151" in command
     assert "--threads" in command
     assert "4" in command
+    assert "--output-plot-dir" in command
+    assert str(tmp_path / "plots") in command
 
 
 def test_dada2_r_script_writes_matching_asv_feature_ids() -> None:
@@ -457,6 +460,10 @@ def test_dada2_r_script_writes_matching_asv_feature_ids() -> None:
     assert "rownames(asv_table) <- ids" in script
     assert "write.table(asv_table, output_table" in script
     assert 'writeLines(as.vector(rbind(paste0(">", ids), seqs)), output_rep_seqs)' in script
+    assert "write_error_plot" in script
+    assert "write_retention_plot" in script
+    assert "read_suffix_pattern" in script
+    assert "stem_without_fastq_suffix" in script
 
 
 def test_dada2_r_script_wires_advanced_controls() -> None:

@@ -45,6 +45,13 @@ def register(app: typer.Typer) -> None:
                 ),
             ),
         ] = None,
+        output_plot_dir: Annotated[
+            Path | None,
+            typer.Option(
+                "--output-plot-dir",
+                help="Optional R/DADA2 diagnostic plot directory.",
+            ),
+        ] = None,
         mode: Annotated[
             str | None,
             typer.Option("--mode", help="DADA2 mode: single, paired, ccs, or pyro."),
@@ -186,6 +193,7 @@ def register(app: typer.Typer) -> None:
             output_stats=output_stats,
             output_base_transition_stats=output_base_transition_stats,
             output_base_transition_plot=output_base_transition_plot,
+            output_plot_dir=output_plot_dir,
             mode=mode,
             paired=paired,
             trim_left=trim_left,
