@@ -154,3 +154,49 @@ def test_nextflow_docs_state_profiles_and_stub_status() -> None:
     assert "-profile singularity" in docs
     assert "module files contain runnable commands" in docs
     assert "Nextflow `-stub-run`" in docs
+
+
+def test_nextflow_fastp_module_exists_and_declares_process() -> None:
+    fastp = NEXTFLOW / "modules" / "fastp.nf"
+    assert fastp.exists(), fastp
+    text = fastp.read_text(encoding="utf-8")
+    assert "process FASTP" in text
+    assert "label 'fastp'" in text
+    assert "params.fastp_cpus" in text
+    assert "emit: trimmed" in text
+    assert "emit: report" in text
+    # PE and SE fastp invocations
+    assert "--in1" in text and "--out1" in text
+    assert "--in2" in text and "--out2" in text
+    assert "params.fastp_args" in text
+    assert "stub:" in text
+
+
+def test_nextflow_fastp_params_and_container_labels() -> None:
+    config = (NEXTFLOW / "nextflow.config").read_text(encoding="utf-8")
+    for key in ("trim", "fastp_cpus", "fastp_args"):
+        assert key in config, key
+    docker = (NEXTFLOW / "profiles" / "docker.config").read_text(encoding="utf-8")
+    singularity = (NEXTFLOW / "profiles" / "singularity.config").read_text(encoding="utf-8")
+    assert "withLabel: fastp" in docker
+    assert "withLabel: fastp" in singularity
+
+
+def test_nextflow_main_wires_fastp_trim() -> None:
+    main = (NEXTFLOW / "main.nf").read_text(encoding="utf-8")
+    assert "include { FASTP } from './modules/fastp'" in main
+    assert "FASTP(samples_ch)" in main
+    assert "params.trim" in main
+    assert "collectFile" in main
+    assert "trimmed_manifest.tsv" in main
+    assert ".mix(extra_qc)" in main
+    # raw (non-breaking) path preserved in the else branch
+    assert "dada2_manifest = manifest_ch" in main
+    assert "dada2_reads  = reads_ch" in main or "dada2_reads = reads_ch" in main
+    # FASTQC and DADA2 each still invoked exactly once, via the toggled inputs
+    assert main.count("FASTQC(") == 1
+    assert "QIIME2_DADA2(dada2_manifest, metadata_ch, dada2_reads)" in main
+    # trimmed-manifest closure must normalize FASTP.out.trimmed's reads element
+    # before indexing: single-end samples yield a scalar Path (not a List) from
+    # the module's glob output, so unguarded reads.size()/reads[0] crashes.
+    assert "reads instanceof List ? reads : [reads]" in main
