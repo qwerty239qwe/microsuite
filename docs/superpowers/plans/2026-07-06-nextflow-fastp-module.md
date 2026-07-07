@@ -284,17 +284,24 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def test_nextflow_stub_runs_amplicon_qiime2_with_trim(tmp_path: Path) -> None:
+@pytest.mark.parametrize("layout", ["single-end", "paired-end"])
+def test_nextflow_stub_runs_amplicon_qiime2_with_trim(layout: str, tmp_path: Path) -> None:
     if shutil.which("nextflow") is None:
         pytest.skip("nextflow is not installed on PATH")
 
     r1 = tmp_path / "s1_R1.fastq.gz"
-    r2 = tmp_path / "s1_R2.fastq.gz"
-    for path in (r1, r2):
-        path.write_bytes(gzip.compress(b"@r\nACGT\n+\nIIII\n"))
+    r1.write_bytes(gzip.compress(b"@r\nACGT\n+\nIIII\n"))
+    if layout == "paired-end":
+        r2 = tmp_path / "s1_R2.fastq.gz"
+        r2.write_bytes(gzip.compress(b"@r\nACGT\n+\nIIII\n"))
+        row = f"s1\t{r1}\t{r2}\n"
+    else:
+        # single-end: empty read2 -> FASTP emits ONE trimmed file -> FASTP.out.trimmed
+        # is a scalar Path (not a list). This is the exact case that regressed.
+        row = f"s1\t{r1}\t\n"
 
     manifest = tmp_path / "manifest.tsv"
-    manifest.write_text(f"sample_id\tread1\tread2\ns1\t{r1}\t{r2}\n", encoding="utf-8")
+    manifest.write_text(f"sample_id\tread1\tread2\n{row}", encoding="utf-8")
     metadata = tmp_path / "metadata.tsv"
     metadata.write_text("sample-id\tgroup\ns1\ta\n", encoding="utf-8")
     classifier = tmp_path / "classifier.qza"
@@ -303,7 +310,7 @@ def test_nextflow_stub_runs_amplicon_qiime2_with_trim(tmp_path: Path) -> None:
 
     cmd = [
         "nextflow", "run", str(NEXTFLOW / "main.nf"),
-        "-stub", "-profile", "local",
+        "-stub-run", "-profile", "local",
         "--workflow", "amplicon_qiime2",
         "--manifest", str(manifest),
         "--metadata", str(metadata),
@@ -316,15 +323,19 @@ def test_nextflow_stub_runs_amplicon_qiime2_with_trim(tmp_path: Path) -> None:
     assert (outdir / "trim" / "fastp").exists(), "fastp outputs were not published"
 ```
 
+Both layouts run under `--trim true`; the single-end case specifically exercises
+the scalar-`Path` output of `FASTP.out.trimmed` that the trimmed-manifest closure
+must normalize.
+
 - [ ] **Step 2: Verify it skips by default**
 
 Run: `uv run pytest tests/integration/test_nextflow_fastp_stub.py -q`
-Expected: 1 skipped (env var unset).
+Expected: 2 skipped (env var unset; parametrized SE + PE).
 
 - [ ] **Step 3: (If `nextflow` is available) verify it passes once**
 
 Run: `MICROSUITE_RUN_EXTERNAL_INTEGRATION=1 uv run pytest tests/integration/test_nextflow_fastp_stub.py -q`
-Expected: PASS if `nextflow` is on PATH; otherwise SKIP with the "nextflow is not installed" reason. Record which occurred.
+Expected: 2 passed if `nextflow` is on PATH; otherwise 2 SKIP with the "nextflow is not installed" reason. Record which occurred. The single-end case is the regression guard.
 
 - [ ] **Step 4: Commit**
 
