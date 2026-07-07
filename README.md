@@ -36,6 +36,8 @@ Pick whichever fits how you work:
 | Run one task at a time on local files | **CLI commands** | `microsuite trim --backend fastp ...` |
 | Call methods from a notebook or script | **Python SDK** | `from microsuite.api import alpha_diversity` |
 
+Processing many samples at once? See the [multisample & concurrency guide](docs/multisample.md).
+
 The native data object is **AnnData**, but QIIME 2 artifacts (`.qza`), FASTQ
 files, and external-tool formats are supported at the workflow boundaries.
 
