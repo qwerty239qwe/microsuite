@@ -50,6 +50,7 @@ def denoise(
     output_stats: Path,
     output_base_transition_stats: Path | None = None,
     output_base_transition_plot: Path | None = None,
+    output_plot_dir: Path | None = None,
     mode: str | None = None,
     paired: bool = False,
     trim_left: int = 0,
@@ -154,6 +155,7 @@ def denoise(
             output_table=output_table,
             output_rep_seqs=output_rep_seqs,
             output_stats=output_stats,
+            output_plot_dir=output_plot_dir,
             paired=dada2_r_mode == "paired",
             tuning=tuning,
             max_n=max_n,
@@ -432,6 +434,7 @@ def denoise_dada2_r(
     output_table: Path,
     output_rep_seqs: Path,
     output_stats: Path,
+    output_plot_dir: Path | None,
     paired: bool,
     tuning: Dada2Tuning,
     max_n: int | None,
@@ -476,6 +479,8 @@ def denoise_dada2_r(
     if not input_dir.exists() or not input_dir.is_dir():
         raise MicrobiomeSuiteError(f"Input directory does not exist: {input_dir}")
     _prepare_outputs(output_table, output_rep_seqs, output_stats, force=force)
+    if output_plot_dir is not None:
+        output_plot_dir.mkdir(parents=True, exist_ok=True)
 
     command = [
         rscript,
@@ -491,6 +496,8 @@ def denoise_dada2_r(
         "--threads",
         str(threads),
     ]
+    if output_plot_dir is not None:
+        command.extend(["--output-plot-dir", str(output_plot_dir)])
     if paired:
         command.append("--paired")
         command.extend(
@@ -536,6 +543,7 @@ def denoise_dada2_r(
             "table": str(output_table),
             "representative_sequences": str(output_rep_seqs),
             "denoising_stats": str(output_stats),
+            **({"plot_dir": str(output_plot_dir)} if output_plot_dir is not None else {}),
         },
         params=_dada2_log_params(
             mode="paired" if paired else "single",
