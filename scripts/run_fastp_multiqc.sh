@@ -172,7 +172,7 @@ run_one_sample_by_id() {
       --html "${FASTP_REPORT_DIR}/${sample}.fastp.html" \
       --json-report "${FASTP_REPORT_DIR}/${sample}.fastp.json" \
       --threads "${THREADS}" --run-dir "${RUN_DIR}/fastp/${sample}" \
-      "${force_args[@]}" \
+      "${force_args[@]+"${force_args[@]}"}" \
       >"${LOG_DIR}/${sample}.fastp.stdout.log" \
       2>"${LOG_DIR}/${sample}.fastp.stderr.log"
   else
@@ -182,7 +182,7 @@ run_one_sample_by_id() {
       --html "${FASTP_REPORT_DIR}/${sample}.fastp.html" \
       --json-report "${FASTP_REPORT_DIR}/${sample}.fastp.json" \
       --threads "${THREADS}" --run-dir "${RUN_DIR}/fastp/${sample}" \
-      "${force_args[@]}" \
+      "${force_args[@]+"${force_args[@]}"}" \
       >"${LOG_DIR}/${sample}.fastp.stdout.log" \
       2>"${LOG_DIR}/${sample}.fastp.stderr.log"
   fi
@@ -192,7 +192,7 @@ export MANIFEST TRIMMED_DIR FASTP_REPORT_DIR RUN_DIR LOG_DIR THREADS FORCE
 
 echo "Trimming samples (jobs=${JOBS}, threads=${THREADS})"
 tail -n +2 "${MANIFEST}" | cut -f1 \
-  | xargs -P "${JOBS}" -n 1 bash -c 'run_one_sample_by_id "$1"' _
+  | xargs -P "${JOBS}" -n 1 bash -c 'set -euo pipefail; run_one_sample_by_id "$1"' _
 
 force_args=()
 if [[ "${FORCE}" == "1" ]]; then force_args=(--force); fi
@@ -202,7 +202,7 @@ microsuite qc --backend multiqc \
   --input-dir "${FASTP_REPORT_DIR}" \
   --output-dir "${MULTIQC_DIR}" \
   --run-dir "${RUN_DIR}/multiqc" \
-  "${force_args[@]}" \
+  "${force_args[@]+"${force_args[@]}"}" \
   >"${LOG_DIR}/multiqc.stdout.log" \
   2>"${LOG_DIR}/multiqc.stderr.log"
 

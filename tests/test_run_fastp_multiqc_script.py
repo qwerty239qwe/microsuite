@@ -75,3 +75,33 @@ def test_missing_fastp_tool_guard(tmp_path: Path) -> None:
     )
     assert result.returncode != 0
     assert "fastp" in result.stderr
+
+
+@pytest.mark.parametrize("extra_args", [[], ["--force"]])
+def test_default_and_force_runs_complete_with_stub_tools(
+    tmp_path: Path, extra_args: list[str]
+) -> None:
+    fq = tmp_path / "acc"
+    fq.mkdir()
+    _tiny_gz(fq / "y.fastq.gz")
+    # Build a PATH that has python3 + bash + stub microsuite/fastp/multiqc, so
+    # preflight passes and the script proceeds through the trim loop + MultiQC.
+    shim = tmp_path / "bin"
+    shim.mkdir()
+    for tool in ("microsuite", "fastp", "multiqc"):
+        p = shim / tool
+        p.write_text("#!/usr/bin/env bash\nexit 0\n")
+        p.chmod(0o755)
+    real_dirs = {
+        str(Path(shutil.which(tool)).parent)
+        for tool in ("bash", "python3", "tail", "cut", "xargs", "awk", "mkdir")
+    }
+    path = os.pathsep.join([str(shim), *real_dirs])
+    env = dict(os.environ, PATH=path)
+    out = tmp_path / "results"
+    result = subprocess.run(
+        ["bash", str(SCRIPT), "acc", "--input-dir", str(fq),
+         "--output-root", str(out), *extra_args],
+        capture_output=True, text=True, env=env,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
