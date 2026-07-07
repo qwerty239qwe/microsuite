@@ -147,12 +147,15 @@ if (paired) {
   }
   dadaFs <- dada(filtFs, err = errF, pool = pool, multithread = threads)
   dadaRs <- dada(filtRs, err = errR, pool = pool, multithread = threads)
+  names(dadaFs) <- sampleFs
+  names(dadaRs) <- sampleFs
   mergers <- mergePairs(
     dadaFs, filtFs, dadaRs, filtRs,
     minOverlap = as.integer(value_after("--min-overlap", "12")),
     maxMismatch = as.integer(value_after("--max-merge-mismatch", "0")),
     trimOverhang = has_flag("--trim-overhang")
   )
+  names(mergers) <- sampleFs
   seqtab <- makeSequenceTable(mergers)
   seqtab.nochim <- removeBimeraDenovo(
     seqtab,
@@ -188,6 +191,7 @@ if (paired) {
     write_error_plot(err, file.path(output_plot_dir, "error_rates.png"))
   }
   dada_out <- dada(filt, err = err, pool = pool, multithread = threads)
+  names(dada_out) <- samples
   seqtab <- makeSequenceTable(dada_out)
   seqtab.nochim <- removeBimeraDenovo(
     seqtab,

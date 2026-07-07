@@ -464,6 +464,8 @@ def test_dada2_r_script_writes_matching_asv_feature_ids() -> None:
     assert "write_retention_plot" in script
     assert "read_suffix_pattern" in script
     assert "stem_without_fastq_suffix" in script
+    assert "names(mergers) <- sampleFs" in script
+    assert "names(dada_out) <- samples" in script
 
 
 def test_dada2_r_script_wires_advanced_controls() -> None:
