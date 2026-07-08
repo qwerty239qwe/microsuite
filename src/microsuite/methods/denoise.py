@@ -23,6 +23,7 @@ _READ_PATTERNS = [
     re.compile(r"^(?P<sample>.+?)[._-]R(?P<read>[12])(?:[._-]001)?$"),
     re.compile(r"^(?P<sample>.+?)[._-]read(?P<read>[12])(?:[._-]001)?$", re.IGNORECASE),
     re.compile(r"^(?P<sample>.+?)[._-](?P<read>[12])(?:[._-]001)?$"),
+    re.compile(r"^(?P<sample>.+?)[._-]?(?:forward|reverse)$", re.IGNORECASE),
 ]
 _FASTQ_ARTIFACTS = (".fastq", ".fq", ".filtered")
 
@@ -34,18 +35,27 @@ def _fastq_stem(name: str) -> str:
     return name
 
 
-def _expected_sample_ids(input_dir: Path) -> set[str]:
+def _expected_sample_ids(input_dir: Path, *, paired: bool) -> set[str]:
+    """Derive expected ASV-table sample ids, mirroring dada2_denoise.R exactly.
+
+    Paired mode strips the R1/R2/read/forward/reverse suffix (R's ``sample_name``).
+    Single mode keeps the full stem with no suffix stripping (R's
+    ``file_path_sans_ext(file_path_sans_ext(basename(fastqs)))``).
+    """
     samples: set[str] = set()
     for path in sorted(input_dir.iterdir()):
         if not (path.is_file() and path.name.endswith(_FASTQ_EXTS)):
             continue
         stem = _fastq_stem(path.name)
+        if not paired:
+            samples.add(stem)
+            continue
         match = next((m for m in (p.match(stem) for p in _READ_PATTERNS) if m), None)
         samples.add(match.group("sample") if match else stem)
     return samples
 
 
-def _validate_dada2_asv_samples(output_table: Path, input_dir: Path) -> None:
+def _validate_dada2_asv_samples(output_table: Path, input_dir: Path, *, paired: bool) -> None:
     lines = output_table.read_text(encoding="utf-8").splitlines()
     if not lines:
         raise MicrobiomeSuiteError(f"ASV table is empty: {output_table}")
@@ -61,7 +71,7 @@ def _validate_dada2_asv_samples(output_table: Path, input_dir: Path) -> None:
                 f"ASV table sample column looks like a raw/filtered FASTQ name, not a "
                 f"sample id: {col!r} in {output_table}"
             )
-    expected = _expected_sample_ids(input_dir)
+    expected = _expected_sample_ids(input_dir, paired=paired)
     actual = set(columns)
     if actual != expected:
         raise MicrobiomeSuiteError(
@@ -634,7 +644,7 @@ def denoise_dada2_r(
                 **run_kwargs,
             )
             if validate:
-                _validate_dada2_asv_samples(output_table, input_dir)
+                _validate_dada2_asv_samples(output_table, input_dir, paired=paired)
     else:
         with as_file(script_res) as script_path:
             command = [rscript, str(script_path)] + _dada2_r_script_args(
@@ -658,7 +668,7 @@ def denoise_dada2_r(
                 **run_kwargs,
             )
             if validate:
-                _validate_dada2_asv_samples(output_table, input_dir)
+                _validate_dada2_asv_samples(output_table, input_dir, paired=paired)
 
 
 def _resolve_dada2_mode(*, mode: str | None, paired: bool) -> str:

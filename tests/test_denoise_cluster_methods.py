@@ -1033,11 +1033,39 @@ def test_cli_exposes_denoise_cluster_and_reports_missing_qiime(
 def test_expected_sample_ids_pe_and_se(tmp_path) -> None:
     from microsuite.methods.denoise import _expected_sample_ids
 
+    pe_dir = tmp_path / "reads_pe"
+    pe_dir.mkdir()
+    for n in ("a_1.fastq.gz", "a_2.fastq.gz", "b_R1.fastq.gz", "b_R2.fastq.gz"):
+        (pe_dir / n).write_text("x")
+    assert _expected_sample_ids(pe_dir, paired=True) == {"a", "b"}
+
+    se_dir = tmp_path / "reads_se"
+    se_dir.mkdir()
+    for n in ("a.fastq.gz", "b.fastq.gz", "c.fastq.gz"):
+        (se_dir / n).write_text("x")
+    assert _expected_sample_ids(se_dir, paired=False) == {"a", "b", "c"}
+
+
+def test_expected_sample_ids_single_mode_keeps_read_suffix(tmp_path) -> None:
+    """Regression: single-mode R backend keeps the read suffix in the sample id
+    (only strips file extensions via file_path_sans_ext twice); the ASV table
+    column is the full stem, not the suffix-stripped sample name."""
+    from microsuite.methods.denoise import _expected_sample_ids
+
     d = tmp_path / "reads"
     d.mkdir()
-    for n in ("a_1.fastq.gz", "a_2.fastq.gz", "b_R1.fastq.gz", "b_R2.fastq.gz", "c.fastq.gz"):
-        (d / n).write_text("x")
-    assert _expected_sample_ids(d) == {"a", "b", "c"}
+    (d / "SampleA_R1_001.fastq.gz").write_text("x")
+    assert _expected_sample_ids(d, paired=False) == {"SampleA_R1_001"}
+
+
+def test_expected_sample_ids_forward_reverse(tmp_path) -> None:
+    from microsuite.methods.denoise import _expected_sample_ids
+
+    d = tmp_path / "reads"
+    d.mkdir()
+    (d / "s_forward.fastq.gz").write_text("x")
+    (d / "s_reverse.fastq.gz").write_text("x")
+    assert _expected_sample_ids(d, paired=True) == {"s"}
 
 
 def test_validate_asv_samples_ok(tmp_path) -> None:
@@ -1050,7 +1078,20 @@ def test_validate_asv_samples_ok(tmp_path) -> None:
     table = tmp_path / "asv.tsv"
     # write.table(col.names=NA): leading empty header cell, then samples; rows are ASV ids
     table.write_text("\ta\tb\nASV1\t5\t3\n", encoding="utf-8")
-    _validate_dada2_asv_samples(table, d)  # no raise
+    _validate_dada2_asv_samples(table, d, paired=False)  # no raise
+
+
+def test_validate_asv_samples_single_mode_keeps_read_suffix(tmp_path) -> None:
+    """Regression: a fully successful single-mode dada2-r run must not raise a
+    false mismatch even though the FASTQ has a read suffix (R keeps it)."""
+    from microsuite.methods.denoise import _validate_dada2_asv_samples
+
+    d = tmp_path / "reads"
+    d.mkdir()
+    (d / "SampleA_R1_001.fastq.gz").write_text("x")
+    table = tmp_path / "asv.tsv"
+    table.write_text("\tSampleA_R1_001\nASV1\t5\n", encoding="utf-8")
+    _validate_dada2_asv_samples(table, d, paired=False)  # no raise
 
 
 def test_validate_asv_samples_rejects_fastq_artifact(tmp_path) -> None:
@@ -1063,7 +1104,7 @@ def test_validate_asv_samples_rejects_fastq_artifact(tmp_path) -> None:
     table = tmp_path / "asv.tsv"
     table.write_text("\ta.R1.filtered.fastq.gz\nASV1\t5\n", encoding="utf-8")
     with pytest.raises(MicrobiomeSuiteError, match="filtered|fastq"):
-        _validate_dada2_asv_samples(table, d)
+        _validate_dada2_asv_samples(table, d, paired=False)
 
 
 def test_validate_asv_samples_rejects_mismatch(tmp_path) -> None:
@@ -1077,4 +1118,4 @@ def test_validate_asv_samples_rejects_mismatch(tmp_path) -> None:
     table = tmp_path / "asv.tsv"
     table.write_text("\ta\tZ\nASV1\t5\t3\n", encoding="utf-8")  # Z not an input sample
     with pytest.raises(MicrobiomeSuiteError, match="sample"):
-        _validate_dada2_asv_samples(table, d)
+        _validate_dada2_asv_samples(table, d, paired=False)
