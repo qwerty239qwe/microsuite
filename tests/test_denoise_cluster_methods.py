@@ -627,6 +627,36 @@ def test_denoise_dada2_r_local_error_points_to_docker(tmp_path, monkeypatch) -> 
         )
 
 
+def test_denoise_dada2_r_local_missing_rscript_checked_before_output_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from microsuite._errors import MicrobiomeSuiteError
+    from microsuite.methods.denoise import denoise
+
+    input_dir = tmp_path / "reads"
+    input_dir.mkdir()
+    (input_dir / "s.fastq.gz").write_text("x")
+    out = tmp_path / "out"
+    out.mkdir()
+    output_table = out / "t.tsv"
+    output_table.write_text("existing")  # pre-existing output, force=False
+    monkeypatch.setattr("shutil.which", lambda name: None)  # no Rscript
+
+    with pytest.raises(MicrobiomeSuiteError, match="--runtime docker") as excinfo:
+        denoise(
+            backend="dada2-r",
+            demux=input_dir,
+            output_table=output_table,
+            output_rep_seqs=out / "r.fa",
+            output_stats=out / "s.tsv",
+            mode="single",
+            threads=1,
+            force=False,
+        )
+
+    assert "Output exists" not in str(excinfo.value)
+
+
 def test_denoise_docker_rejected_for_non_dada2r_backend(tmp_path) -> None:
     from microsuite._errors import MicrobiomeSuiteError
     from microsuite.methods.denoise import denoise

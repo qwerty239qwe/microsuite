@@ -475,6 +475,18 @@ def denoise_dada2_r(
         resolve_dada2_image,
     )
 
+    if runtime == "docker":
+        require_engine("docker")
+    else:
+        rscript = shutil.which("Rscript")
+        if rscript is None:
+            raise MicrobiomeSuiteError(
+                "R/DADA2 denoising requires the external 'Rscript' command. "
+                "Install R with the dada2 package, or run it in a container with "
+                "--runtime docker (uses the r-dada2 image; no local R needed). "
+                "See docs/dada2.md."
+            )
+
     if not input_dir.exists() or not input_dir.is_dir():
         raise MicrobiomeSuiteError(f"Input directory does not exist: {input_dir}")
     _prepare_outputs(output_table, output_rep_seqs, output_stats, force=force)
@@ -483,8 +495,35 @@ def denoise_dada2_r(
 
     script_res = files("microsuite.methods.r").joinpath(DADA2_R_SCRIPT)
 
+    run_kwargs = dict(
+        backend="dada2-r",
+        inputs={"input_dir": str(input_dir)},
+        outputs={
+            "table": str(output_table),
+            "representative_sequences": str(output_rep_seqs),
+            "denoising_stats": str(output_stats),
+            **({"plot_dir": str(output_plot_dir)} if output_plot_dir is not None else {}),
+        },
+        params=_dada2_log_params(
+            mode="paired" if paired else "single",
+            max_ee=tuning.max_ee,
+            max_ee_f=tuning.max_ee_f,
+            max_ee_r=tuning.max_ee_r,
+            trunc_q=tuning.trunc_q,
+            max_n=max_n,
+            rm_phix=rm_phix,
+            pooling_method=tuning.pooling_method,
+            chimera_method=tuning.chimera_method,
+            min_fold_parent_over_abundance=tuning.min_fold_parent_over_abundance,
+            allow_one_off=tuning.allow_one_off,
+            n_reads_learn=tuning.n_reads_learn,
+            min_overlap=min_overlap,
+            max_merge_mismatch=max_merge_mismatch,
+            trim_overhang=trim_overhang,
+        ),
+    )
+
     if runtime == "docker":
-        require_engine("docker")
         # bind mounts cannot expose symlink targets inside input_dir
         for entry in input_dir.iterdir():
             if entry.is_symlink() and entry.name.endswith((".fastq", ".fq", ".fastq.gz", ".fq.gz")):
@@ -523,15 +562,14 @@ def denoise_dada2_r(
             command = build_container_command(
                 inner, resolve_dada2_image(image), mapper.mounts(), engine="docker"
             )
-    else:
-        rscript = shutil.which("Rscript")
-        if rscript is None:
-            raise MicrobiomeSuiteError(
-                "R/DADA2 denoising requires the external 'Rscript' command. "
-                "Install R with the dada2 package, or run it in a container with "
-                "--runtime docker (uses the r-dada2 image; no local R needed). "
-                "See docs/dada2.md."
+            _run(
+                command,
+                "R/DADA2 denoising failed.",
+                run_dir=run_dir,
+                timeout=timeout,
+                **run_kwargs,
             )
+    else:
         with as_file(script_res) as script_path:
             command = [rscript, str(script_path)] + _dada2_r_script_args(
                 input_dir=str(input_dir),
@@ -545,38 +583,13 @@ def denoise_dada2_r(
                 max_n=max_n,
                 rm_phix=rm_phix,
             )
-
-    _run(
-        command,
-        "R/DADA2 denoising failed.",
-        run_dir=run_dir,
-        timeout=timeout,
-        backend="dada2-r",
-        inputs={"input_dir": str(input_dir)},
-        outputs={
-            "table": str(output_table),
-            "representative_sequences": str(output_rep_seqs),
-            "denoising_stats": str(output_stats),
-            **({"plot_dir": str(output_plot_dir)} if output_plot_dir is not None else {}),
-        },
-        params=_dada2_log_params(
-            mode="paired" if paired else "single",
-            max_ee=tuning.max_ee,
-            max_ee_f=tuning.max_ee_f,
-            max_ee_r=tuning.max_ee_r,
-            trunc_q=tuning.trunc_q,
-            max_n=max_n,
-            rm_phix=rm_phix,
-            pooling_method=tuning.pooling_method,
-            chimera_method=tuning.chimera_method,
-            min_fold_parent_over_abundance=tuning.min_fold_parent_over_abundance,
-            allow_one_off=tuning.allow_one_off,
-            n_reads_learn=tuning.n_reads_learn,
-            min_overlap=min_overlap,
-            max_merge_mismatch=max_merge_mismatch,
-            trim_overhang=trim_overhang,
-        ),
-    )
+            _run(
+                command,
+                "R/DADA2 denoising failed.",
+                run_dir=run_dir,
+                timeout=timeout,
+                **run_kwargs,
+            )
 
 
 def _resolve_dada2_mode(*, mode: str | None, paired: bool) -> str:
