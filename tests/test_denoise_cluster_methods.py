@@ -1028,3 +1028,53 @@ def test_cli_exposes_denoise_cluster_and_reports_missing_qiime(
 
     assert result.exit_code == 1
     assert result.exception is not None
+
+
+def test_expected_sample_ids_pe_and_se(tmp_path) -> None:
+    from microsuite.methods.denoise import _expected_sample_ids
+
+    d = tmp_path / "reads"
+    d.mkdir()
+    for n in ("a_1.fastq.gz", "a_2.fastq.gz", "b_R1.fastq.gz", "b_R2.fastq.gz", "c.fastq.gz"):
+        (d / n).write_text("x")
+    assert _expected_sample_ids(d) == {"a", "b", "c"}
+
+
+def test_validate_asv_samples_ok(tmp_path) -> None:
+    from microsuite.methods.denoise import _validate_dada2_asv_samples
+
+    d = tmp_path / "reads"
+    d.mkdir()
+    (d / "a.fastq.gz").write_text("x")
+    (d / "b.fastq.gz").write_text("x")
+    table = tmp_path / "asv.tsv"
+    # write.table(col.names=NA): leading empty header cell, then samples; rows are ASV ids
+    table.write_text("\ta\tb\nASV1\t5\t3\n", encoding="utf-8")
+    _validate_dada2_asv_samples(table, d)  # no raise
+
+
+def test_validate_asv_samples_rejects_fastq_artifact(tmp_path) -> None:
+    from microsuite._errors import MicrobiomeSuiteError
+    from microsuite.methods.denoise import _validate_dada2_asv_samples
+
+    d = tmp_path / "reads"
+    d.mkdir()
+    (d / "a.fastq.gz").write_text("x")
+    table = tmp_path / "asv.tsv"
+    table.write_text("\ta.R1.filtered.fastq.gz\nASV1\t5\n", encoding="utf-8")
+    with pytest.raises(MicrobiomeSuiteError, match="filtered|fastq"):
+        _validate_dada2_asv_samples(table, d)
+
+
+def test_validate_asv_samples_rejects_mismatch(tmp_path) -> None:
+    from microsuite._errors import MicrobiomeSuiteError
+    from microsuite.methods.denoise import _validate_dada2_asv_samples
+
+    d = tmp_path / "reads"
+    d.mkdir()
+    (d / "a.fastq.gz").write_text("x")
+    (d / "b.fastq.gz").write_text("x")
+    table = tmp_path / "asv.tsv"
+    table.write_text("\ta\tZ\nASV1\t5\t3\n", encoding="utf-8")  # Z not an input sample
+    with pytest.raises(MicrobiomeSuiteError, match="sample"):
+        _validate_dada2_asv_samples(table, d)

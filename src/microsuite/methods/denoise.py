@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 from dataclasses import dataclass
 from importlib.resources import files
@@ -16,6 +17,57 @@ DADA2_MODES = ("single", "paired", "ccs", "pyro")
 POOLING_METHODS = ("independent", "pseudo")
 CHIMERA_METHODS = ("consensus", "none")
 DADA2_R_SCRIPT = "dada2_denoise.R"
+
+_FASTQ_EXTS = (".fastq.gz", ".fq.gz", ".fastq", ".fq")
+_READ_PATTERNS = [
+    re.compile(r"^(?P<sample>.+?)[._-]R(?P<read>[12])(?:[._-]001)?$"),
+    re.compile(r"^(?P<sample>.+?)[._-]read(?P<read>[12])(?:[._-]001)?$", re.IGNORECASE),
+    re.compile(r"^(?P<sample>.+?)[._-](?P<read>[12])(?:[._-]001)?$"),
+]
+_FASTQ_ARTIFACTS = (".fastq", ".fq", ".filtered")
+
+
+def _fastq_stem(name: str) -> str:
+    for ext in _FASTQ_EXTS:
+        if name.endswith(ext):
+            return name[: -len(ext)]
+    return name
+
+
+def _expected_sample_ids(input_dir: Path) -> set[str]:
+    samples: set[str] = set()
+    for path in sorted(input_dir.iterdir()):
+        if not (path.is_file() and path.name.endswith(_FASTQ_EXTS)):
+            continue
+        stem = _fastq_stem(path.name)
+        match = next((m for m in (p.match(stem) for p in _READ_PATTERNS) if m), None)
+        samples.add(match.group("sample") if match else stem)
+    return samples
+
+
+def _validate_dada2_asv_samples(output_table: Path, input_dir: Path) -> None:
+    lines = output_table.read_text(encoding="utf-8").splitlines()
+    if not lines:
+        raise MicrobiomeSuiteError(f"ASV table is empty: {output_table}")
+    # write.table(col.names=NA): header is "<empty>\tsample1\tsample2..."
+    columns = lines[0].split("\t")[1:]
+    if not columns:
+        raise MicrobiomeSuiteError(f"ASV table has no sample columns: {output_table}")
+    if len(set(columns)) != len(columns):
+        raise MicrobiomeSuiteError(f"ASV table has duplicate sample columns: {output_table}")
+    for col in columns:
+        if not col or any(token in col for token in _FASTQ_ARTIFACTS):
+            raise MicrobiomeSuiteError(
+                f"ASV table sample column looks like a raw/filtered FASTQ name, not a "
+                f"sample id: {col!r} in {output_table}"
+            )
+    expected = _expected_sample_ids(input_dir)
+    actual = set(columns)
+    if actual != expected:
+        raise MicrobiomeSuiteError(
+            f"ASV table sample columns do not match the input samples. "
+            f"Unexpected: {sorted(actual - expected)}; missing: {sorted(expected - actual)}."
+        )
 
 
 @dataclass(frozen=True)
@@ -581,6 +633,8 @@ def denoise_dada2_r(
                 validate=validate,
                 **run_kwargs,
             )
+            if validate:
+                _validate_dada2_asv_samples(output_table, input_dir)
     else:
         with as_file(script_res) as script_path:
             command = [rscript, str(script_path)] + _dada2_r_script_args(
@@ -603,6 +657,8 @@ def denoise_dada2_r(
                 validate=validate,
                 **run_kwargs,
             )
+            if validate:
+                _validate_dada2_asv_samples(output_table, input_dir)
 
 
 def _resolve_dada2_mode(*, mode: str | None, paired: bool) -> str:
