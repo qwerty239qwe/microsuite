@@ -499,6 +499,180 @@ def test_denoise_dada2_r_missing_rscript(tmp_path: Path, monkeypatch: pytest.Mon
         )
 
 
+def test_denoise_dada2_r_docker_builds_container_command(tmp_path, monkeypatch) -> None:
+    import subprocess
+
+    from microsuite.methods.denoise import denoise
+
+    input_dir = tmp_path / "reads"
+    input_dir.mkdir()
+    (input_dir / "s_1.fastq.gz").write_text("x")
+    (input_dir / "s_2.fastq.gz").write_text("x")
+    out = tmp_path / "out"
+    out.mkdir()
+
+    monkeypatch.setattr("shutil.which", lambda name: "docker" if name == "docker" else None)
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    denoise(
+        backend="dada2-r",
+        demux=input_dir,
+        output_table=out / "table.tsv",
+        output_rep_seqs=out / "rep.fasta",
+        output_stats=out / "stats.tsv",
+        output_plot_dir=out / "plots",
+        mode="paired",
+        threads=2,
+        force=True,
+        runtime="docker",
+    )
+
+    cmd = calls[0]
+    assert cmd[0] == "docker" and cmd[1] == "run" and "--rm" in cmd
+    assert any(tok.endswith("dada2_denoise.R") for tok in cmd)
+    # input mounted ro, outputs rw
+    assert any(v.endswith(":ro") and "reads" in v for v in cmd)
+    # default GHCR image present
+    assert any("r-dada2" in tok for tok in cmd)
+    # container paths, not host paths, in the R args
+    assert "--input-dir" in cmd
+    idx = cmd.index("--input-dir")
+    assert cmd[idx + 1].startswith("/work/")
+
+
+def test_denoise_dada2_r_docker_image_override(tmp_path, monkeypatch) -> None:
+    import subprocess
+
+    from microsuite.methods.denoise import denoise
+
+    input_dir = tmp_path / "reads"
+    input_dir.mkdir()
+    (input_dir / "s.fastq.gz").write_text("x")
+    out = tmp_path / "out"
+    out.mkdir()
+    monkeypatch.setattr("shutil.which", lambda name: "docker" if name == "docker" else None)
+    calls: list[list[str]] = []
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kw: (
+            calls.append(command),
+            subprocess.CompletedProcess(command, 0, "", ""),
+        )[1],
+    )
+    denoise(
+        backend="dada2-r",
+        demux=input_dir,
+        output_table=out / "t.tsv",
+        output_rep_seqs=out / "r.fa",
+        output_stats=out / "s.tsv",
+        mode="single",
+        threads=1,
+        force=True,
+        runtime="docker",
+        dada2_image="myrepo/rd:1.2",
+    )
+    assert "myrepo/rd:1.2" in calls[0]
+
+
+def test_denoise_dada2_r_docker_missing_engine(tmp_path, monkeypatch) -> None:
+    from microsuite._errors import MicrobiomeSuiteError
+    from microsuite.methods.denoise import denoise
+
+    input_dir = tmp_path / "reads"
+    input_dir.mkdir()
+    (input_dir / "s.fastq.gz").write_text("x")
+    out = tmp_path / "out"
+    out.mkdir()
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    with pytest.raises(MicrobiomeSuiteError, match="docker"):
+        denoise(
+            backend="dada2-r",
+            demux=input_dir,
+            output_table=out / "t.tsv",
+            output_rep_seqs=out / "r.fa",
+            output_stats=out / "s.tsv",
+            mode="single",
+            threads=1,
+            force=True,
+            runtime="docker",
+        )
+
+
+def test_denoise_dada2_r_local_error_points_to_docker(tmp_path, monkeypatch) -> None:
+    from microsuite._errors import MicrobiomeSuiteError
+    from microsuite.methods.denoise import denoise
+
+    input_dir = tmp_path / "reads"
+    input_dir.mkdir()
+    (input_dir / "s.fastq.gz").write_text("x")
+    out = tmp_path / "out"
+    out.mkdir()
+    monkeypatch.setattr("shutil.which", lambda name: None)  # no Rscript
+    with pytest.raises(MicrobiomeSuiteError, match="--runtime docker"):
+        denoise(
+            backend="dada2-r",
+            demux=input_dir,
+            output_table=out / "t.tsv",
+            output_rep_seqs=out / "r.fa",
+            output_stats=out / "s.tsv",
+            mode="single",
+            threads=1,
+            force=True,  # runtime defaults to local
+        )
+
+
+def test_denoise_dada2_r_local_missing_rscript_checked_before_output_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from microsuite._errors import MicrobiomeSuiteError
+    from microsuite.methods.denoise import denoise
+
+    input_dir = tmp_path / "reads"
+    input_dir.mkdir()
+    (input_dir / "s.fastq.gz").write_text("x")
+    out = tmp_path / "out"
+    out.mkdir()
+    output_table = out / "t.tsv"
+    output_table.write_text("existing")  # pre-existing output, force=False
+    monkeypatch.setattr("shutil.which", lambda name: None)  # no Rscript
+
+    with pytest.raises(MicrobiomeSuiteError, match="--runtime docker") as excinfo:
+        denoise(
+            backend="dada2-r",
+            demux=input_dir,
+            output_table=output_table,
+            output_rep_seqs=out / "r.fa",
+            output_stats=out / "s.tsv",
+            mode="single",
+            threads=1,
+            force=False,
+        )
+
+    assert "Output exists" not in str(excinfo.value)
+
+
+def test_denoise_docker_rejected_for_non_dada2r_backend(tmp_path) -> None:
+    from microsuite._errors import MicrobiomeSuiteError
+    from microsuite.methods.denoise import denoise
+
+    with pytest.raises(MicrobiomeSuiteError, match="dada2-r"):
+        denoise(
+            backend="qiime2-dada2",
+            demux=tmp_path / "d.qza",
+            output_table=tmp_path / "t.qza",
+            output_rep_seqs=tmp_path / "r.qza",
+            output_stats=tmp_path / "s.qza",
+            trunc_len=150,
+            runtime="docker",
+        )
+
+
 def test_cluster_qiime2_vsearch_builds_command(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
