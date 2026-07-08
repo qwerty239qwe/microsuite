@@ -184,6 +184,13 @@ def register(app: typer.Typer) -> None:
         timeout: Annotated[
             float | None, typer.Option("--timeout", help="Command timeout in seconds.")
         ] = None,
+        runtime: Annotated[
+            str, typer.Option("--runtime", help="dada2-r execution: local or docker.")
+        ] = "local",
+        image: Annotated[
+            str | None,
+            typer.Option("--image", help="Container image for --runtime docker (dada2-r)."),
+        ] = None,
     ) -> None:
         denoise(
             backend=backend,
@@ -228,6 +235,8 @@ def register(app: typer.Typer) -> None:
             force=force,
             run_dir=run_dir,
             timeout=timeout,
+            runtime=runtime,
+            dada2_image=image,
         )
 
     @app.command("cluster")

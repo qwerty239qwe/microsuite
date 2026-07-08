@@ -85,8 +85,12 @@ def denoise(
     force: bool = False,
     run_dir: Path | None = None,
     timeout: float | None = None,
+    runtime: str = "local",
+    dada2_image: str | None = None,
 ) -> None:
     backend = require_backend(backend, SUPPORTED_BACKENDS, "denoise")
+    if runtime != "local" and backend != "dada2-r":
+        raise MicrobiomeSuiteError("--runtime docker is only supported for --backend dada2-r.")
     resolved_threads = resolve_threads(threads)
     tuning = Dada2Tuning(
         trim_left=trim_left,
@@ -164,6 +168,8 @@ def denoise(
             force=force,
             run_dir=run_dir,
             timeout=timeout,
+            runtime=runtime,
+            image=dada2_image,
         )
         return
 
@@ -443,26 +449,15 @@ def denoise_dada2_r(
     force: bool,
     run_dir: Path | None,
     timeout: float | None,
+    runtime: str = "local",
+    image: str | None = None,
 ) -> None:
-    trim_left = tuning.trim_left
-    trunc_len = tuning.trunc_len
-    trim_left_f = tuning.trim_left_f
-    trunc_len_f = tuning.trunc_len_f
-    trim_left_r = tuning.trim_left_r
-    trunc_len_r = tuning.trunc_len_r
-    max_ee = tuning.max_ee
-    max_ee_f = tuning.max_ee_f
-    max_ee_r = tuning.max_ee_r
-    trunc_q = tuning.trunc_q
-    pooling_method = tuning.pooling_method
-    chimera_method = tuning.chimera_method
-    min_fold_parent_over_abundance = tuning.min_fold_parent_over_abundance
-    allow_one_off = tuning.allow_one_off
-    n_reads_learn = tuning.n_reads_learn
     min_overlap = tuning.min_overlap
     max_merge_mismatch = tuning.max_merge_mismatch
     trim_overhang = tuning.trim_overhang
-    _validate_dada2_common(pooling_method=pooling_method, chimera_method=chimera_method)
+    _validate_dada2_common(
+        pooling_method=tuning.pooling_method, chimera_method=tuning.chimera_method
+    )
     if not paired and any(
         value is not None for value in (min_overlap, max_merge_mismatch, trim_overhang)
     ):
@@ -470,68 +465,87 @@ def denoise_dada2_r(
             "--min-overlap, --max-merge-mismatch, and --trim-overhang only apply "
             "to paired DADA2 R mode."
         )
-    rscript = shutil.which("Rscript")
-    if rscript is None:
-        raise MicrobiomeSuiteError(
-            "R/DADA2 denoising requires the external 'Rscript' command. "
-            "Install R with the dada2 package and rerun this command."
-        )
+
+    from importlib.resources import as_file
+
+    from microsuite.runtime.container import (
+        PathMapper,
+        build_container_command,
+        require_engine,
+        resolve_dada2_image,
+    )
+
     if not input_dir.exists() or not input_dir.is_dir():
         raise MicrobiomeSuiteError(f"Input directory does not exist: {input_dir}")
     _prepare_outputs(output_table, output_rep_seqs, output_stats, force=force)
     if output_plot_dir is not None:
         output_plot_dir.mkdir(parents=True, exist_ok=True)
 
-    command = [
-        rscript,
-        str(files("microsuite.methods.r").joinpath(DADA2_R_SCRIPT)),
-        "--input-dir",
-        str(input_dir),
-        "--output-table",
-        str(output_table),
-        "--output-rep-seqs",
-        str(output_rep_seqs),
-        "--output-stats",
-        str(output_stats),
-        "--threads",
-        str(threads),
-    ]
-    if output_plot_dir is not None:
-        command.extend(["--output-plot-dir", str(output_plot_dir)])
-    if paired:
-        command.append("--paired")
-        command.extend(
-            [
-                "--trim-left-f",
-                str(trim_left_f),
-                "--trunc-len-f",
-                str(trunc_len_f),
-                "--trim-left-r",
-                str(trim_left_r),
-                "--trunc-len-r",
-                str(trunc_len_r),
-            ]
-        )
-        _append_value(command, "--max-ee-f", max_ee_f)
-        _append_value(command, "--max-ee-r", max_ee_r)
-        _append_value(command, "--min-overlap", min_overlap)
-        _append_value(command, "--max-merge-mismatch", max_merge_mismatch)
-        _append_bool(command, "--trim-overhang", trim_overhang)
+    script_res = files("microsuite.methods.r").joinpath(DADA2_R_SCRIPT)
+
+    if runtime == "docker":
+        require_engine("docker")
+        # bind mounts cannot expose symlink targets inside input_dir
+        for entry in input_dir.iterdir():
+            if entry.is_symlink() and entry.name.endswith((".fastq", ".fq", ".fastq.gz", ".fq.gz")):
+                raise MicrobiomeSuiteError(
+                    f"Input FASTQ is a symlink and cannot be mounted into the container: "
+                    f"{entry}. Copy/hardlink real files, or use --runtime local."
+                )
+        with as_file(script_res) as script_path:
+            mapper = PathMapper()
+            mapper.add_dir(input_dir, "ro", "/work/input")
+            mapper.add_dir(script_path.parent, "ro", "/work/script")
+            out_index = 0
+            for out in (output_table, output_rep_seqs, output_stats):
+                key = out.resolve().parent
+                if key not in {m.host for m in mapper.mounts()}:
+                    mapper.add_dir(key, "rw", f"/work/out{out_index}")
+                    out_index += 1
+            if output_plot_dir is not None:
+                if output_plot_dir.resolve() not in {m.host for m in mapper.mounts()}:
+                    mapper.add_dir(output_plot_dir, "rw", f"/work/out{out_index}")
+            inner = [f"{mapper.container_dir(script_path.parent)}/{script_path.name}"]
+            inner += _dada2_r_script_args(
+                input_dir=mapper.container_dir(input_dir),
+                output_table=mapper.to_container(output_table),
+                output_rep_seqs=mapper.to_container(output_rep_seqs),
+                output_stats=mapper.to_container(output_stats),
+                output_plot_dir=(
+                    mapper.container_dir(output_plot_dir) if output_plot_dir else None
+                ),
+                threads=threads,
+                paired=paired,
+                tuning=tuning,
+                max_n=max_n,
+                rm_phix=rm_phix,
+            )
+            command = build_container_command(
+                inner, resolve_dada2_image(image), mapper.mounts(), engine="docker"
+            )
     else:
-        command.extend(["--trim-left", str(trim_left), "--trunc-len", str(trunc_len)])
-        _append_value(command, "--max-ee", max_ee)
-    _append_value(command, "--trunc-q", trunc_q)
-    _append_value(command, "--max-n", max_n)
-    _append_bool(command, "--rm-phix", rm_phix)
-    _append_value(command, "--pooling-method", pooling_method)
-    _append_value(command, "--chimera-method", chimera_method)
-    _append_value(
-        command,
-        "--min-fold-parent-over-abundance",
-        min_fold_parent_over_abundance,
-    )
-    _append_bool(command, "--allow-one-off", allow_one_off)
-    _append_value(command, "--n-reads-learn", n_reads_learn)
+        rscript = shutil.which("Rscript")
+        if rscript is None:
+            raise MicrobiomeSuiteError(
+                "R/DADA2 denoising requires the external 'Rscript' command. "
+                "Install R with the dada2 package, or run it in a container with "
+                "--runtime docker (uses the r-dada2 image; no local R needed). "
+                "See docs/dada2.md."
+            )
+        with as_file(script_res) as script_path:
+            command = [rscript, str(script_path)] + _dada2_r_script_args(
+                input_dir=str(input_dir),
+                output_table=str(output_table),
+                output_rep_seqs=str(output_rep_seqs),
+                output_stats=str(output_stats),
+                output_plot_dir=(str(output_plot_dir) if output_plot_dir else None),
+                threads=threads,
+                paired=paired,
+                tuning=tuning,
+                max_n=max_n,
+                rm_phix=rm_phix,
+            )
+
     _run(
         command,
         "R/DADA2 denoising failed.",
@@ -547,17 +561,17 @@ def denoise_dada2_r(
         },
         params=_dada2_log_params(
             mode="paired" if paired else "single",
-            max_ee=max_ee,
-            max_ee_f=max_ee_f,
-            max_ee_r=max_ee_r,
-            trunc_q=trunc_q,
+            max_ee=tuning.max_ee,
+            max_ee_f=tuning.max_ee_f,
+            max_ee_r=tuning.max_ee_r,
+            trunc_q=tuning.trunc_q,
             max_n=max_n,
             rm_phix=rm_phix,
-            pooling_method=pooling_method,
-            chimera_method=chimera_method,
-            min_fold_parent_over_abundance=min_fold_parent_over_abundance,
-            allow_one_off=allow_one_off,
-            n_reads_learn=n_reads_learn,
+            pooling_method=tuning.pooling_method,
+            chimera_method=tuning.chimera_method,
+            min_fold_parent_over_abundance=tuning.min_fold_parent_over_abundance,
+            allow_one_off=tuning.allow_one_off,
+            n_reads_learn=tuning.n_reads_learn,
             min_overlap=min_overlap,
             max_merge_mismatch=max_merge_mismatch,
             trim_overhang=trim_overhang,
@@ -589,6 +603,66 @@ def _validate_dada2_common(*, pooling_method: str | None, chimera_method: str | 
             f"Unsupported DADA2 chimera method '{chimera_method}'. "
             f"Choose one of: {', '.join(CHIMERA_METHODS)}"
         )
+
+
+def _dada2_r_script_args(
+    *,
+    input_dir: str,
+    output_table: str,
+    output_rep_seqs: str,
+    output_stats: str,
+    output_plot_dir: str | None,
+    threads: int,
+    paired: bool,
+    tuning: Dada2Tuning,
+    max_n: int | None,
+    rm_phix: bool | None,
+) -> list[str]:
+    args = [
+        "--input-dir",
+        input_dir,
+        "--output-table",
+        output_table,
+        "--output-rep-seqs",
+        output_rep_seqs,
+        "--output-stats",
+        output_stats,
+        "--threads",
+        str(threads),
+    ]
+    if output_plot_dir is not None:
+        args.extend(["--output-plot-dir", output_plot_dir])
+    if paired:
+        args.append("--paired")
+        args.extend(
+            [
+                "--trim-left-f",
+                str(tuning.trim_left_f),
+                "--trunc-len-f",
+                str(tuning.trunc_len_f),
+                "--trim-left-r",
+                str(tuning.trim_left_r),
+                "--trunc-len-r",
+                str(tuning.trunc_len_r),
+            ]
+        )
+        _append_value(args, "--max-ee-f", tuning.max_ee_f)
+        _append_value(args, "--max-ee-r", tuning.max_ee_r)
+        _append_value(args, "--min-overlap", tuning.min_overlap)
+        _append_value(args, "--max-merge-mismatch", tuning.max_merge_mismatch)
+        _append_bool(args, "--trim-overhang", tuning.trim_overhang)
+    else:
+        args.extend(["--trim-left", str(tuning.trim_left), "--trunc-len", str(tuning.trunc_len)])
+        _append_value(args, "--max-ee", tuning.max_ee)
+    _append_value(args, "--trunc-q", tuning.trunc_q)
+    _append_value(args, "--max-n", max_n)
+    _append_bool(args, "--rm-phix", rm_phix)
+    _append_value(args, "--pooling-method", tuning.pooling_method)
+    _append_value(args, "--chimera-method", tuning.chimera_method)
+    _append_value(args, "--min-fold-parent-over-abundance", tuning.min_fold_parent_over_abundance)
+    _append_bool(args, "--allow-one-off", tuning.allow_one_off)
+    _append_value(args, "--n-reads-learn", tuning.n_reads_learn)
+    return args
 
 
 def _append_value(command: list[str], flag: str, value: object | None) -> None:
