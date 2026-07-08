@@ -49,6 +49,7 @@ def test_denoise_qiime2_dada2_single_builds_command(
         trunc_len=150,
         trim_left=5,
         threads=2,
+        validate=False,
     )
 
     assert calls == [
@@ -117,6 +118,7 @@ def test_cli_denoise_qiime2_run_dir_writes_runtime_logs(
             "150",
             "--run-dir",
             str(run_dir),
+            "--no-validate",
         ],
     )
 
@@ -161,6 +163,7 @@ def test_denoise_qiime2_dada2_paired_builds_command(
         trim_left_r=11,
         trunc_len_r=149,
         threads=4,
+        validate=False,
     )
 
     command = calls[0]
@@ -200,6 +203,7 @@ def test_denoise_qiime2_dada2_explicit_modes_build_commands(
             trunc_len=150,
             trunc_len_f=151,
             trunc_len_r=149,
+            validate=False,
         )
     denoise(
         backend="qiime2-dada2",
@@ -209,6 +213,7 @@ def test_denoise_qiime2_dada2_explicit_modes_build_commands(
         output_stats=tmp_path / "ccs-stats.qza",
         mode="ccs",
         ccs_front="AGRGTTYGATYMTGGCTCAG",
+        validate=False,
     )
 
     assert [call[:3] for call in calls] == [
@@ -256,6 +261,7 @@ def test_denoise_qiime2_dada2_ccs_advanced_params(
         ccs_indels=True,
         ccs_min_len=1000,
         ccs_max_len=1600,
+        validate=False,
     )
 
     command = calls[0]
@@ -311,6 +317,7 @@ def test_denoise_qiime2_dada2_base_transition_plot_builds_command(
         output_base_transition_stats=tmp_path / "transitions.qza",
         output_base_transition_plot=tmp_path / "transitions.qzv",
         trunc_len=150,
+        validate=False,
     )
 
     assert calls[1] == [
@@ -382,6 +389,7 @@ def test_denoise_qiime2_deblur_builds_command(
         trim_left=3,
         trunc_len=120,
         threads=2,
+        validate=False,
     )
 
     assert calls == [
@@ -436,6 +444,7 @@ def test_denoise_dada2_r_builds_rscript_command(
         trim_left_r=11,
         trunc_len_r=149,
         threads=4,
+        validate=False,
     )
 
     command = calls[0]
@@ -531,6 +540,7 @@ def test_denoise_dada2_r_docker_builds_container_command(tmp_path, monkeypatch) 
         threads=2,
         force=True,
         runtime="docker",
+        validate=False,
     )
 
     cmd = calls[0]
@@ -576,6 +586,7 @@ def test_denoise_dada2_r_docker_image_override(tmp_path, monkeypatch) -> None:
         force=True,
         runtime="docker",
         dada2_image="myrepo/rd:1.2",
+        validate=False,
     )
     assert "myrepo/rd:1.2" in calls[0]
 
@@ -897,6 +908,60 @@ def test_cluster_usearch_missing_binary_reports_tool(
             output_table=tmp_path / "clusters.uc",
             output_rep_seqs=tmp_path / "centroids.fasta",
         )
+
+
+def test_denoise_validates_missing_output(tmp_path, monkeypatch) -> None:
+    import subprocess
+
+    from microsuite._errors import MicrobiomeSuiteError
+    from microsuite.methods.denoise import denoise
+
+    input_dir = tmp_path / "reads"
+    input_dir.mkdir()
+    (input_dir / "s.fastq.gz").write_text("x")
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/Rscript")
+    # subprocess "succeeds" but writes no output files
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kw: subprocess.CompletedProcess(command, 0, "", ""),
+    )
+    with pytest.raises(MicrobiomeSuiteError, match="not created|empty"):
+        denoise(
+            backend="dada2-r",
+            demux=input_dir,
+            output_table=tmp_path / "table.tsv",
+            output_rep_seqs=tmp_path / "rep.fasta",
+            output_stats=tmp_path / "stats.tsv",
+            mode="single",
+            threads=1,
+            force=True,
+        )
+
+
+def test_denoise_no_validate_skips(tmp_path, monkeypatch) -> None:
+    import subprocess
+
+    from microsuite.methods.denoise import denoise
+
+    input_dir = tmp_path / "reads"
+    input_dir.mkdir()
+    (input_dir / "s.fastq.gz").write_text("x")
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/Rscript")
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kw: subprocess.CompletedProcess(command, 0, "", ""),
+    )
+    denoise(  # no raise despite missing outputs
+        backend="dada2-r",
+        demux=input_dir,
+        output_table=tmp_path / "table.tsv",
+        output_rep_seqs=tmp_path / "rep.fasta",
+        output_stats=tmp_path / "stats.tsv",
+        mode="single",
+        threads=1,
+        force=True,
+        validate=False,
+    )
 
 
 def test_cli_exposes_denoise_cluster_and_reports_missing_qiime(

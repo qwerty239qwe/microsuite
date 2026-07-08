@@ -9,6 +9,7 @@ from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
 from microsuite.methods._dispatch import require_backend
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
+from microsuite.runtime.validation import validate_outputs
 
 SUPPORTED_BACKENDS = ("qiime2-dada2", "qiime2-deblur", "dada2-r")
 DADA2_MODES = ("single", "paired", "ccs", "pyro")
@@ -87,6 +88,7 @@ def denoise(
     timeout: float | None = None,
     runtime: str = "local",
     dada2_image: str | None = None,
+    validate: bool = True,
 ) -> None:
     backend = require_backend(backend, SUPPORTED_BACKENDS, "denoise")
     if runtime != "local" and backend != "dada2-r":
@@ -134,6 +136,7 @@ def denoise(
             force=force,
             run_dir=run_dir,
             timeout=timeout,
+            validate=validate,
         )
         return
     if backend == "qiime2-deblur":
@@ -148,6 +151,7 @@ def denoise(
             force=force,
             run_dir=run_dir,
             timeout=timeout,
+            validate=validate,
         )
         return
     if backend == "dada2-r":
@@ -170,6 +174,7 @@ def denoise(
             timeout=timeout,
             runtime=runtime,
             image=dada2_image,
+            validate=validate,
         )
         return
 
@@ -196,6 +201,7 @@ def denoise_qiime2_dada2(
     force: bool,
     run_dir: Path | None,
     timeout: float | None,
+    validate: bool = True,
 ) -> None:
     trim_left = tuning.trim_left
     trunc_len = tuning.trunc_len
@@ -356,6 +362,7 @@ def denoise_qiime2_dada2(
             ),
         },
         params=params,
+        validate=validate,
     )
     if output_base_transition_plot is not None:
         plot_command = [
@@ -376,6 +383,7 @@ def denoise_qiime2_dada2(
             inputs={"base_transition_stats": str(output_base_transition_stats)},
             outputs={"base_transition_plot": str(output_base_transition_plot)},
             params={**params, "base_transition_plot": str(output_base_transition_plot)},
+            validate=validate,
         )
 
 
@@ -391,6 +399,7 @@ def denoise_qiime2_deblur(
     force: bool,
     run_dir: Path | None,
     timeout: float | None,
+    validate: bool = True,
 ) -> None:
     if trunc_len < 1:
         raise MicrobiomeSuiteError(
@@ -431,6 +440,7 @@ def denoise_qiime2_deblur(
             "representative_sequences": str(output_rep_seqs),
             "stats": str(output_stats),
         },
+        validate=validate,
     )
 
 
@@ -451,6 +461,7 @@ def denoise_dada2_r(
     timeout: float | None,
     runtime: str = "local",
     image: str | None = None,
+    validate: bool = True,
 ) -> None:
     min_overlap = tuning.min_overlap
     max_merge_mismatch = tuning.max_merge_mismatch
@@ -567,6 +578,7 @@ def denoise_dada2_r(
                 "R/DADA2 denoising failed.",
                 run_dir=run_dir,
                 timeout=timeout,
+                validate=validate,
                 **run_kwargs,
             )
     else:
@@ -588,6 +600,7 @@ def denoise_dada2_r(
                 "R/DADA2 denoising failed.",
                 run_dir=run_dir,
                 timeout=timeout,
+                validate=validate,
                 **run_kwargs,
             )
 
@@ -722,6 +735,7 @@ def _run(
     inputs: dict[str, str] | None = None,
     outputs: dict[str, str] | None = None,
     params: dict[str, object] | None = None,
+    validate: bool = True,
 ) -> None:
     run_command(
         command,
@@ -736,3 +750,5 @@ def _run(
             params=params or {},
         ),
     )
+    if validate and outputs:
+        validate_outputs(outputs)
