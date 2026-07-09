@@ -126,6 +126,8 @@ docker run --rm \
   microsuite --help
 ```
 
+Running DADA2 without installing R? See [Running DADA2 in a container](dada2.md#running-dada2-in-a-container).
+
 ## Nextflow And HPC Users
 
 Use Nextflow for complete, resumable workflows.

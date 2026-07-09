@@ -94,6 +94,8 @@ Unlike the runtime-only `r-dada2` image (R + `dada2`, no microsuite), the
 `microsuite denoise --backend dada2-r` runs end-to-end in one container. Its
 heavy smoke test builds an ASV table from a tiny FASTQ fixture.
 
+For how to run DADA2 with these images, see [Running DADA2 in a container](dada2.md#running-dada2-in-a-container).
+
 Both dada2 images build from the `bioconductor/bioconductor_docker:RELEASE_3_20`
 base, which pins R, Bioconductor 3.20, and a matching CRAN snapshot together, so
 dada2 and its dependency tree resolve to the same versions on every rebuild.
