@@ -20,9 +20,9 @@ DADA2_R_SCRIPT = "dada2_denoise.R"
 
 _FASTQ_EXTS = (".fastq.gz", ".fq.gz", ".fastq", ".fq")
 _READ_PATTERNS = [
-    re.compile(r"^(?P<sample>.+?)[._-]R(?P<read>[12])(?:[._-]001)?$"),
+    re.compile(r"^(?P<sample>.+?)[._-]R(?P<read>[12])(?:[._-]001)?$", re.IGNORECASE),
     re.compile(r"^(?P<sample>.+?)[._-]read(?P<read>[12])(?:[._-]001)?$", re.IGNORECASE),
-    re.compile(r"^(?P<sample>.+?)[._-](?P<read>[12])(?:[._-]001)?$"),
+    re.compile(r"^(?P<sample>.+?)[._-](?P<read>[12])(?:[._-]001)?$", re.IGNORECASE),
     re.compile(r"^(?P<sample>.+?)[._-]?(?:forward|reverse)$", re.IGNORECASE),
 ]
 _FASTQ_ARTIFACTS = (".fastq", ".fq", ".filtered")
