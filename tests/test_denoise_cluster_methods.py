@@ -49,6 +49,7 @@ def test_denoise_qiime2_dada2_single_builds_command(
         trunc_len=150,
         trim_left=5,
         threads=2,
+        validate=False,
     )
 
     assert calls == [
@@ -117,6 +118,7 @@ def test_cli_denoise_qiime2_run_dir_writes_runtime_logs(
             "150",
             "--run-dir",
             str(run_dir),
+            "--no-validate",
         ],
     )
 
@@ -161,6 +163,7 @@ def test_denoise_qiime2_dada2_paired_builds_command(
         trim_left_r=11,
         trunc_len_r=149,
         threads=4,
+        validate=False,
     )
 
     command = calls[0]
@@ -200,6 +203,7 @@ def test_denoise_qiime2_dada2_explicit_modes_build_commands(
             trunc_len=150,
             trunc_len_f=151,
             trunc_len_r=149,
+            validate=False,
         )
     denoise(
         backend="qiime2-dada2",
@@ -209,6 +213,7 @@ def test_denoise_qiime2_dada2_explicit_modes_build_commands(
         output_stats=tmp_path / "ccs-stats.qza",
         mode="ccs",
         ccs_front="AGRGTTYGATYMTGGCTCAG",
+        validate=False,
     )
 
     assert [call[:3] for call in calls] == [
@@ -256,6 +261,7 @@ def test_denoise_qiime2_dada2_ccs_advanced_params(
         ccs_indels=True,
         ccs_min_len=1000,
         ccs_max_len=1600,
+        validate=False,
     )
 
     command = calls[0]
@@ -311,6 +317,7 @@ def test_denoise_qiime2_dada2_base_transition_plot_builds_command(
         output_base_transition_stats=tmp_path / "transitions.qza",
         output_base_transition_plot=tmp_path / "transitions.qzv",
         trunc_len=150,
+        validate=False,
     )
 
     assert calls[1] == [
@@ -382,6 +389,7 @@ def test_denoise_qiime2_deblur_builds_command(
         trim_left=3,
         trunc_len=120,
         threads=2,
+        validate=False,
     )
 
     assert calls == [
@@ -436,6 +444,7 @@ def test_denoise_dada2_r_builds_rscript_command(
         trim_left_r=11,
         trunc_len_r=149,
         threads=4,
+        validate=False,
     )
 
     command = calls[0]
@@ -531,6 +540,7 @@ def test_denoise_dada2_r_docker_builds_container_command(tmp_path, monkeypatch) 
         threads=2,
         force=True,
         runtime="docker",
+        validate=False,
     )
 
     cmd = calls[0]
@@ -576,6 +586,7 @@ def test_denoise_dada2_r_docker_image_override(tmp_path, monkeypatch) -> None:
         force=True,
         runtime="docker",
         dada2_image="myrepo/rd:1.2",
+        validate=False,
     )
     assert "myrepo/rd:1.2" in calls[0]
 
@@ -899,6 +910,60 @@ def test_cluster_usearch_missing_binary_reports_tool(
         )
 
 
+def test_denoise_validates_missing_output(tmp_path, monkeypatch) -> None:
+    import subprocess
+
+    from microsuite._errors import MicrobiomeSuiteError
+    from microsuite.methods.denoise import denoise
+
+    input_dir = tmp_path / "reads"
+    input_dir.mkdir()
+    (input_dir / "s.fastq.gz").write_text("x")
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/Rscript")
+    # subprocess "succeeds" but writes no output files
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kw: subprocess.CompletedProcess(command, 0, "", ""),
+    )
+    with pytest.raises(MicrobiomeSuiteError, match="not created|empty"):
+        denoise(
+            backend="dada2-r",
+            demux=input_dir,
+            output_table=tmp_path / "table.tsv",
+            output_rep_seqs=tmp_path / "rep.fasta",
+            output_stats=tmp_path / "stats.tsv",
+            mode="single",
+            threads=1,
+            force=True,
+        )
+
+
+def test_denoise_no_validate_skips(tmp_path, monkeypatch) -> None:
+    import subprocess
+
+    from microsuite.methods.denoise import denoise
+
+    input_dir = tmp_path / "reads"
+    input_dir.mkdir()
+    (input_dir / "s.fastq.gz").write_text("x")
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/Rscript")
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kw: subprocess.CompletedProcess(command, 0, "", ""),
+    )
+    denoise(  # no raise despite missing outputs
+        backend="dada2-r",
+        demux=input_dir,
+        output_table=tmp_path / "table.tsv",
+        output_rep_seqs=tmp_path / "rep.fasta",
+        output_stats=tmp_path / "stats.tsv",
+        mode="single",
+        threads=1,
+        force=True,
+        validate=False,
+    )
+
+
 def test_cli_exposes_denoise_cluster_and_reports_missing_qiime(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -963,3 +1028,94 @@ def test_cli_exposes_denoise_cluster_and_reports_missing_qiime(
 
     assert result.exit_code == 1
     assert result.exception is not None
+
+
+def test_expected_sample_ids_pe_and_se(tmp_path) -> None:
+    from microsuite.methods.denoise import _expected_sample_ids
+
+    pe_dir = tmp_path / "reads_pe"
+    pe_dir.mkdir()
+    for n in ("a_1.fastq.gz", "a_2.fastq.gz", "b_R1.fastq.gz", "b_R2.fastq.gz"):
+        (pe_dir / n).write_text("x")
+    assert _expected_sample_ids(pe_dir, paired=True) == {"a", "b"}
+
+    se_dir = tmp_path / "reads_se"
+    se_dir.mkdir()
+    for n in ("a.fastq.gz", "b.fastq.gz", "c.fastq.gz"):
+        (se_dir / n).write_text("x")
+    assert _expected_sample_ids(se_dir, paired=False) == {"a", "b", "c"}
+
+
+def test_expected_sample_ids_single_mode_keeps_read_suffix(tmp_path) -> None:
+    """Regression: single-mode R backend keeps the read suffix in the sample id
+    (only strips file extensions via file_path_sans_ext twice); the ASV table
+    column is the full stem, not the suffix-stripped sample name."""
+    from microsuite.methods.denoise import _expected_sample_ids
+
+    d = tmp_path / "reads"
+    d.mkdir()
+    (d / "SampleA_R1_001.fastq.gz").write_text("x")
+    assert _expected_sample_ids(d, paired=False) == {"SampleA_R1_001"}
+
+
+def test_expected_sample_ids_forward_reverse(tmp_path) -> None:
+    from microsuite.methods.denoise import _expected_sample_ids
+
+    d = tmp_path / "reads"
+    d.mkdir()
+    (d / "s_forward.fastq.gz").write_text("x")
+    (d / "s_reverse.fastq.gz").write_text("x")
+    assert _expected_sample_ids(d, paired=True) == {"s"}
+
+
+def test_validate_asv_samples_ok(tmp_path) -> None:
+    from microsuite.methods.denoise import _validate_dada2_asv_samples
+
+    d = tmp_path / "reads"
+    d.mkdir()
+    (d / "a.fastq.gz").write_text("x")
+    (d / "b.fastq.gz").write_text("x")
+    table = tmp_path / "asv.tsv"
+    # write.table(col.names=NA): leading empty header cell, then samples; rows are ASV ids
+    table.write_text("\ta\tb\nASV1\t5\t3\n", encoding="utf-8")
+    _validate_dada2_asv_samples(table, d, paired=False)  # no raise
+
+
+def test_validate_asv_samples_single_mode_keeps_read_suffix(tmp_path) -> None:
+    """Regression: a fully successful single-mode dada2-r run must not raise a
+    false mismatch even though the FASTQ has a read suffix (R keeps it)."""
+    from microsuite.methods.denoise import _validate_dada2_asv_samples
+
+    d = tmp_path / "reads"
+    d.mkdir()
+    (d / "SampleA_R1_001.fastq.gz").write_text("x")
+    table = tmp_path / "asv.tsv"
+    table.write_text("\tSampleA_R1_001\nASV1\t5\n", encoding="utf-8")
+    _validate_dada2_asv_samples(table, d, paired=False)  # no raise
+
+
+def test_validate_asv_samples_rejects_fastq_artifact(tmp_path) -> None:
+    from microsuite._errors import MicrobiomeSuiteError
+    from microsuite.methods.denoise import _validate_dada2_asv_samples
+
+    d = tmp_path / "reads"
+    d.mkdir()
+    (d / "a.fastq.gz").write_text("x")
+    table = tmp_path / "asv.tsv"
+    table.write_text("\ta.R1.filtered.fastq.gz\nASV1\t5\n", encoding="utf-8")
+    with pytest.raises(MicrobiomeSuiteError, match="filtered|fastq"):
+        _validate_dada2_asv_samples(table, d, paired=False)
+
+
+def test_validate_asv_samples_rejects_mismatch(tmp_path) -> None:
+    from microsuite._errors import MicrobiomeSuiteError
+    from microsuite.methods.denoise import _validate_dada2_asv_samples
+
+    d = tmp_path / "reads"
+    d.mkdir()
+    (d / "a.fastq.gz").write_text("x")
+    (d / "b.fastq.gz").write_text("x")
+    table = tmp_path / "asv.tsv"
+    table.write_text("\ta\tZ\nASV1\t5\t3\n", encoding="utf-8")  # Z not an input sample
+    with pytest.raises(MicrobiomeSuiteError, match="sample"):
+        _validate_dada2_asv_samples(table, d, paired=False)

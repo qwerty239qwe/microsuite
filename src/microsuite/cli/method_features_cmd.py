@@ -191,6 +191,9 @@ def register(app: typer.Typer) -> None:
             str | None,
             typer.Option("--image", help="Container image for --runtime docker (dada2-r)."),
         ] = None,
+        no_validate: Annotated[
+            bool, typer.Option("--no-validate", help="Skip post-run output validation.")
+        ] = False,
     ) -> None:
         denoise(
             backend=backend,
@@ -237,6 +240,7 @@ def register(app: typer.Typer) -> None:
             timeout=timeout,
             runtime=runtime,
             dada2_image=image,
+            validate=not no_validate,
         )
 
     @app.command("cluster")
