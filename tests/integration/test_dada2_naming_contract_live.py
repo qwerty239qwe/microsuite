@@ -5,6 +5,7 @@ import gzip
 import os
 import random
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,23 @@ pytestmark = pytest.mark.skipif(
     os.environ.get("MICROSUITE_RUN_EXTERNAL_INTEGRATION") != "1",
     reason="set MICROSUITE_RUN_EXTERNAL_INTEGRATION=1 to run external-tool integration tests",
 )
+
+
+def _dada2_available() -> bool:
+    """True only if Rscript is on PATH AND the dada2 package is importable.
+
+    Rscript alone is not enough: the backend runs `library(dada2)`, so on a
+    machine with R but without dada2 the test must skip, not error.
+    """
+    if shutil.which("Rscript") is None:
+        return False
+    probe = subprocess.run(
+        ["Rscript", "-e", 'quit(status = !requireNamespace("dada2", quietly = TRUE))'],
+        capture_output=True,
+        text=True,
+    )
+    return probe.returncode == 0
+
 
 _BASES = "ACGT"
 _REVCOMP = str.maketrans("ACGT", "TGCA")
@@ -81,8 +99,8 @@ def _run(demux: Path, out: Path, *, mode: str, **kw) -> Path:
 
 
 def test_single_end_asv_columns_equal_sample_id(tmp_path: Path) -> None:
-    if shutil.which("Rscript") is None:
-        pytest.skip("Rscript is not installed on PATH")
+    if not _dada2_available():
+        pytest.skip("Rscript with the dada2 package is required")
     demux = tmp_path / "reads"
     demux.mkdir()
     _single_end(demux / "sampleS.fastq.gz", seed=7)
@@ -91,8 +109,8 @@ def test_single_end_asv_columns_equal_sample_id(tmp_path: Path) -> None:
 
 
 def test_paired_end_asv_columns_strip_read_suffix(tmp_path: Path) -> None:
-    if shutil.which("Rscript") is None:
-        pytest.skip("Rscript is not installed on PATH")
+    if not _dada2_available():
+        pytest.skip("Rscript with the dada2 package is required")
     demux = tmp_path / "reads"
     demux.mkdir()
     _paired_end(demux / "sampleP_R1.fastq.gz", demux / "sampleP_R2.fastq.gz", seed=11)
