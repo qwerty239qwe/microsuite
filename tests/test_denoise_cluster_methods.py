@@ -1256,3 +1256,103 @@ def test_denoise_dada2_r_overlap_strict_raises_pre_run(tmp_path, monkeypatch) ->
             amplicon_length=600,
             strict_qc=True,
         )
+
+
+def _stub_run_writing_r_params(r_params_text, stats_text):
+    """subprocess.run stub: writes the R params file the wrapper points --params-out
+    at, plus stats/table/rep-seqs so validation passes."""
+    import subprocess
+    from pathlib import Path
+
+    def fake(command, **kw):
+        if "--params-out" in command:
+            Path(command[command.index("--params-out") + 1]).write_text(
+                r_params_text, encoding="utf-8"
+            )
+        if "--output-stats" in command:
+            Path(command[command.index("--output-stats") + 1]).write_text(
+                stats_text, encoding="utf-8"
+            )
+        for flag, content in (
+            ("--output-table", "\tsampleP\nASV1\t5\n"),
+            ("--output-rep-seqs", ">ASV1\nACGT\n"),
+        ):
+            if flag in command:
+                Path(command[command.index(flag) + 1]).write_text(content, encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    return fake
+
+
+def test_denoise_dada2_r_writes_manifest(tmp_path, monkeypatch) -> None:
+    import json
+
+    from microsuite.methods.denoise import denoise
+
+    demux = tmp_path / "reads"
+    demux.mkdir()
+    (demux / "sampleP.fastq.gz").write_text("x")
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/Rscript")
+    r_params = (Path(__file__).parent / "fixtures" / "dada2_r_params_paired.json").read_text()
+    healthy = (
+        "\tinput\tfiltered\tdenoised_f\tdenoised_r\tmerged\tnonchim\n"
+        "sampleP\t1000\t950\t940\t930\t900\t880\n"
+    )
+    monkeypatch.setattr("subprocess.run", _stub_run_writing_r_params(r_params, healthy))
+    denoise(
+        backend="dada2-r",
+        demux=demux,
+        output_table=tmp_path / "table.tsv",
+        output_rep_seqs=tmp_path / "rep.fasta",
+        output_stats=tmp_path / "stats.tsv",
+        mode="paired",
+        threads=1,
+        force=True,
+    )
+    manifest_path = tmp_path / "dada2_denoise_manifest.json"
+    assert manifest_path.exists()
+    manifest = json.loads(manifest_path.read_text())
+    assert manifest["tool"]["dada2_version"] == "1.30.0"
+    assert manifest["dada2_params"]["min_overlap"] == 12
+    assert manifest["run"]["backend"] == "dada2-r"
+    assert manifest["run"]["mode"] == "paired"
+    # intermediate R file removed
+    assert not (tmp_path / "dada2_r_params.json").exists()
+
+
+def test_denoise_dada2_r_missing_params_warns_not_fatal(tmp_path, monkeypatch) -> None:
+    from microsuite.methods.denoise import denoise
+
+    demux = tmp_path / "reads"
+    demux.mkdir()
+    (demux / "sampleP.fastq.gz").write_text("x")
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/Rscript")
+    healthy = "\tinput\tfiltered\tnonchim\nsampleP\t1000\t950\t880\n"
+
+    def fake_no_params(command, **kw):  # writes stats/table/rep-seqs but NO --params-out file
+        import subprocess
+        from pathlib import Path
+
+        if "--output-stats" in command:
+            Path(command[command.index("--output-stats") + 1]).write_text(healthy, encoding="utf-8")
+        for flag, content in (
+            ("--output-table", "\tsampleP\nASV1\t5\n"),
+            ("--output-rep-seqs", ">ASV1\nACGT\n"),
+        ):
+            if flag in command:
+                Path(command[command.index(flag) + 1]).write_text(content, encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("subprocess.run", fake_no_params)
+    with pytest.warns(UserWarning, match="provenance manifest"):
+        denoise(
+            backend="dada2-r",
+            demux=demux,
+            output_table=tmp_path / "table.tsv",
+            output_rep_seqs=tmp_path / "rep.fasta",
+            output_stats=tmp_path / "stats.tsv",
+            mode="single",
+            threads=1,
+            force=True,
+        )
+    assert not (tmp_path / "dada2_denoise_manifest.json").exists()
