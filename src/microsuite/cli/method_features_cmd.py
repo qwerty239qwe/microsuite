@@ -194,6 +194,18 @@ def register(app: typer.Typer) -> None:
         no_validate: Annotated[
             bool, typer.Option("--no-validate", help="Skip post-run output validation.")
         ] = False,
+        amplicon_length: Annotated[
+            int | None,
+            typer.Option(
+                "--amplicon-length", help="Expected paired amplicon length (dada2-r overlap check)."
+            ),
+        ] = None,
+        strict_qc: Annotated[
+            bool,
+            typer.Option(
+                "--strict-qc", help="Make DADA2 QC warnings (low retention / overlap) fatal."
+            ),
+        ] = False,
     ) -> None:
         denoise(
             backend=backend,
@@ -241,6 +253,8 @@ def register(app: typer.Typer) -> None:
             runtime=runtime,
             dada2_image=image,
             validate=not no_validate,
+            amplicon_length=amplicon_length,
+            strict_qc=strict_qc,
         )
 
     @app.command("cluster")

@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import re
 import shutil
+import warnings
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.methods import dada2_qc
 from microsuite.methods._dispatch import require_backend
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 from microsuite.runtime.validation import validate_outputs
@@ -151,10 +153,14 @@ def denoise(
     runtime: str = "local",
     dada2_image: str | None = None,
     validate: bool = True,
+    amplicon_length: int | None = None,
+    strict_qc: bool = False,
 ) -> None:
     backend = require_backend(backend, SUPPORTED_BACKENDS, "denoise")
     if runtime != "local" and backend != "dada2-r":
         raise MicrobiomeSuiteError("--runtime docker is only supported for --backend dada2-r.")
+    if amplicon_length is not None and backend != "dada2-r":
+        raise MicrobiomeSuiteError("--amplicon-length only applies to --backend dada2-r.")
     resolved_threads = resolve_threads(threads)
     tuning = Dada2Tuning(
         trim_left=trim_left,
@@ -237,6 +243,8 @@ def denoise(
             runtime=runtime,
             image=dada2_image,
             validate=validate,
+            amplicon_length=amplicon_length,
+            strict_qc=strict_qc,
         )
         return
 
@@ -524,6 +532,8 @@ def denoise_dada2_r(
     runtime: str = "local",
     image: str | None = None,
     validate: bool = True,
+    amplicon_length: int | None = None,
+    strict_qc: bool = False,
 ) -> None:
     min_overlap = tuning.min_overlap
     max_merge_mismatch = tuning.max_merge_mismatch
@@ -565,6 +575,29 @@ def denoise_dada2_r(
     _prepare_outputs(output_table, output_rep_seqs, output_stats, force=force)
     if output_plot_dir is not None:
         output_plot_dir.mkdir(parents=True, exist_ok=True)
+
+    if amplicon_length is not None and paired:
+        peek = next(
+            (
+                p
+                for p in sorted(input_dir.iterdir())
+                if p.is_file() and p.name.endswith((".fastq", ".fq", ".fastq.gz", ".fq.gz"))
+            ),
+            None,
+        )
+        read_len = dada2_qc.first_read_length(peek) if peek is not None else 0
+        overlap_msg = dada2_qc.check_overlap(
+            trunc_len_f=tuning.trunc_len_f,
+            trunc_len_r=tuning.trunc_len_r,
+            read_len_f=read_len,
+            read_len_r=read_len,
+            amplicon_length=amplicon_length,
+            min_overlap=tuning.min_overlap or 12,
+        )
+        if overlap_msg is not None:
+            if strict_qc:
+                raise MicrobiomeSuiteError(overlap_msg)
+            warnings.warn(overlap_msg, stacklevel=2)
 
     script_res = files("microsuite.methods.r").joinpath(DADA2_R_SCRIPT)
 
@@ -645,6 +678,12 @@ def denoise_dada2_r(
             )
             if validate:
                 _validate_dada2_asv_samples(output_table, input_dir, paired=paired)
+                summary = dada2_qc.summarize_dada2_stats(output_stats)
+                dada2_qc.write_qc_summary(summary, output_stats.parent)
+                for message in dada2_qc.retention_warnings(summary):
+                    if strict_qc:
+                        raise MicrobiomeSuiteError(message)
+                    warnings.warn(message, stacklevel=2)
     else:
         with as_file(script_res) as script_path:
             command = [rscript, str(script_path)] + _dada2_r_script_args(
@@ -669,6 +708,12 @@ def denoise_dada2_r(
             )
             if validate:
                 _validate_dada2_asv_samples(output_table, input_dir, paired=paired)
+                summary = dada2_qc.summarize_dada2_stats(output_stats)
+                dada2_qc.write_qc_summary(summary, output_stats.parent)
+                for message in dada2_qc.retention_warnings(summary):
+                    if strict_qc:
+                        raise MicrobiomeSuiteError(message)
+                    warnings.warn(message, stacklevel=2)
 
 
 def _resolve_dada2_mode(*, mode: str | None, paired: bool) -> str:

@@ -1119,3 +1119,75 @@ def test_validate_asv_samples_rejects_mismatch(tmp_path) -> None:
     table.write_text("\ta\tZ\nASV1\t5\t3\n", encoding="utf-8")  # Z not an input sample
     with pytest.raises(MicrobiomeSuiteError, match="sample"):
         _validate_dada2_asv_samples(table, d, paired=False)
+
+
+def _stub_run_writing_stats(stats_text):
+    import subprocess
+
+    def fake(command, **kw):
+        # find --output-stats and write the fixture there
+        if "--output-stats" in command:
+            from pathlib import Path
+
+            Path(command[command.index("--output-stats") + 1]).write_text(
+                stats_text, encoding="utf-8"
+            )
+        # write table + rep-seqs so P2 integrity + ASV checks don't trip first
+        for flag, content in (
+            ("--output-table", "\tsampleP\nASV1\t5\n"),
+            ("--output-rep-seqs", ">ASV1\nACGT\n"),
+        ):
+            if flag in command:
+                from pathlib import Path
+
+                Path(command[command.index(flag) + 1]).write_text(content, encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    return fake
+
+
+def test_denoise_dada2_r_low_retention_warns(tmp_path, monkeypatch) -> None:
+    from microsuite.methods.denoise import denoise
+
+    demux = tmp_path / "reads"
+    demux.mkdir()
+    (demux / "sampleP.fastq.gz").write_text("x")
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/Rscript")
+    low = "\tinput\tfiltered\tnonchim\nsampleP\t1000\t300\t200\n"
+    monkeypatch.setattr("subprocess.run", _stub_run_writing_stats(low))
+    with pytest.warns(UserWarning, match="Low DADA2 retention"):
+        denoise(
+            backend="dada2-r",
+            demux=demux,
+            output_table=tmp_path / "table.tsv",
+            output_rep_seqs=tmp_path / "rep.fasta",
+            output_stats=tmp_path / "stats.tsv",
+            mode="single",
+            threads=1,
+            force=True,
+        )
+    assert (tmp_path / "dada2_qc_summary.json").exists()
+
+
+def test_denoise_dada2_r_strict_qc_raises(tmp_path, monkeypatch) -> None:
+    from microsuite._errors import MicrobiomeSuiteError
+    from microsuite.methods.denoise import denoise
+
+    demux = tmp_path / "reads"
+    demux.mkdir()
+    (demux / "sampleP.fastq.gz").write_text("x")
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/Rscript")
+    low = "\tinput\tfiltered\tnonchim\nsampleP\t1000\t300\t200\n"
+    monkeypatch.setattr("subprocess.run", _stub_run_writing_stats(low))
+    with pytest.raises(MicrobiomeSuiteError, match="retention"):
+        denoise(
+            backend="dada2-r",
+            demux=demux,
+            output_table=tmp_path / "table.tsv",
+            output_rep_seqs=tmp_path / "rep.fasta",
+            output_stats=tmp_path / "stats.tsv",
+            mode="single",
+            threads=1,
+            force=True,
+            strict_qc=True,
+        )
