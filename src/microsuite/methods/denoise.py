@@ -4,12 +4,14 @@ import re
 import shutil
 import warnings
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from importlib.resources import files
 from pathlib import Path
 
+from microsuite import __version__ as _MICROSUITE_VERSION
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
-from microsuite.methods import dada2_qc
+from microsuite.methods import dada2_manifest, dada2_qc
 from microsuite.methods._dispatch import require_backend
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 from microsuite.runtime.validation import validate_outputs
@@ -601,6 +603,21 @@ def denoise_dada2_r(
 
     script_res = files("microsuite.methods.r").joinpath(DADA2_R_SCRIPT)
 
+    manifest_facts = {
+        "microsuite_version": _MICROSUITE_VERSION,
+        "backend": "dada2-r",
+        "runtime": runtime,
+        "image": resolve_dada2_image(image) if runtime == "docker" else None,
+        "mode": "paired" if paired else "single",
+        "paired": paired,
+        "threads": threads,
+        "input_dir": str(input_dir),
+        "output_table": str(output_table),
+        "output_rep_seqs": str(output_rep_seqs),
+        "output_stats": str(output_stats),
+        "output_plot_dir": str(output_plot_dir) if output_plot_dir is not None else None,
+    }
+
     run_kwargs = dict(
         backend="dada2-r",
         inputs={"input_dir": str(input_dir)},
@@ -664,6 +681,7 @@ def denoise_dada2_r(
                 tuning=tuning,
                 max_n=max_n,
                 rm_phix=rm_phix,
+                params_out=mapper.to_container(output_stats.parent / "dada2_r_params.json"),
             )
             command = build_container_command(
                 inner, resolve_dada2_image(image), mapper.mounts(), engine="docker"
@@ -684,6 +702,14 @@ def denoise_dada2_r(
                     if strict_qc:
                         raise MicrobiomeSuiteError(message)
                     warnings.warn(message, stacklevel=2)
+            _emit_dada2_manifest(
+                output_stats,
+                {
+                    **manifest_facts,
+                    "created_at": datetime.now(UTC).isoformat(),
+                    "command": " ".join(command),
+                },
+            )
     else:
         with as_file(script_res) as script_path:
             command = [rscript, str(script_path)] + _dada2_r_script_args(
@@ -697,6 +723,7 @@ def denoise_dada2_r(
                 tuning=tuning,
                 max_n=max_n,
                 rm_phix=rm_phix,
+                params_out=str(output_stats.parent / "dada2_r_params.json"),
             )
             _run(
                 command,
@@ -714,6 +741,14 @@ def denoise_dada2_r(
                     if strict_qc:
                         raise MicrobiomeSuiteError(message)
                     warnings.warn(message, stacklevel=2)
+            _emit_dada2_manifest(
+                output_stats,
+                {
+                    **manifest_facts,
+                    "created_at": datetime.now(UTC).isoformat(),
+                    "command": " ".join(command),
+                },
+            )
 
 
 def _resolve_dada2_mode(*, mode: str | None, paired: bool) -> str:
@@ -754,6 +789,7 @@ def _dada2_r_script_args(
     tuning: Dada2Tuning,
     max_n: int | None,
     rm_phix: bool | None,
+    params_out: str | None = None,
 ) -> list[str]:
     args = [
         "--input-dir",
@@ -799,6 +835,8 @@ def _dada2_r_script_args(
     _append_value(args, "--min-fold-parent-over-abundance", tuning.min_fold_parent_over_abundance)
     _append_bool(args, "--allow-one-off", tuning.allow_one_off)
     _append_value(args, "--n-reads-learn", tuning.n_reads_learn)
+    if params_out is not None:
+        args.extend(["--params-out", params_out])
     return args
 
 
@@ -819,6 +857,21 @@ def _append_bool(command: list[str], flag: str, value: bool | None) -> None:
 
 def _dada2_log_params(**params: object | None) -> dict[str, object]:
     return {key: value for key, value in params.items() if value is not None}
+
+
+def _emit_dada2_manifest(output_stats: Path, run_facts: dict) -> None:
+    """Merge the R-emitted resolved params with wrapper facts into
+    dada2_denoise_manifest.json beside the stats file. Best-effort: a missing or
+    unparseable R params file warns and never fails an otherwise-successful run."""
+    r_params_path = output_stats.parent / "dada2_r_params.json"
+    try:
+        r_params = dada2_manifest.read_r_params(r_params_path)
+        manifest = dada2_manifest.build_manifest(r_params, run_facts)
+        dada2_manifest.write_manifest(manifest, output_stats.parent)
+    except MicrobiomeSuiteError as exc:
+        warnings.warn(f"Could not write DADA2 provenance manifest: {exc}", stacklevel=2)
+    finally:
+        r_params_path.unlink(missing_ok=True)
 
 
 def _require_qiime(task: str) -> str:

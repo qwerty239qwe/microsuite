@@ -114,9 +114,10 @@ def test_paired_end_asv_columns_strip_read_suffix(tmp_path: Path) -> None:
     demux = tmp_path / "reads"
     demux.mkdir()
     _paired_end(demux / "sampleP_R1.fastq.gz", demux / "sampleP_R2.fastq.gz", seed=11)
+    out = tmp_path / "out"
     table = _run(
         demux,
-        tmp_path / "out",
+        out,
         mode="paired",
         trunc_len_f=0,
         trunc_len_r=0,
@@ -124,3 +125,13 @@ def test_paired_end_asv_columns_strip_read_suffix(tmp_path: Path) -> None:
         max_ee_r=2.0,
     )
     assert _asv_columns(table) == {"sampleP"}
+
+    import json
+
+    output_stats = out / "stats.tsv"
+    manifest_path = output_stats.parent / "dada2_denoise_manifest.json"
+    assert manifest_path.exists(), "dada2-r run must write a provenance manifest"
+    manifest = json.loads(manifest_path.read_text())
+    assert manifest["tool"]["dada2_version"]  # real dada2 version, non-empty
+    assert manifest["dada2_params"]["min_overlap"] == 12  # resolved default
+    assert manifest["run"]["backend"] == "dada2-r"
