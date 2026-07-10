@@ -1119,3 +1119,140 @@ def test_validate_asv_samples_rejects_mismatch(tmp_path) -> None:
     table.write_text("\ta\tZ\nASV1\t5\t3\n", encoding="utf-8")  # Z not an input sample
     with pytest.raises(MicrobiomeSuiteError, match="sample"):
         _validate_dada2_asv_samples(table, d, paired=False)
+
+
+def _stub_run_writing_stats(stats_text):
+    import subprocess
+
+    def fake(command, **kw):
+        # find --output-stats and write the fixture there
+        if "--output-stats" in command:
+            from pathlib import Path
+
+            Path(command[command.index("--output-stats") + 1]).write_text(
+                stats_text, encoding="utf-8"
+            )
+        # write table + rep-seqs so P2 integrity + ASV checks don't trip first
+        for flag, content in (
+            ("--output-table", "\tsampleP\nASV1\t5\n"),
+            ("--output-rep-seqs", ">ASV1\nACGT\n"),
+        ):
+            if flag in command:
+                from pathlib import Path
+
+                Path(command[command.index(flag) + 1]).write_text(content, encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    return fake
+
+
+def test_denoise_dada2_r_low_retention_warns(tmp_path, monkeypatch) -> None:
+    from microsuite.methods.denoise import denoise
+
+    demux = tmp_path / "reads"
+    demux.mkdir()
+    (demux / "sampleP.fastq.gz").write_text("x")
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/Rscript")
+    low = "\tinput\tfiltered\tnonchim\nsampleP\t1000\t300\t200\n"
+    monkeypatch.setattr("subprocess.run", _stub_run_writing_stats(low))
+    with pytest.warns(UserWarning, match="Low DADA2 retention"):
+        denoise(
+            backend="dada2-r",
+            demux=demux,
+            output_table=tmp_path / "table.tsv",
+            output_rep_seqs=tmp_path / "rep.fasta",
+            output_stats=tmp_path / "stats.tsv",
+            mode="single",
+            threads=1,
+            force=True,
+        )
+    assert (tmp_path / "dada2_qc_summary.json").exists()
+
+
+def test_denoise_dada2_r_strict_qc_raises(tmp_path, monkeypatch) -> None:
+    from microsuite._errors import MicrobiomeSuiteError
+    from microsuite.methods.denoise import denoise
+
+    demux = tmp_path / "reads"
+    demux.mkdir()
+    (demux / "sampleP.fastq.gz").write_text("x")
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/Rscript")
+    low = "\tinput\tfiltered\tnonchim\nsampleP\t1000\t300\t200\n"
+    monkeypatch.setattr("subprocess.run", _stub_run_writing_stats(low))
+    with pytest.raises(MicrobiomeSuiteError, match="retention"):
+        denoise(
+            backend="dada2-r",
+            demux=demux,
+            output_table=tmp_path / "table.tsv",
+            output_rep_seqs=tmp_path / "rep.fasta",
+            output_stats=tmp_path / "stats.tsv",
+            mode="single",
+            threads=1,
+            force=True,
+            strict_qc=True,
+        )
+
+
+def _write_paired_demux(demux, read_len=150):
+    import gzip
+
+    demux.mkdir()
+    seq = "ACGT" * (read_len // 4)
+    seq = (seq + "ACGT")[:read_len]
+    record = f"@r1\n{seq}\n+\n{'I' * read_len}\n".encode()
+    for name in ("sampleP_R1.fastq.gz", "sampleP_R2.fastq.gz"):
+        (demux / name).write_bytes(gzip.compress(record))
+
+
+def test_denoise_dada2_r_overlap_warns(tmp_path, monkeypatch) -> None:
+    from microsuite.methods.denoise import denoise
+
+    demux = tmp_path / "reads"
+    _write_paired_demux(demux)  # 150 bp reads
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/Rscript")
+    # 150 + 150 - 600 = -300 < 12 -> insufficient overlap; healthy stats so
+    # only the overlap warning fires.
+    healthy = (
+        "\tinput\tfiltered\tdenoised_f\tdenoised_r\tmerged\tnonchim\n"
+        "sampleP\t1000\t950\t940\t930\t900\t880\n"
+    )
+    monkeypatch.setattr("subprocess.run", _stub_run_writing_stats(healthy))
+    with pytest.warns(UserWarning, match="Insufficient paired overlap"):
+        denoise(
+            backend="dada2-r",
+            demux=demux,
+            output_table=tmp_path / "table.tsv",
+            output_rep_seqs=tmp_path / "rep.fasta",
+            output_stats=tmp_path / "stats.tsv",
+            mode="paired",
+            threads=1,
+            force=True,
+            amplicon_length=600,
+        )
+
+
+def test_denoise_dada2_r_overlap_strict_raises_pre_run(tmp_path, monkeypatch) -> None:
+    from microsuite._errors import MicrobiomeSuiteError
+    from microsuite.methods.denoise import denoise
+
+    demux = tmp_path / "reads"
+    _write_paired_demux(demux)
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/Rscript")
+
+    def _fail_run(command, **kw):  # pragma: no cover - must not be reached
+        raise AssertionError("overlap strict check must raise before _run")
+
+    monkeypatch.setattr("subprocess.run", _fail_run)
+    with pytest.raises(MicrobiomeSuiteError, match="overlap"):
+        denoise(
+            backend="dada2-r",
+            demux=demux,
+            output_table=tmp_path / "table.tsv",
+            output_rep_seqs=tmp_path / "rep.fasta",
+            output_stats=tmp_path / "stats.tsv",
+            mode="paired",
+            threads=1,
+            force=True,
+            amplicon_length=600,
+            strict_qc=True,
+        )
