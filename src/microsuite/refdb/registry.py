@@ -45,9 +45,7 @@ class RefDbRegistry:
             return None
         return BuiltArtifact(path=path, build_target=build_target, checksum=entry["checksum"])
 
-    def record(
-        self, name: str, version: str, artifact: BuiltArtifact, provider: str
-    ) -> None:
+    def record(self, name: str, version: str, artifact: BuiltArtifact, provider: str) -> None:
         manifest = self._load()
         manifest[self._key(name, version, artifact.build_target)] = {
             "path": str(artifact.path),

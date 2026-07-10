@@ -30,8 +30,7 @@ def _paired_stats(tmp_path: Path) -> Path:
 def _single_stats(tmp_path: Path) -> Path:
     p = tmp_path / "stats.tsv"
     p.write_text(
-        "\tinput\tfiltered\tdenoised\tnonchim\n"
-        "sA\t1000\t900\t880\t850\n",
+        "\tinput\tfiltered\tdenoised\tnonchim\nsA\t1000\t900\t880\t850\n",
         encoding="utf-8",
     )
     return p
@@ -81,18 +80,51 @@ def test_retention_warnings_healthy_is_empty(tmp_path: Path) -> None:
 
 def test_check_overlap() -> None:
     # 150 + 150 - 250 = 50 >= 12 -> ok
-    assert check_overlap(trunc_len_f=0, trunc_len_r=0, read_len_f=150, read_len_r=150,
-                         amplicon_length=250, min_overlap=12) is None
+    assert (
+        check_overlap(
+            trunc_len_f=0,
+            trunc_len_r=0,
+            read_len_f=150,
+            read_len_r=150,
+            amplicon_length=250,
+            min_overlap=12,
+        )
+        is None
+    )
     # 150 + 150 - 295 = 5 < 12 -> warn
-    msg = check_overlap(trunc_len_f=0, trunc_len_r=0, read_len_f=150, read_len_r=150,
-                        amplicon_length=295, min_overlap=12)
+    msg = check_overlap(
+        trunc_len_f=0,
+        trunc_len_r=0,
+        read_len_f=150,
+        read_len_r=150,
+        amplicon_length=295,
+        min_overlap=12,
+    )
     assert msg is not None and "overlap" in msg.lower()
     # truncLen overrides read length: 120 + 120 - 250 = -10 < 12 -> warn
-    assert check_overlap(trunc_len_f=120, trunc_len_r=120, read_len_f=150, read_len_r=150,
-                         amplicon_length=250, min_overlap=12) is not None
+    assert (
+        check_overlap(
+            trunc_len_f=120,
+            trunc_len_r=120,
+            read_len_f=150,
+            read_len_r=150,
+            amplicon_length=250,
+            min_overlap=12,
+        )
+        is not None
+    )
     # generous truncLen: 200 + 200 - 250 = 150 >= 12 -> ok
-    assert check_overlap(trunc_len_f=200, trunc_len_r=200, read_len_f=150, read_len_r=150,
-                         amplicon_length=250, min_overlap=12) is None
+    assert (
+        check_overlap(
+            trunc_len_f=200,
+            trunc_len_r=200,
+            read_len_f=150,
+            read_len_r=150,
+            amplicon_length=250,
+            min_overlap=12,
+        )
+        is None
+    )
 
 
 def test_first_read_length(tmp_path: Path) -> None:

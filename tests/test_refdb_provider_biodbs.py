@@ -9,8 +9,8 @@ from pathlib import Path
 import pytest
 
 from microsuite._errors import MicrobiomeSuiteError
-from microsuite.refdb.providers import get_provider
 from microsuite.refdb.providers import biodbs as _biodbs  # noqa: F401  (registration)
+from microsuite.refdb.providers import get_provider
 from microsuite.refdb.spec import RefDbSpec
 
 
@@ -39,7 +39,9 @@ def test_homd_adapter_produces_seqs_and_taxonomy(tmp_path: Path, monkeypatch) ->
     provider = get_provider("biodbs")
     raw = provider.fetch(RefDbSpec(name="homd", version="15.22"), out_dir=tmp_path)
     assert raw.sequences.exists()
-    ids = [l[1:].strip() for l in raw.sequences.read_text().splitlines() if l.startswith(">")]
+    ids = [
+        line[1:].strip() for line in raw.sequences.read_text().splitlines() if line.startswith(">")
+    ]
     assert ids == ["seqA", "seqB"]
     tax_first_col = [r.split("\t")[0] for r in raw.taxonomy.read_text().splitlines() if r.strip()]
     assert tax_first_col == ["seqA", "seqB"]
@@ -68,7 +70,10 @@ class _FakeSilvaGtdb:
 
     def silva_download_file(self, url, dest, overwrite=False) -> Path:
         target = Path(dest) / Path(url).name  # ...SSURef_NR99_tax_silva.fasta.gz
-        body = b">AY855839.1.1390 Bacteria;Firmicutes;Bacilli\nACGT\n>FJ12.1.1500 Bacteria;Bacteroidetes\nTTTT\n"
+        body = (
+            b">AY855839.1.1390 Bacteria;Firmicutes;Bacilli\nACGT\n"
+            b">FJ12.1.1500 Bacteria;Bacteroidetes\nTTTT\n"
+        )
         target.write_bytes(gzip.compress(body))
         return target
 
@@ -90,7 +95,9 @@ class _FakeSilvaGtdb:
 def test_silva_adapter_parses_headers(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(_biodbs, "_load_biodbs", lambda: _FakeSilvaGtdb(tmp_path))
     raw = get_provider("biodbs").fetch(RefDbSpec(name="silva", version="138.2"), out_dir=tmp_path)
-    ids = [l[1:].strip() for l in raw.sequences.read_text().splitlines() if l.startswith(">")]
+    ids = [
+        line[1:].strip() for line in raw.sequences.read_text().splitlines() if line.startswith(">")
+    ]
     assert ids == ["AY855839.1.1390", "FJ12.1.1500"]  # id only, lineage stripped from header
     tax = dict(r.split("\t", 1) for r in raw.taxonomy.read_text().splitlines() if r.strip())
     assert tax["AY855839.1.1390"] == "Bacteria;Firmicutes;Bacilli"
@@ -102,7 +109,11 @@ def test_gtdb_adapter_joins_ssu_to_taxonomy_tilde_edge_case(tmp_path: Path, monk
     # split("~", 1)[0] must still resolve the lineage correctly when it does occur.
     monkeypatch.setattr(_biodbs, "_load_biodbs", lambda: _FakeSilvaGtdb(tmp_path))
     raw = get_provider("biodbs").fetch(RefDbSpec(name="gtdb", version="latest"), out_dir=tmp_path)
-    ids = [l[1:].split()[0] for l in raw.sequences.read_text().splitlines() if l.startswith(">")]
+    ids = [
+        line[1:].split()[0]
+        for line in raw.sequences.read_text().splitlines()
+        if line.startswith(">")
+    ]
     assert ids == ["RS_GCF_1~ctg1", "RS_GCF_2~ctg9"]
     tax = dict(r.split("\t", 1) for r in raw.taxonomy.read_text().splitlines() if r.strip())
     # taxonomy keyed by the SSU record id, lineage looked up via genome accession before '~'
@@ -140,7 +151,11 @@ def test_gtdb_adapter_joins_ssu_to_taxonomy_real_bare_accession(
     # by live GTDB verification. This is the format that actually ships.
     monkeypatch.setattr(_biodbs, "_load_biodbs", lambda: _FakeSilvaGtdbBareAccession(tmp_path))
     raw = get_provider("biodbs").fetch(RefDbSpec(name="gtdb", version="latest"), out_dir=tmp_path)
-    ids = [l[1:].split()[0] for l in raw.sequences.read_text().splitlines() if l.startswith(">")]
+    ids = [
+        line[1:].split()[0]
+        for line in raw.sequences.read_text().splitlines()
+        if line.startswith(">")
+    ]
     assert ids == ["RS_GCF_1", "RS_GCF_2"]
     tax = dict(r.split("\t", 1) for r in raw.taxonomy.read_text().splitlines() if r.strip())
     assert tax["RS_GCF_1"] == "d__Bacteria;p__Firmicutes"

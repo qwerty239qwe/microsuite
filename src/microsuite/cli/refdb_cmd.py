@@ -16,9 +16,7 @@ app = typer.Typer(help="Fetch, build, and cache reference databases.", no_args_i
 def fetch(
     name: Annotated[str, typer.Argument(help="Reference DB name, e.g. homd, silva.")],
     version: Annotated[str, typer.Option("--version", help="DB version.")],
-    provider: Annotated[
-        str, typer.Option("--provider", help="Acquisition provider.")
-    ] = "biodbs",
+    provider: Annotated[str, typer.Option("--provider", help="Acquisition provider.")] = "biodbs",
     build: Annotated[
         str, typer.Option("--build", help="Build target: vsearch, blast, or qiime2.")
     ] = "vsearch",

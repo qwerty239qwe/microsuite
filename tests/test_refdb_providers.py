@@ -74,9 +74,7 @@ def test_build_qiime2_short_circuits_on_existing_qza(tmp_path: Path, monkeypatch
         called = True
         raise AssertionError("build_artifact must not be called for qza short-circuit")
 
-    monkeypatch.setattr(
-        "microsuite.refdb.providers._base.build_artifact", fake_build_artifact
-    )
+    monkeypatch.setattr("microsuite.refdb.providers._base.build_artifact", fake_build_artifact)
 
     art = provider.build(raw, "qiime2", out_dir=tmp_path)
 

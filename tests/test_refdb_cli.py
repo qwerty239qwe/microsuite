@@ -26,9 +26,7 @@ def test_refdb_fetch_prints_artifact_path(tmp_path: Path, monkeypatch) -> None:
             target.write_text(self._SRC[name].read_text(encoding="utf-8"), encoding="utf-8")
             return target
 
-    monkeypatch.setattr(
-        "microsuite.refdb.providers.biodbs._load_biodbs", lambda: _FakeBiodbs()
-    )
+    monkeypatch.setattr("microsuite.refdb.providers.biodbs._load_biodbs", lambda: _FakeBiodbs())
     result = runner.invoke(
         app, ["refdb", "fetch", "homd", "--version", "15.22", "--build", "vsearch"]
     )

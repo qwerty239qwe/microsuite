@@ -17,7 +17,7 @@ def _read_stats(stats_path: Path) -> tuple[list[str], dict[str, dict[str, int]]]
     rows: dict[str, dict[str, int]] = {}
     for line in lines[1:]:
         cells = line.split("\t")
-        rows[cells[0]] = {m: int(float(v)) for m, v in zip(metrics, cells[1:])}
+        rows[cells[0]] = {m: int(float(v)) for m, v in zip(metrics, cells[1:], strict=False)}
     return metrics, rows
 
 
@@ -27,9 +27,13 @@ def _frac(vals: dict[str, int], key: str) -> float:
 
 
 def _bottleneck(totals: dict[str, int], paired: bool) -> str:
-    steps = ["input", "filtered", "merged", "nonchim"] if paired else ["input", "filtered", "denoised", "nonchim"]
+    steps = (
+        ["input", "filtered", "merged", "nonchim"]
+        if paired
+        else ["input", "filtered", "denoised", "nonchim"]
+    )
     worst_label, worst_ratio = steps[0] + "->" + steps[1], 2.0
-    for prev, cur in zip(steps, steps[1:]):
+    for prev, cur in zip(steps, steps[1:], strict=False):
         p = totals.get(prev, 0)
         ratio = (totals.get(cur, 0) / p) if p > 0 else 1.0
         if ratio < worst_ratio:
@@ -57,7 +61,12 @@ def summarize_dada2_stats(stats_path: Path) -> dict:
         "merged_frac": _frac(totals, "merged") if paired else None,
         "nonchim_frac": _frac(totals, "nonchim"),
     }
-    return {"per_sample": per_sample, "overall": overall, "bottleneck": _bottleneck(totals, paired), "paired": paired}
+    return {
+        "per_sample": per_sample,
+        "overall": overall,
+        "bottleneck": _bottleneck(totals, paired),
+        "paired": paired,
+    }
 
 
 def write_qc_summary(summary: dict, out_dir: Path) -> tuple[Path, Path]:
@@ -69,7 +78,8 @@ def write_qc_summary(summary: dict, out_dir: Path) -> tuple[Path, Path]:
     out = ["\t".join(header)]
     for sample, entry in sorted(summary["per_sample"].items()):
         merged = "" if entry["merged_frac"] is None else entry["merged_frac"]
-        out.append("\t".join(str(x) for x in [sample, entry["input"], entry["filtered_frac"], merged, entry["nonchim_frac"]]))
+        row = [sample, entry["input"], entry["filtered_frac"], merged, entry["nonchim_frac"]]
+        out.append("\t".join(str(x) for x in row))
     tsv_path.write_text("\n".join(out) + "\n", encoding="utf-8")
     return json_path, tsv_path
 
@@ -85,11 +95,13 @@ def retention_warnings(summary: dict) -> list[str]:
         frac = overall.get(f"{key}_frac")
         if frac is None:
             continue
-        if frac < RETENTION_THRESHOLDS[key]:
+        threshold = RETENTION_THRESHOLDS[key]
+        if frac < threshold:
+            bottleneck = summary["bottleneck"]
             messages.append(
-                f"Low DADA2 retention: {label} = {frac:.0%} (below {RETENTION_THRESHOLDS[key]:.0%}). "
-                f"Bottleneck step: {summary['bottleneck']}. Check quality profiles, maxEE, truncLen, "
-                "and (paired) the expected read overlap."
+                f"Low DADA2 retention: {label} = {frac:.0%} (below {threshold:.0%}). "
+                f"Bottleneck step: {bottleneck}. Check quality profiles, maxEE, "
+                "truncLen, and (paired) the expected read overlap."
             )
     return messages
 

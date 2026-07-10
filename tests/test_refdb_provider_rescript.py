@@ -36,7 +36,9 @@ def test_rescript_requires_qiime(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr("shutil.which", lambda name: None)
     provider = get_provider("rescript")
     with pytest.raises(MicrobiomeSuiteError):
-        provider.fetch(RefDbSpec(name="silva", version="138.1", provider="rescript"), out_dir=tmp_path)
+        provider.fetch(
+            RefDbSpec(name="silva", version="138.1", provider="rescript"), out_dir=tmp_path
+        )
 
 
 def test_rescript_build_qiime2_short_circuits_on_qza(tmp_path: Path) -> None:

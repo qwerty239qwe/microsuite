@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from microsuite.refdb.paths import VALID_BUILD_TARGETS, refdb_cache_dir
-from microsuite.refdb.spec import BuiltArtifact, RawRefDb, RefDbSource, RefDbSpec
+from microsuite.refdb.spec import RefDbSpec
 
 
 def test_refdbspec_defaults() -> None:

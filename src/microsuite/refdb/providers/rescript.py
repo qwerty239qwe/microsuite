@@ -23,8 +23,7 @@ class RescriptProvider(RefDbProvider):
         out_dir.mkdir(parents=True, exist_ok=True)
         if spec.name != "silva":
             raise MicrobiomeSuiteError(
-                f"The 'rescript' provider does not yet support DB '{spec.name}'. "
-                "Supported: silva."
+                f"The 'rescript' provider does not yet support DB '{spec.name}'. Supported: silva."
             )
         seqs = out_dir / "silva-seqs.qza"
         tax = out_dir / "silva-tax.qza"

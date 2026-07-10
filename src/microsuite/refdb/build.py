@@ -30,9 +30,10 @@ def merge_raw(raws: list[RawRefDb], out_dir: Path) -> RawRefDb:
     seen: set[str] = set()
     seq_out = out_dir / "merged.fasta"
     tax_out = out_dir / "merged.tax.tsv"
-    with seq_out.open("w", encoding="utf-8") as seq_fh, tax_out.open(
-        "w", encoding="utf-8"
-    ) as tax_fh:
+    with (
+        seq_out.open("w", encoding="utf-8") as seq_fh,
+        tax_out.open("w", encoding="utf-8") as tax_fh,
+    ):
         for raw in raws:
             ensure_input(raw.sequences)
             ensure_input(raw.taxonomy)

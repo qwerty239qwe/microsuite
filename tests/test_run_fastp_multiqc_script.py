@@ -36,9 +36,18 @@ def test_manifest_only_groups_pe_and_se(tmp_path: Path) -> None:
         _tiny_gz(fq / name)
     out = tmp_path / "results"
     result = subprocess.run(
-        ["bash", str(SCRIPT), "acc", "--input-dir", str(fq),
-         "--output-root", str(out), "--manifest-only"],
-        capture_output=True, text=True,
+        [
+            "bash",
+            str(SCRIPT),
+            "acc",
+            "--input-dir",
+            str(fq),
+            "--output-root",
+            str(out),
+            "--manifest-only",
+        ],
+        capture_output=True,
+        text=True,
     )
     assert result.returncode == 0, result.stderr
     manifest = out / "acc" / "fastp_outputs" / "fastq_manifest.tsv"
@@ -71,7 +80,9 @@ def test_missing_fastp_tool_guard(tmp_path: Path) -> None:
     out = tmp_path / "results"
     result = subprocess.run(
         ["bash", str(SCRIPT), "acc", "--input-dir", str(fq), "--output-root", str(out)],
-        capture_output=True, text=True, env=env,
+        capture_output=True,
+        text=True,
+        env=env,
     )
     assert result.returncode != 0
     assert "fastp" in result.stderr
@@ -100,8 +111,18 @@ def test_default_and_force_runs_complete_with_stub_tools(
     env = dict(os.environ, PATH=path)
     out = tmp_path / "results"
     result = subprocess.run(
-        ["bash", str(SCRIPT), "acc", "--input-dir", str(fq),
-         "--output-root", str(out), *extra_args],
-        capture_output=True, text=True, env=env,
+        [
+            "bash",
+            str(SCRIPT),
+            "acc",
+            "--input-dir",
+            str(fq),
+            "--output-root",
+            str(out),
+            *extra_args,
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
     )
     assert result.returncode == 0, result.stdout + result.stderr

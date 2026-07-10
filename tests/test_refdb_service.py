@@ -53,11 +53,7 @@ def test_fetch_merges_multiple_sources(tmp_path: Path) -> None:
         sources=(RefDbSource("source_a", "1"), RefDbSource("source_b", "1")),
     )
     art = fetch_refdb(spec, "vsearch", registry=reg)
-    ids = [
-        line[1:].strip()
-        for line in art.path.read_text().splitlines()
-        if line.startswith(">")
-    ]
+    ids = [line[1:].strip() for line in art.path.read_text().splitlines() if line.startswith(">")]
     assert ids == ["seq1", "seq2", "seq3"]
 
 
