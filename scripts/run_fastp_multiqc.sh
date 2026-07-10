@@ -191,6 +191,8 @@ export -f run_one_sample_by_id
 export MANIFEST TRIMMED_DIR FASTP_REPORT_DIR RUN_DIR LOG_DIR THREADS FORCE
 
 echo "Trimming samples (jobs=${JOBS}, threads=${THREADS})"
+# $1 in the bash -c string is a positional for the inner shell, not this one.
+# shellcheck disable=SC2016
 tail -n +2 "${MANIFEST}" | cut -f1 \
   | xargs -P "${JOBS}" -n 1 bash -c 'set -euo pipefail; run_one_sample_by_id "$1"' _
 
