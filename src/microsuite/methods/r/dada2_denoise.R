@@ -57,6 +57,21 @@ min_fold_parent_over_abundance <- as.numeric(value_after("--min-fold-parent-over
 allow_one_off <- has_flag("--allow-one-off")
 n_reads_learn <- as.integer(value_after("--n-reads-learn", "1000000"))
 
+params_out <- value_after("--params-out")
+
+resolved_trim_left_f <- as.integer(value_after("--trim-left-f", "0"))
+resolved_trim_left_r <- as.integer(value_after("--trim-left-r", "0"))
+resolved_trunc_len_f <- as.integer(value_after("--trunc-len-f", "0"))
+resolved_trunc_len_r <- as.integer(value_after("--trunc-len-r", "0"))
+resolved_max_ee_f <- as.numeric(value_after("--max-ee-f", "2"))
+resolved_max_ee_r <- as.numeric(value_after("--max-ee-r", "2"))
+resolved_min_overlap <- as.integer(value_after("--min-overlap", "12"))
+resolved_max_merge_mismatch <- as.integer(value_after("--max-merge-mismatch", "0"))
+resolved_trim_overhang <- has_flag("--trim-overhang")
+resolved_trim_left <- as.integer(value_after("--trim-left", "0"))
+resolved_trunc_len <- as.integer(value_after("--trunc-len", "0"))
+resolved_max_ee <- as.numeric(value_after("--max-ee", "2"))
+
 if (is.null(input_dir) || is.null(output_table) || is.null(output_rep_seqs) || is.null(output_stats)) {
   stop("Missing required --input-dir, --output-table, --output-rep-seqs, or --output-stats.")
 }
@@ -119,6 +134,22 @@ count_reads <- function(x) {
   vapply(x, getN, numeric(1))
 }
 
+json_scalar <- function(v) {
+  if (is.null(v) || (length(v) == 1 && is.na(v))) return("null")
+  if (is.logical(v)) return(if (isTRUE(v)) "true" else "false")
+  if (is.numeric(v)) return(format(v, scientific = FALSE, trim = TRUE))
+  paste0("\"", gsub("\"", "\\\\\"", as.character(v)), "\"")
+}
+
+write_params_json <- function(path, params) {
+  parts <- vapply(
+    names(params),
+    function(k) paste0("  \"", k, "\": ", json_scalar(params[[k]])),
+    character(1)
+  )
+  writeLines(c("{", paste(parts, collapse = ",\n"), "}"), path)
+}
+
 if (paired) {
   fnFs <- fastqs[vapply(fastqs, is_read, logical(1), read = 1)]
   fnRs <- fastqs[vapply(fastqs, is_read, logical(1), read = 2)]
@@ -131,9 +162,9 @@ if (paired) {
   filtRs <- file.path(tempdir(), paste0(sampleFs, ".R2.filtered.fastq.gz"))
   out <- filterAndTrim(
     fnFs, filtFs, fnRs, filtRs,
-    trimLeft = c(as.integer(value_after("--trim-left-f", "0")), as.integer(value_after("--trim-left-r", "0"))),
-    truncLen = c(as.integer(value_after("--trunc-len-f", "0")), as.integer(value_after("--trunc-len-r", "0"))),
-    maxEE = c(as.numeric(value_after("--max-ee-f", "2")), as.numeric(value_after("--max-ee-r", "2"))),
+    trimLeft = c(resolved_trim_left_f, resolved_trim_left_r),
+    truncLen = c(resolved_trunc_len_f, resolved_trunc_len_r),
+    maxEE = c(resolved_max_ee_f, resolved_max_ee_r),
     truncQ = trunc_q,
     maxN = max_n,
     rm.phix = rm_phix,
@@ -151,9 +182,9 @@ if (paired) {
   names(dadaRs) <- sampleFs
   mergers <- mergePairs(
     dadaFs, filtFs, dadaRs, filtRs,
-    minOverlap = as.integer(value_after("--min-overlap", "12")),
-    maxMismatch = as.integer(value_after("--max-merge-mismatch", "0")),
-    trimOverhang = has_flag("--trim-overhang")
+    minOverlap = resolved_min_overlap,
+    maxMismatch = resolved_max_merge_mismatch,
+    trimOverhang = resolved_trim_overhang
   )
   names(mergers) <- sampleFs
   seqtab <- makeSequenceTable(mergers)
@@ -178,9 +209,9 @@ if (paired) {
   filt <- file.path(tempdir(), paste0(samples, ".filtered.fastq.gz"))
   out <- filterAndTrim(
     fastqs, filt,
-    trimLeft = as.integer(value_after("--trim-left", "0")),
-    truncLen = as.integer(value_after("--trunc-len", "0")),
-    maxEE = as.numeric(value_after("--max-ee", "2")),
+    trimLeft = resolved_trim_left,
+    truncLen = resolved_trunc_len,
+    maxEE = resolved_max_ee,
     truncQ = trunc_q,
     maxN = max_n,
     rm.phix = rm_phix,
@@ -218,4 +249,32 @@ writeLines(as.vector(rbind(paste0(">", ids), seqs)), output_rep_seqs)
 write.table(track, output_stats, sep = "\t", quote = FALSE, col.names = NA)
 if (!is.null(output_plot_dir)) {
   write_retention_plot(track, file.path(output_plot_dir, "read_retention.png"))
+}
+
+if (!is.null(params_out)) {
+  write_params_json(params_out, list(
+    mode = if (paired) "paired" else "single",
+    trim_left_f = if (paired) resolved_trim_left_f else NA,
+    trim_left_r = if (paired) resolved_trim_left_r else NA,
+    trunc_len_f = if (paired) resolved_trunc_len_f else NA,
+    trunc_len_r = if (paired) resolved_trunc_len_r else NA,
+    max_ee_f = if (paired) resolved_max_ee_f else NA,
+    max_ee_r = if (paired) resolved_max_ee_r else NA,
+    min_overlap = if (paired) resolved_min_overlap else NA,
+    max_merge_mismatch = if (paired) resolved_max_merge_mismatch else NA,
+    trim_overhang = if (paired) resolved_trim_overhang else NA,
+    trim_left = if (!paired) resolved_trim_left else NA,
+    trunc_len = if (!paired) resolved_trunc_len else NA,
+    max_ee = if (!paired) resolved_max_ee else NA,
+    trunc_q = trunc_q,
+    max_n = max_n,
+    rm_phix = rm_phix,
+    pooling_method = pooling_method,
+    chimera_method = chimera_method,
+    min_fold_parent_over_abundance = min_fold_parent_over_abundance,
+    allow_one_off = allow_one_off,
+    n_reads_learn = n_reads_learn,
+    dada2_version = as.character(packageVersion("dada2")),
+    r_version = R.version.string
+  ))
 }
