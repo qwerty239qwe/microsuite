@@ -13,6 +13,7 @@ from microsuite.io.h5ad import read_h5ad, write_h5ad
 
 SUPPORTED_BACKENDS = ("native",)
 NORMALIZE_METHODS = ("relative", "total-sum", "clr", "prevalence-filter")
+SHAPE_PRESERVING = ("relative", "total-sum", "clr")
 
 
 def normalize(
@@ -32,14 +33,22 @@ def normalize(
             f"Unsupported normalize backend '{backend}'. "
             f"Choose one of: {', '.join(SUPPORTED_BACKENDS)}"
         )
-    adata = normalize_native(
-        read_h5ad(ensure_input(table)),
+    source = read_h5ad(ensure_input(table))
+    result = normalize_native(
+        source,
         method=method,
         target_sum=target_sum,
         pseudocount=pseudocount,
         min_prevalence=min_prevalence,
     )
-    write_h5ad(adata, prepare_output(output, force=force))
+    normalized_method = method.lower()
+    if normalized_method in SHAPE_PRESERVING:
+        source.layers[normalized_method] = result.X
+        source.uns["microsuite_normalize"] = result.uns["microsuite_normalize"]
+        out_adata = source
+    else:
+        out_adata = result
+    write_h5ad(out_adata, prepare_output(output, force=force))
 
 
 def normalize_native(
