@@ -12,161 +12,190 @@
 
 ## Scope
 
-D adds a tsv-native `table` command group so downstream workflows can transform
-and move profile matrices without the import→h5ad→export glue codex kept writing:
-`table export` (h5ad→TSV) and `table normalize` (TSV→TSV, all native methods incl
-CLR). It also fixes the #15 first-column naming clash in the shared TSV reader,
-which benefits the existing `import tsv` too.
+D makes the four table conversions ergonomic and consistent:
+
+| # | Conversion | Command | Status |
+|---|------------|---------|--------|
+| 1 | tsv + metadata → h5ad | `import tsv` | exists; gains #15 sanitize |
+| 2 | h5ad → h5ad (normalized matrix added as a **layer**, X preserved) | `normalize` | behavior change |
+| 3 | tsv → tsv (transform a bare matrix) | `table normalize` | new |
+| 4 | h5ad → tsv (+ optional metadata) | `table export` | new |
+
+It also fixes the #15 first-column naming clash in the shared TSV reader, which
+benefits `import tsv` and the new tsv-native `table` group alike.
 
 ### Out of scope for D
 - Plotting on profile matrices (the "plots" half of #14) — overlaps E/F viz work
   (#16 assignment plots, #18 metadata-aware viz); deferred there.
-- New transform methods beyond what `normalize_native` already supports
-  (relative, total-sum, clr, prevalence-filter).
+- New transform methods beyond `normalize_native`'s
+  (`relative`, `total-sum`, `clr`, `prevalence-filter`).
 - Non-native normalize backends (only `native` supports these methods).
-- Layer/obs-column selection in `table export` — it exports the primary `X`
-  matrix as-is.
 
 ## Verified context
 
-- `normalize()` (`methods/normalize.py`) is h5ad-in/h5ad-out; the reusable core
-  `normalize_native(adata, *, method, target_sum, pseudocount, min_prevalence)
-  -> AnnData` supports `relative`, `total-sum`, `clr`, `prevalence-filter`.
-- `abundance` already writes a TSV from an AnnData via `dense_counts(adata)` +
+- `normalize()` (`methods/normalize.py`) is h5ad-in/h5ad-out and today **replaces
+  X** with the transformed matrix. Core `normalize_native(adata, *, method,
+  target_sum, pseudocount, min_prevalence) -> AnnData` supports `relative`,
+  `total-sum`, `clr` (all **shape-preserving**) and `prevalence-filter` (which
+  **removes** low-prevalence features → different shape).
+- `abundance` writes a TSV from an AnnData via `dense_counts(adata)` +
   `DataFrame.to_csv(sep="\t")`; `obs_names` = samples, `var_names` = features.
-- `io/tsv.py:read_tsv(table, metadata, taxonomy)` **requires** metadata, sets the
-  first column as the feature index (so its NAME leaks into `var.index.name`),
-  then `add_taxonomy_levels(var)` unconditionally adds `var` columns
-  `kingdom…species` (`io/taxonomy.py:LEVELS`). When the first column is named a
-  rank (e.g. `genus`), `var.index.name == "genus"` collides with the `genus`
-  `var` column on `write_h5ad` — the #15 break.
-- `read_h5ad`/`write_h5ad` exist in `io/h5ad.py`. CLI groups are registered in
-  `cli/app.py` via `app.add_typer(<mod>.app, name=...)`.
-- Methods/readers raise `MicrobiomeSuiteError` (`microsuite._errors`) for fatal
-  cases; the codebase uses `warnings.warn` for non-fatal notices (established by
-  sub-projects B and A).
+- `io/tsv.py:read_tsv(table, metadata, taxonomy)` requires metadata, sets the
+  first column as the feature index (its NAME leaks into `var.index.name`), then
+  `add_taxonomy_levels(var)` adds `var` columns `kingdom…species`
+  (`io/taxonomy.py:LEVELS`). A first column named a rank (e.g. `genus`) collides
+  with the `genus` `var` column on `write_h5ad` — the #15 break.
+- `read_h5ad`/`write_h5ad` in `io/h5ad.py`; CLI groups registered in `cli/app.py`
+  via `app.add_typer(<mod>.app, name=...)`. Fatal → `MicrobiomeSuiteError`
+  (`microsuite._errors`); non-fatal → `warnings.warn` (as in sub-projects A/B).
 
 ## Design
 
-### Component 1 — shared matrix reader (`io/tsv.py`)
-
-Extract the count-matrix parsing into a reusable helper and add a metadata-free
-variant:
+### Component 1 — shared matrix reader + #15 sanitize (`io/tsv.py`)
 
 ```python
 _RESERVED_FEATURE_NAMES = set(LEVELS) | {"taxonomy", "taxon"}
 
 def read_count_matrix(path: Path) -> pd.DataFrame:
-    """Read a features×samples count matrix TSV (first column = feature IDs).
-    Numeric-coerce sample columns, reject empties/duplicates. Normalize the
-    feature index name to 'feature_id'; if the original first-column name is a
-    reserved rank/taxonomy name, warn that it was renamed (IDs are preserved)."""
+    """Read a features×samples count matrix TSV (first column = feature IDs):
+    numeric-coerce sample columns, reject empty/duplicate IDs, normalize the
+    feature index name to 'feature_id'. If the original first-column name is a
+    reserved rank/taxonomy name, warn that it was renamed (IDs preserved)."""
 
 def read_matrix_tsv(path: Path) -> ad.AnnData:
-    """Build an AnnData from a bare count matrix — no metadata required. obs is an
-    empty frame indexed by the sample columns; var carries add_taxonomy_levels."""
+    """Build an AnnData from a bare matrix — no metadata. obs is an empty frame
+    indexed by the sample columns; var carries add_taxonomy_levels."""
 ```
 
-`read_count_matrix`:
-1. `table = pd.read_csv(path, sep="\t")`; reject if empty or `< 2` columns
-   (`MicrobiomeSuiteError`, same message as today).
-2. Capture `original = str(table.columns[0])`; set that column as index; cast
-   index to str; reject duplicate feature IDs.
-3. Numeric-coerce the remaining columns (`apply(pd.to_numeric, errors="raise")`),
-   cast column labels to str.
-4. Set `counts.index.name = "feature_id"`. If
-   `original.strip().lower() in _RESERVED_FEATURE_NAMES`,
-   `warnings.warn(f"Renamed feature-ID column '{original}' to 'feature_id' to
-   avoid a taxonomy-rank naming conflict; feature IDs are unchanged.")`.
-5. Return the features×samples frame.
+`read_count_matrix`: (1) `pd.read_csv(sep="\t")`; reject empty or `<2` cols; (2)
+capture `original = str(table.columns[0])`, set it as index, cast to str, reject
+duplicate IDs; (3) numeric-coerce the rest (`to_numeric(errors="raise")`), cast
+column labels to str; (4) `counts.index.name = "feature_id"`; if
+`original.strip().lower() in _RESERVED_FEATURE_NAMES`, `warnings.warn("Renamed
+feature-ID column '<original>' to 'feature_id' to avoid a taxonomy-rank naming
+conflict; feature IDs are unchanged.")`.
 
 `read_matrix_tsv`: `counts = read_count_matrix(path)`;
 `obs = pd.DataFrame(index=counts.columns)`;
 `var = add_taxonomy_levels(pd.DataFrame(index=counts.index))`;
-`AnnData(X=counts.T.to_numpy(float64), obs=obs, var=var)` with a `uns["microsuite"]`
-provenance stamp mirroring `read_tsv` (`importer="matrix-tsv"`).
+`AnnData(X=counts.T.to_numpy(float64), obs=obs, var=var)`, `uns["microsuite"]`
+stamp with `importer="matrix-tsv"`.
 
-Refactor `read_tsv` to call `read_count_matrix` for steps 1–4 (so `import tsv`
-inherits the #15 sanitize), keeping its metadata join and taxonomy handling.
+Refactor `read_tsv` to call `read_count_matrix` for the parse/sanitize, keeping
+its metadata join and taxonomy handling — so `import tsv` inherits the #15 fix.
 
-### Component 2 — `table` methods (`methods/table_io.py`)
+### Component 2 — layer-mode normalize (`methods/normalize.py`)
+
+`normalize()` (h5ad→h5ad) changes so shape-preserving transforms **preserve raw
+counts in X and write the result into `layers[<method>]`**:
+
+- `SHAPE_PRESERVING = {"relative", "total-sum", "clr"}`.
+- For a shape-preserving method: read the input adata, compute
+  `result = normalize_native(adata, method=...)`, then set
+  `adata.layers[<layer_name>] = result.X` (X untouched) and write `adata`. The
+  layer name is the method (`clr`, `relative`, `total-sum`).
+- For `prevalence-filter` (structural — removes features): it cannot be a layer of
+  the original X; keep today's behavior (write the filtered adata, X = filtered
+  counts). This exception is documented in the command help.
+- Re-normalizing an already-normalized h5ad reads the raw X, so multiple layers
+  (e.g. `clr` and `relative`) can coexist.
+
+`normalize_native` itself is unchanged (still returns a transformed AnnData); only
+the `normalize()` wrapper's write step changes.
+
+### Component 3 — `table` methods (`methods/table_io.py`)
 
 ```python
-def export_table(*, table: Path, output: Path, force: bool = False) -> None:
-    """Read an .h5ad and write its X matrix as a features×samples TSV
-    (index 'feature_id' = var_names, columns = obs_names)."""
+def export_table(*, table: Path, output: Path, layer: str | None = None,
+                 metadata: Path | None = None, force: bool = False) -> None:
+    """Read an .h5ad; write its X (or layers[layer]) as a features×samples TSV
+    (index 'feature_id' = var_names, columns = obs_names). If metadata is given,
+    also write obs to that TSV path."""
 
 def normalize_table(*, method: str, input_path: Path, output: Path,
                     target_sum: float = 1_000_000.0, pseudocount: float = 1.0,
                     min_prevalence: float = 0.1, force: bool = False) -> None:
-    """Read a matrix TSV, apply normalize_native(method=...), write a matrix TSV."""
+    """Read a matrix TSV, apply normalize_native(method=...), write the
+    transformed matrix as a features×samples TSV."""
 ```
 
-`export_table`: `adata = read_h5ad(ensure_input(table))`;
-`frame = pd.DataFrame(dense_counts(adata).T, index=adata.var_names.astype(str),
-columns=adata.obs_names.astype(str))`; `frame.index.name = "feature_id"`;
-`frame.to_csv(prepare_output(output, force=force), sep="\t")`.
+- `export_table`: `adata = read_h5ad(ensure_input(table))`; pick the matrix
+  (`adata.layers[layer]` if `layer` else `dense_counts(adata)`), raising
+  `MicrobiomeSuiteError` if a requested `layer` is absent (message lists available
+  layers); build `pd.DataFrame(matrix.T, index=var_names, columns=obs_names)` with
+  `index.name = "feature_id"`; `to_csv(prepare_output(output, force), sep="\t")`.
+  If `metadata` is set, `adata.obs` → `to_csv(prepare_output(metadata, force),
+  sep="\t")` (index named `sample`).
+- `normalize_table`: `adata = read_matrix_tsv(ensure_input(input_path))`;
+  `result = normalize_native(adata, method=method, ...)`; write `result` (X) via
+  the same features×samples `to_csv` shape (shared inner helper with
+  `export_table`). For `prevalence-filter` the written matrix has the surviving
+  features (tsv → tsv, single matrix — no layers involved).
 
-`normalize_table`: `adata = read_matrix_tsv(ensure_input(input_path))`;
-`result = normalize_native(adata, method=method, ...)`; write via the same
-features×samples `to_csv` shape as `export_table` (shared inner helper).
-
-### Component 3 — CLI (`cli/table_cmd.py`)
+### Component 4 — CLI (`cli/table_cmd.py`)
 
 `app = typer.Typer(help="Transform and export feature/profile tables as TSV.",
 no_args_is_help=True)`, registered in `cli/app.py` as
 `app.add_typer(table_cmd.app, name="table")`.
 
 - `table export`: `--table PATH` (h5ad, required), `--output/-o PATH` (required),
-  `--force`. Calls `export_table`.
+  `--layer TEXT` (optional; default exports X), `--metadata PATH` (optional; also
+  dump obs), `--force`. Calls `export_table`.
 - `table normalize`: `--method TEXT` (required; `relative`/`total-sum`/`clr`/
   `prevalence-filter`), `--input PATH` (matrix TSV, required), `--output/-o PATH`
   (required), `--target-sum`, `--pseudocount`, `--min-prevalence`, `--force`.
   Calls `normalize_table`.
 
+The existing `normalize` command (`method_tables_cmd.py`) keeps its options; only
+its output semantics change per Component 2 (help text updated to say the result
+is stored in a layer, X preserved; prevalence-filter filters features).
+
 ### Data flow
 
-`counts.tsv → read_matrix_tsv → AnnData → normalize_native(clr) → to_csv → clr.tsv`
-(one `table normalize` call). `x.h5ad → read_h5ad → to_csv → x.tsv` (one
-`table export` call). No metadata anywhere in the `table` group.
+- (1) `counts.tsv + metadata.tsv → import tsv → x.h5ad`.
+- (2) `x.h5ad → normalize --method clr → x_clr.h5ad` (X = counts, `layers["clr"]`
+  = CLR).
+- (3) `counts.tsv → table normalize --method clr → clr.tsv` (no metadata).
+- (4) `x.h5ad → table export [--layer clr] [--metadata meta.tsv] → matrix.tsv`.
 
 ## Testing (offline)
 
-- `read_count_matrix`: a rank-named first column (`genus`) → warns
-  (`pytest.warns`) and returns the matrix with `index.name == "feature_id"`; a
-  normal first column (`feature_id`/`#OTU ID`) → no warn; empty and duplicate-ID
-  inputs → `MicrobiomeSuiteError`.
-- `read_matrix_tsv`: builds an AnnData with the right shape and empty obs; no
-  metadata argument needed.
-- `import tsv` regression: a table whose first column is named `genus` now
-  imports to `.h5ad` without error and emits the rename warning (the exact #15
-  case that previously broke).
-- `export_table`: import a fixture (`import tsv`) → `table export` → the TSV
-  matches the original counts (round-trip on values, features×samples).
-- `normalize_table`: `--method clr` on a small `counts.tsv` yields values equal to
-  `normalize_native(clr)`; `--method relative` sums to 1 per sample; `--force`
-  overwrite behavior.
-- CLI smoke (typer `CliRunner`): `table export` and `table normalize` wire the
-  options through to the methods.
+- `read_count_matrix`: rank-named first column (`genus`) → `pytest.warns` and
+  `index.name == "feature_id"`; normal first column → no warn; empty / duplicate
+  IDs → `MicrobiomeSuiteError`.
+- `read_matrix_tsv`: builds an AnnData with the right shape and empty obs, no
+  metadata arg.
+- `import tsv` regression: first column named `genus` now imports without error
+  and warns (the exact #15 case).
+- `normalize` layer mode: `--method clr` on an h5ad → output `X` equals the
+  original counts AND `layers["clr"]` equals `normalize_native(clr).X`;
+  `--method relative` likewise adds `layers["relative"]`; `prevalence-filter`
+  writes a filtered adata (fewer vars, no layer).
+- `export_table`: import a fixture → `table export` → TSV matches original counts
+  (features×samples round-trip); `--layer clr` after a layer-normalize exports the
+  CLR matrix; `--metadata` writes obs; a missing `--layer` name →
+  `MicrobiomeSuiteError` naming available layers.
+- `normalize_table`: `--method clr` on a `counts.tsv` equals
+  `normalize_native(clr)`; `--method relative` sums to 1 per sample; `--force`.
+- CLI smoke (typer `CliRunner`): `table export` / `table normalize` wire options
+  through.
 
 ## Success criteria
 
-1. `microsuite table export --table x.h5ad -o x.tsv` writes a features×samples
-   TSV of the h5ad's `X` matrix.
-2. `microsuite table normalize --method clr --input counts.tsv -o clr.tsv`
-   produces CLR (and the other native methods) with no import/export glue and no
-   metadata.
-3. A matrix whose first column is named a taxonomic rank reads and imports with a
-   warning and no crash; feature IDs are preserved.
-4. The `table` group requires no metadata; existing `import tsv` behavior is
-   unchanged except it now also warns-and-sanitizes the rank-named first column.
-5. The full offline suite stays green and both CI gates pass
+1. `import tsv` handles the four→h5ad path and no longer crashes on a
+   rank-named first column (warns instead); feature IDs preserved.
+2. `normalize --method clr` on an h5ad writes h5ad with raw counts in `X` and the
+   CLR matrix in `layers["clr"]` (X preserved); other shape-preserving methods add
+   their own layer; `prevalence-filter` filters features.
+3. `table normalize --method clr --input counts.tsv -o clr.tsv` does tsv→tsv CLR
+   with no metadata and no h5ad glue; all native methods work.
+4. `table export --table x.h5ad -o x.tsv` writes a features×samples TSV, with
+   optional `--layer` selection and optional `--metadata` obs dump.
+5. Full offline suite green and both CI gates pass
    (`ruff check .`, `ruff format --check .`).
 
 ## Open questions / follow-ups (not blocking D)
 
-- `table export` could later grow `--layer`/`--obs` selection or long-format
-  output; deferred until a workflow needs it.
-- A `table import`/round-trip that also carries metadata/taxonomy is already
-  served by `import tsv`; the `table` group intentionally stays metadata-free.
+- `table export` long-format / multi-layer output could be added later.
+- A configurable layer name for `normalize` (beyond the method name) is deferred.
 - Plotting on profile matrices (#14 second half) is deferred to E/F.
