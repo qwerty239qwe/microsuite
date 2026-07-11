@@ -16,6 +16,7 @@ from microsuite.cli import (
     ordination_cmd,
     qiime_cmd,
     refdb_cmd,
+    table_cmd,
     viz_cmd,
     workflow_cmd,
 )
@@ -43,6 +44,7 @@ def _install_groups() -> None:
     app.add_typer(workflow_cmd.app, name="workflow")
     app.add_typer(network_cmd.app, name="network")
     app.add_typer(ml_cmd.app, name="ml")
+    app.add_typer(table_cmd.app, name="table")
     app.add_typer(method_cmd.app)
 
 

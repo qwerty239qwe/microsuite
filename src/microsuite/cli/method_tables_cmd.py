@@ -23,7 +23,12 @@ def register(app: typer.Typer) -> None:
             str,
             typer.Option(
                 "--method",
-                help="relative, total-sum, clr, or prevalence-filter.",
+                help=(
+                    "relative, total-sum, clr, or prevalence-filter. "
+                    "relative/total-sum/clr store the result in layers[<method>] and "
+                    "preserve raw counts in X; prevalence-filter removes low-prevalence "
+                    "features and writes the filtered table to X."
+                ),
             ),
         ],
         table: Annotated[Path, typer.Option("--table", help="Input .h5ad table.")],

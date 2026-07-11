@@ -95,3 +95,47 @@ def test_h5ad_roundtrip_for_normalize(tmp_path: Path) -> None:
     write_h5ad(normalize_native(read_h5ad(table), method="relative"), output)
 
     assert pd.DataFrame(read_h5ad(output).obs).shape[0] == 4
+
+
+def test_normalize_clr_writes_layer_preserves_x(tmp_path) -> None:
+    import numpy as np
+
+    from microsuite.io.h5ad import read_h5ad, write_h5ad
+    from microsuite.io.tsv import read_matrix_tsv
+    from microsuite.methods.normalize import normalize, normalize_native
+
+    counts = tmp_path / "counts.tsv"
+    counts.write_text("feature_id\ts1\ts2\nA\t5\t1\nB\t3\t9\n", encoding="utf-8")
+
+    adata_in = read_matrix_tsv(counts)
+    src = tmp_path / "in.h5ad"
+    write_h5ad(adata_in, src)
+
+    out = tmp_path / "out.h5ad"
+    normalize(backend="native", method="clr", table=src, output=out)
+    result = read_h5ad(out)
+    # X still raw counts
+    assert np.allclose(result.X, adata_in.X)
+    # clr stored as a layer, matching normalize_native
+    assert "clr" in result.layers
+    expected = normalize_native(adata_in, method="clr").X
+    assert np.allclose(result.layers["clr"], expected)
+
+
+def test_normalize_prevalence_filter_filters_features(tmp_path) -> None:
+    from microsuite.io.h5ad import read_h5ad, write_h5ad
+    from microsuite.io.tsv import read_matrix_tsv
+    from microsuite.methods.normalize import normalize
+
+    counts = tmp_path / "counts.tsv"
+    # feature B present in only 1 of 2 samples -> prevalence 0.5
+    counts.write_text("feature_id\ts1\ts2\nA\t5\t1\nB\t0\t9\n", encoding="utf-8")
+    src = tmp_path / "in.h5ad"
+    write_h5ad(read_matrix_tsv(counts), src)
+    out = tmp_path / "out.h5ad"
+    normalize(
+        backend="native", method="prevalence-filter", table=src, output=out, min_prevalence=0.75
+    )
+    result = read_h5ad(out)
+    assert list(result.var_names) == ["A"]  # B filtered
+    assert "prevalence-filter" not in result.layers  # structural, not a layer
