@@ -72,3 +72,48 @@ def test_cli_taxa_by_group(tmp_path: Path) -> None:
     )
     assert r.exit_code == 0, r.stdout
     assert out.exists()
+
+
+def test_plot_clr_by_group_styles(tmp_path: Path) -> None:
+    from microsuite.viz.metadata import plot_clr_by_group
+
+    for style in ("boxplot", "heatmap", "violin"):
+        out = tmp_path / f"clr_{style}.png"
+        plot_clr_by_group(
+            make_adata(), level="genus", group_by="phase", output=out, top_n=3, style=style
+        )
+        assert out.exists() and out.stat().st_size > 0
+
+
+def test_plot_clr_by_group_bad_style(tmp_path: Path) -> None:
+    from microsuite.viz.metadata import plot_clr_by_group
+
+    with pytest.raises(MicrobiomeSuiteError, match="style"):
+        plot_clr_by_group(
+            make_adata(), level="genus", group_by="phase", output=tmp_path / "x.png", style="pie"
+        )
+
+
+def test_cli_clr_by_group_heatmap(tmp_path: Path) -> None:
+    src = tmp_path / "t.h5ad"
+    write_h5ad(make_adata(), src)
+    out = tmp_path / "clr.png"
+    r = CliRunner().invoke(
+        app,
+        [
+            "viz",
+            "clr-by-group",
+            "--table",
+            str(src),
+            "--level",
+            "genus",
+            "--group-by",
+            "phase",
+            "--style",
+            "heatmap",
+            "-o",
+            str(out),
+        ],
+    )
+    assert r.exit_code == 0, r.stdout
+    assert out.exists()
