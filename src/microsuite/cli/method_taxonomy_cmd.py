@@ -5,6 +5,7 @@ from typing import Annotated
 
 import typer
 
+from microsuite._paths import ensure_input, prepare_output
 from microsuite.cli._method_api import (
     evaluate,
     phylogeny,
@@ -12,6 +13,13 @@ from microsuite.cli._method_api import (
     tax_classify,
     tax_collapse,
     tax_train,
+)
+from microsuite.io.h5ad import read_h5ad
+from microsuite.methods.assignment_qc import summarize_assignment, write_assignment_summary
+from microsuite.viz.assignment import (
+    plot_assigned_asv_by_rank,
+    plot_assigned_reads_by_rank,
+    plot_deepest_rank,
 )
 
 
@@ -217,3 +225,29 @@ def register(app: typer.Typer) -> None:
             run_dir=run_dir,
             timeout=timeout,
         )
+
+    @app.command("tax_assignment_summary")
+    def tax_assignment_summary_cmd(
+        table: Annotated[Path, typer.Option("--table", help="Input .h5ad with taxonomy.")],
+        output: Annotated[Path, typer.Option("--output", "-o", help="Output summary TSV.")],
+        force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
+    ) -> None:
+        adata = read_h5ad(ensure_input(table))
+        summary = summarize_assignment(adata)
+        write_assignment_summary(summary, prepare_output(output, force=force))
+
+    @app.command("tax_assignment_plots")
+    def tax_assignment_plots_cmd(
+        table: Annotated[Path, typer.Option("--table", help="Input .h5ad with taxonomy.")],
+        output_dir: Annotated[Path, typer.Option("--output-dir", help="Directory for the 3 PNGs.")],
+        force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
+    ) -> None:
+        adata = read_h5ad(ensure_input(table))
+        output_dir.mkdir(parents=True, exist_ok=True)
+        plot_assigned_asv_by_rank(
+            adata, prepare_output(output_dir / "assigned_asv_by_rank.png", force=force)
+        )
+        plot_assigned_reads_by_rank(
+            adata, prepare_output(output_dir / "assigned_reads_by_rank.png", force=force)
+        )
+        plot_deepest_rank(adata, prepare_output(output_dir / "deepest_rank.png", force=force))
