@@ -73,6 +73,47 @@ def test_deepest_rank_distribution() -> None:
     assert int(dist.sum()) == 3  # each ASV counted once
 
 
+def _fixture_with_nan() -> ad.AnnData:
+    # F1 assigned to species (all ranks), F2 assigned to genus only (with a
+    # real NaN at species, simulating an uncovered feature from
+    # taxonomy.reindex), F3 unassigned via NaN at every rank.
+    rank_values = {
+        "kingdom": ["Bacteria", "Bacteria", np.nan],
+        "phylum": ["Firmicutes", "Bacteroidetes", np.nan],
+        "class": ["Bacilli", "Bacteroidia", np.nan],
+        "order": ["Lactobacillales", "Bacteroidales", np.nan],
+        "family": ["Lactobacillaceae", "Prevotellaceae", np.nan],
+        "genus": ["Lactobacillus", "Prevotella", np.nan],
+        "species": ["L. casei", np.nan, np.nan],
+    }
+    var = pd.DataFrame(rank_values, index=["F1", "F2", "F3"])
+    X = np.array([[10.0, 5.0, 1.0], [0.0, 3.0, 2.0]])
+    return ad.AnnData(X=X, obs=pd.DataFrame(index=["s1", "s2"]), var=var)
+
+
+def test_summarize_assignment_treats_nan_as_unassigned() -> None:
+    # Regression test: a real np.nan (e.g. from taxonomy.reindex on features
+    # missing from the taxonomy table) must count as UNASSIGNED, not
+    # assigned. Previously `.astype(str)` turned NaN into the string "nan",
+    # which is != "" and so was incorrectly counted as assigned.
+    df = summarize_assignment(_fixture_with_nan())
+    pooled = df[df["sample"] == POOLED_LABEL].set_index("rank")
+    # species: only F1 assigned (F2, F3 have NaN) -> 1 assigned, 2 unassigned
+    assert pooled.loc["species", "assigned_features"] == 1
+    assert pooled.loc["species", "unassigned_features"] == 2
+    # genus: F1 + F2 assigned, F3 has NaN -> 2 assigned, 1 unassigned
+    assert pooled.loc["genus", "assigned_features"] == 2
+    assert pooled.loc["genus", "unassigned_features"] == 1
+
+
+def test_deepest_rank_distribution_treats_nan_as_unassigned() -> None:
+    dist = deepest_rank_distribution(_fixture_with_nan())
+    assert dist["species"] == 1  # F1
+    assert dist["genus"] == 1  # F2 (NaN tail from species onward)
+    assert dist["Unassigned"] == 1  # F3 (all-NaN)
+    assert int(dist.sum()) == 3
+
+
 def test_no_taxonomy_ranks_raises() -> None:
     adata = ad.AnnData(
         X=np.array([[1.0, 2.0]]),

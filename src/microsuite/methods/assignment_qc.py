@@ -32,8 +32,19 @@ def _ranks(adata: ad.AnnData) -> list[str]:
     return ranks
 
 
+def _assigned_mask(series: pd.Series) -> np.ndarray:
+    """Return a boolean mask of "assigned" entries.
+
+    Both real NaN/NA values and empty or whitespace-only strings are treated
+    as unassigned; anything else (a real taxon label) is assigned.
+    """
+    values = series.astype("object")
+    empty = values.isna() | (values.fillna("").astype(str).str.strip() == "")
+    return (~empty).to_numpy()
+
+
 def _assigned_masks(adata: ad.AnnData, ranks: list[str]) -> dict[str, np.ndarray]:
-    return {r: (adata.var[r].astype(str).to_numpy() != "") for r in ranks}
+    return {r: _assigned_mask(adata.var[r]) for r in ranks}
 
 
 def _row(
@@ -78,6 +89,6 @@ def deepest_rank_distribution(adata: ad.AnnData) -> pd.Series:
     ranks = _ranks(adata)
     deepest = pd.Series("Unassigned", index=adata.var.index)
     for rank in ranks:  # shallow -> deep; later ranks overwrite
-        mask = adata.var[rank].astype(str).to_numpy() != ""
+        mask = _assigned_mask(adata.var[rank])
         deepest[mask] = rank
     return deepest.value_counts().reindex([*ranks, "Unassigned"], fill_value=0)
