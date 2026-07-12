@@ -8,8 +8,10 @@ import numpy as np
 import pandas as pd
 
 from microsuite._errors import MicrobiomeSuiteError
+from microsuite.diversity.beta import beta_diversity
 from microsuite.methods.abundance import abundance_native
 from microsuite.methods.normalize import normalize_native
+from microsuite.ordination.pcoa import pcoa
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
@@ -134,3 +136,93 @@ def plot_clr_by_group(
     fig.tight_layout()
     fig.savefig(output, dpi=160)
     plt.close(fig)
+
+
+_ORDINATION_STYLES = ("scatter", "trajectory", "facet")
+
+
+def _pc_coords(adata: ad.AnnData) -> pd.DataFrame:
+    dist = beta_diversity(adata, "bray-curtis")
+    coords = pcoa(dist, dimensions=2).set_index("sample_id")
+    return coords.loc[[str(s) for s in adata.obs_names]]
+
+
+def plot_braycurtis_ordination(
+    adata: ad.AnnData,
+    *,
+    color_by: str,
+    output: Path,
+    subject: str | None = None,
+    style: str | None = None,
+) -> None:
+    color = _require_obs_column(adata, color_by)
+    subj = _require_obs_column(adata, subject) if subject is not None else None
+    effective = style or ("scatter" if subject is None else "trajectory")
+    if effective not in _ORDINATION_STYLES:
+        raise MicrobiomeSuiteError(
+            f"Unknown style '{effective}'. Choose one of: {', '.join(_ORDINATION_STYLES)}."
+        )
+    if effective in ("trajectory", "facet") and subj is None:
+        raise MicrobiomeSuiteError(f"--subject is required for style '{effective}'.")
+
+    coords = _pc_coords(adata)
+    x = coords["PC1"].to_numpy()
+    y = coords["PC2"].to_numpy()
+    xlab = f"PC1 ({coords['PC1_variance'].iloc[0] * 100:.1f}%)"
+    ylab = f"PC2 ({coords['PC2_variance'].iloc[0] * 100:.1f}%)"
+    color_vals = color.to_numpy()
+    is_numeric = pd.api.types.is_numeric_dtype(color)
+
+    if effective == "facet":
+        subjects = list(pd.unique(subj.to_numpy()))
+        ncols = min(3, len(subjects))
+        nrows = int(np.ceil(len(subjects) / ncols))
+        fig, axes = plt.subplots(nrows, ncols, figsize=(4.0 * ncols, 3.5 * nrows), squeeze=False)
+        for idx, sub in enumerate(subjects):
+            ax = axes[idx // ncols][idx % ncols]
+            mask = subj.to_numpy() == sub
+            ax.scatter(x[mask], y[mask], c=_color_arg(color_vals[mask], is_numeric), s=40)
+            ax.set_title(str(sub))
+            ax.set_xlabel(xlab)
+            ax.set_ylabel(ylab)
+        for j in range(len(subjects), nrows * ncols):
+            axes[j // ncols][j % ncols].axis("off")
+        fig.tight_layout()
+        fig.savefig(output, dpi=160)
+        plt.close(fig)
+        return
+
+    fig, ax = plt.subplots(figsize=(7.0, 5.5))
+    if is_numeric:
+        sc = ax.scatter(x, y, c=color_vals.astype(float), cmap="viridis", s=45)
+        fig.colorbar(sc, ax=ax, label=color_by)
+    else:
+        categories = list(pd.unique(color_vals))
+        cmap = plt.get_cmap("tab10")
+        cat_color = {c: cmap(i % 10) for i, c in enumerate(categories)}
+        for cat in categories:
+            mask = color_vals == cat
+            ax.scatter(x[mask], y[mask], color=cat_color[cat], label=str(cat), s=45)
+        ax.legend(title=color_by, bbox_to_anchor=(1.02, 1), loc="upper left")
+
+    if effective == "trajectory":
+        subj_vals = subj.to_numpy()
+        for sub in pd.unique(subj_vals):
+            mask = subj_vals == sub
+            order = np.argsort(color_vals[mask]) if is_numeric else np.arange(mask.sum())
+            ax.plot(x[mask][order], y[mask][order], color="gray", alpha=0.6, lw=1.0, zorder=0)
+
+    ax.set_xlabel(xlab)
+    ax.set_ylabel(ylab)
+    ax.set_title(f"Bray-Curtis PCoA by {color_by}")
+    fig.tight_layout()
+    fig.savefig(output, dpi=160)
+    plt.close(fig)
+
+
+def _color_arg(values: np.ndarray, is_numeric: bool):
+    if is_numeric:
+        return values.astype(float)
+    categories = list(pd.unique(values))
+    lookup = {c: i for i, c in enumerate(categories)}
+    return np.array([lookup[v] for v in values], dtype=float)

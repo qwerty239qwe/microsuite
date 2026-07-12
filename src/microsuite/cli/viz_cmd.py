@@ -8,7 +8,11 @@ import typer
 from microsuite._paths import ensure_input, prepare_output
 from microsuite.io.h5ad import read_h5ad
 from microsuite.viz.barplot import taxonomy_barplot
-from microsuite.viz.metadata import plot_clr_by_group, plot_taxa_by_group
+from microsuite.viz.metadata import (
+    plot_braycurtis_ordination,
+    plot_clr_by_group,
+    plot_taxa_by_group,
+)
 
 app = typer.Typer(help="Visualization commands.", no_args_is_help=True)
 
@@ -61,5 +65,28 @@ def clr_by_group(
         group_by=group_by,
         output=prepare_output(output, force=force),
         top_n=top_n,
+        style=style,
+    )
+
+
+@app.command("braycurtis-ordination")
+def braycurtis_ordination(
+    table: Annotated[Path, typer.Option("--table", help="Input .h5ad table.")],
+    color_by: Annotated[str, typer.Option("--color-by", help="Metadata (obs) column to color by.")],
+    output: Annotated[Path, typer.Option("--output", "-o", help="Output PNG.")],
+    subject: Annotated[
+        str | None, typer.Option("--subject", help="Obs column of subject IDs.")
+    ] = None,
+    style: Annotated[
+        str | None, typer.Option("--style", help="scatter, trajectory, or facet.")
+    ] = None,
+    force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
+) -> None:
+    adata = read_h5ad(ensure_input(table))
+    plot_braycurtis_ordination(
+        adata,
+        color_by=color_by,
+        output=prepare_output(output, force=force),
+        subject=subject,
         style=style,
     )

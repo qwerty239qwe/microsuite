@@ -74,6 +74,58 @@ def test_cli_taxa_by_group(tmp_path: Path) -> None:
     assert out.exists()
 
 
+def test_ordination_scatter_and_trajectory(tmp_path: Path) -> None:
+    from microsuite.viz.metadata import plot_braycurtis_ordination
+
+    s = tmp_path / "scatter.png"
+    plot_braycurtis_ordination(make_adata(), color_by="phase", output=s)  # scatter default
+    assert s.exists() and s.stat().st_size > 0
+
+    t = tmp_path / "traj.png"
+    plot_braycurtis_ordination(  # numeric color + subject -> trajectory default
+        make_adata(), color_by="time", subject="subject", output=t
+    )
+    assert t.exists() and t.stat().st_size > 0
+
+    f = tmp_path / "facet.png"
+    plot_braycurtis_ordination(
+        make_adata(), color_by="phase", subject="subject", output=f, style="facet"
+    )
+    assert f.exists() and f.stat().st_size > 0
+
+
+def test_ordination_trajectory_requires_subject(tmp_path: Path) -> None:
+    from microsuite.viz.metadata import plot_braycurtis_ordination
+
+    with pytest.raises(MicrobiomeSuiteError, match="subject"):
+        plot_braycurtis_ordination(
+            make_adata(), color_by="phase", output=tmp_path / "x.png", style="trajectory"
+        )
+
+
+def test_cli_braycurtis_ordination(tmp_path: Path) -> None:
+    src = tmp_path / "t.h5ad"
+    write_h5ad(make_adata(), src)
+    out = tmp_path / "ord.png"
+    r = CliRunner().invoke(
+        app,
+        [
+            "viz",
+            "braycurtis-ordination",
+            "--table",
+            str(src),
+            "--color-by",
+            "time",
+            "--subject",
+            "subject",
+            "-o",
+            str(out),
+        ],
+    )
+    assert r.exit_code == 0, r.stdout
+    assert out.exists()
+
+
 def test_plot_clr_by_group_styles(tmp_path: Path) -> None:
     from microsuite.viz.metadata import plot_clr_by_group
 
