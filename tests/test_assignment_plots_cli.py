@@ -69,3 +69,33 @@ def test_cli_assignment_summary_and_plots(tmp_path: Path) -> None:
     assert r2.exit_code == 0, r2.stdout
     for name in ("assigned_asv_by_rank.png", "assigned_reads_by_rank.png", "deepest_rank.png"):
         assert (plots / name).exists()
+
+
+def test_reads_heatmap_bounded_many_samples(tmp_path: Path) -> None:
+    # 90 samples -> old code would request ~46in height; new code caps it
+    n = 90
+    var = pd.DataFrame(
+        {
+            "kingdom": ["Bacteria"] * 3,
+            "phylum": ["Firmicutes", "Bacteroidetes", ""],
+            "genus": ["Lactobacillus", "", ""],
+            "species": ["L. casei", "", ""],
+        },
+        index=["F1", "F2", "F3"],
+    )
+    rng = np.random.default_rng(0)
+    X = rng.integers(1, 20, size=(n, 3)).astype(float)
+    obs = pd.DataFrame(index=[f"S{i}" for i in range(n)])
+    adata = ad.AnnData(X=X, obs=obs, var=var)
+    out = tmp_path / "reads.png"
+    plot_assigned_reads_by_rank(adata, out)
+    assert out.exists() and out.stat().st_size > 0
+    # figure height must be bounded (<= cap ~16in -> at 160 dpi ~2560px)
+    try:
+        from PIL import Image
+
+        with Image.open(out) as im:
+            assert im.height <= 2800
+    except ImportError:
+        # Fall back to just checking file exists and size > 0
+        pass
