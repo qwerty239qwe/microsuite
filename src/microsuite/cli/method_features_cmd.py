@@ -257,6 +257,63 @@ def register(app: typer.Typer) -> None:
             strict_qc=strict_qc,
         )
 
+    @app.command("denoise-sweep")
+    def denoise_sweep_cmd(
+        input_dir: Annotated[
+            Path, typer.Option("--input-dir", help="Directory of demultiplexed FASTQs.")
+        ],
+        mode: Annotated[str, typer.Option("--mode", help="DADA2 mode: single or paired.")],
+        output_dir: Annotated[Path, typer.Option("--output-dir", help="Sweep output directory.")],
+        grid_config: Annotated[
+            Path | None, typer.Option("--grid-config", help="JSON grid config.")
+        ] = None,
+        max_ee_f: Annotated[
+            str | None, typer.Option("--max-ee-f", help="Comma list, e.g. 2,3,5.")
+        ] = None,
+        max_ee_r: Annotated[str | None, typer.Option("--max-ee-r")] = None,
+        trunc_len_f: Annotated[str | None, typer.Option("--trunc-len-f")] = None,
+        trunc_len_r: Annotated[str | None, typer.Option("--trunc-len-r")] = None,
+        trunc_q: Annotated[str | None, typer.Option("--trunc-q")] = None,
+        min_overlap: Annotated[str | None, typer.Option("--min-overlap")] = None,
+        max_ee: Annotated[str | None, typer.Option("--max-ee")] = None,
+        trunc_len: Annotated[str | None, typer.Option("--trunc-len")] = None,
+        runtime: Annotated[str, typer.Option("--runtime", help="local or docker.")] = "local",
+        image: Annotated[
+            str | None, typer.Option("--image", help="Container image (dada2-r docker).")
+        ] = None,
+        threads: Annotated[int, typer.Option("--threads")] = 1,
+        force: Annotated[bool, typer.Option("--force")] = False,
+    ) -> None:
+        from microsuite.methods.dada2_sweep import build_grid, run_dada2_sweep
+
+        float_axes = {"max_ee_f": max_ee_f, "max_ee_r": max_ee_r, "max_ee": max_ee}
+        int_axes = {
+            "trunc_len_f": trunc_len_f,
+            "trunc_len_r": trunc_len_r,
+            "trunc_q": trunc_q,
+            "min_overlap": min_overlap,
+            "trunc_len": trunc_len,
+        }
+        axes: dict[str, list] = {}
+        for key, raw in float_axes.items():
+            if raw is not None:
+                axes[key] = [float(v) for v in raw.split(",")]
+        for key, raw in int_axes.items():
+            if raw is not None:
+                axes[key] = [int(v) for v in raw.split(",")]
+
+        grid = build_grid(config=grid_config, axes=axes or None)
+        run_dada2_sweep(
+            input_dir=input_dir,
+            mode=mode,
+            output_dir=output_dir,
+            grid=grid,
+            runtime=runtime,
+            dada2_image=image,
+            threads=threads,
+            force=force,
+        )
+
     @app.command("cluster")
     def cluster_cmd(
         backend: Annotated[str, typer.Option("--backend", help="Clustering backend.")],
