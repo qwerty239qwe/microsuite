@@ -175,6 +175,79 @@ def test_ordination_bad_style(tmp_path: Path) -> None:
         )
 
 
+def test_natural_group_order() -> None:
+    from microsuite.viz.metadata import _natural_group_order, _resolve_group_order
+
+    assert _natural_group_order(["0", "14", "7", "35", "B"]) == ["0", "7", "14", "35", "B"]
+    # explicit order honored, missing appended in natural order
+    assert _resolve_group_order(["0", "7", "B", "14"], ["B", "0", "7"]) == ["B", "0", "7", "14"]
+    # unknown entries in group_order are dropped
+    assert _resolve_group_order(["0", "7"], ["B", "0", "7", "99"]) == ["0", "7"]
+    # default is natural order
+    assert _resolve_group_order(["7", "0", "14"], None) == ["0", "7", "14"]
+
+
+def test_ordination_trajectory_order_by(tmp_path: Path) -> None:
+    from microsuite.viz.metadata import plot_braycurtis_ordination
+
+    out = tmp_path / "traj.png"
+    # color by categorical phase, order path by numeric time -> must not crash / spaghetti-guard
+    plot_braycurtis_ordination(
+        make_adata(),
+        color_by="phase",
+        subject="subject",
+        output=out,
+        style="trajectory",
+        order_by="time",
+    )
+    assert out.exists() and out.stat().st_size > 0
+
+    out2 = tmp_path / "traj2.png"
+    plot_braycurtis_ordination(
+        make_adata(),
+        color_by="phase",
+        subject="subject",
+        output=out2,
+        style="trajectory",
+        order_by="time",
+        order=["7", "0"],
+    )
+    assert out2.exists() and out2.stat().st_size > 0
+
+
+def test_taxa_by_group_group_order_and_colors(tmp_path: Path) -> None:
+    from microsuite.viz.metadata import _qualitative_colors, plot_taxa_by_group
+
+    # 25 distinct colors requested -> no crash, all returned
+    assert len(_qualitative_colors(25)) == 25
+    out = tmp_path / "t.png"
+    # group_order forces B first even though lexicographic would put it last
+    plot_taxa_by_group(
+        make_adata(),
+        level="genus",
+        group_by="time",
+        output=out,
+        top_n=2,
+        group_order=["7", "0"],
+    )
+    assert out.exists() and out.stat().st_size > 0
+
+
+def test_clr_by_group_group_order(tmp_path: Path) -> None:
+    from microsuite.viz.metadata import plot_clr_by_group
+
+    out = tmp_path / "c.png"
+    plot_clr_by_group(
+        make_adata(),
+        level="genus",
+        group_by="phase",
+        output=out,
+        style="heatmap",
+        group_order=["post", "pre"],
+    )
+    assert out.exists() and out.stat().st_size > 0
+
+
 def test_cli_clr_by_group_heatmap(tmp_path: Path) -> None:
     src = tmp_path / "t.h5ad"
     write_h5ad(make_adata(), src)

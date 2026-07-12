@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import anndata as ad
@@ -44,19 +45,24 @@ def plot_assigned_asv_by_rank(adata: ad.AnnData, output: Path) -> None:
 
 
 def plot_assigned_reads_by_rank(adata: ad.AnnData, output: Path) -> None:
+    import pandas as pd
+
     summary = summarize_assignment(adata)
     per_sample = summary[summary["sample"] != POOLED_LABEL]
     pivot = per_sample.pivot(index="sample", columns="rank", values="assigned_read_frac")
     ranks = [r for r in LEVELS if r in pivot.columns]
     pivot = pivot[ranks]
-    fig, ax = plt.subplots(
-        figsize=(max(6.0, len(ranks) * 1.1), max(3.0, len(pivot.index) * 0.5 + 1.0))
-    )
+    samples = list(pd.Index(pivot.index).astype(str))
+    n_samples = len(samples)
+    height = min(0.22 * n_samples + 1.5, 16.0)
+    fig, ax = plt.subplots(figsize=(max(6.0, len(ranks) * 1.1), height))
     im = ax.imshow(pivot.to_numpy(dtype=float), aspect="auto", vmin=0, vmax=1, cmap="viridis")
     ax.set_xticks(range(len(ranks)))
     ax.set_xticklabels(ranks, rotation=45, ha="right")
-    ax.set_yticks(range(len(pivot.index)))
-    ax.set_yticklabels([str(s) for s in pivot.index])
+    step = max(1, math.ceil(n_samples / 50)) if n_samples > 60 else 1
+    tick_positions = list(range(0, n_samples, step))
+    ax.set_yticks(tick_positions)
+    ax.set_yticklabels([samples[i] for i in tick_positions], fontsize=(6 if n_samples > 60 else 8))
     ax.set_title("Assigned read fraction by rank")
     fig.colorbar(im, ax=ax, label="assigned read fraction")
     fig.tight_layout()
