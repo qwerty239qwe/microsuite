@@ -187,6 +187,34 @@ def test_natural_group_order() -> None:
     assert _resolve_group_order(["7", "0", "14"], None) == ["0", "7", "14"]
 
 
+def test_ordination_trajectory_order_by(tmp_path: Path) -> None:
+    from microsuite.viz.metadata import plot_braycurtis_ordination
+
+    out = tmp_path / "traj.png"
+    # color by categorical phase, order path by numeric time -> must not crash / spaghetti-guard
+    plot_braycurtis_ordination(
+        make_adata(),
+        color_by="phase",
+        subject="subject",
+        output=out,
+        style="trajectory",
+        order_by="time",
+    )
+    assert out.exists() and out.stat().st_size > 0
+
+    out2 = tmp_path / "traj2.png"
+    plot_braycurtis_ordination(
+        make_adata(),
+        color_by="phase",
+        subject="subject",
+        output=out2,
+        style="trajectory",
+        order_by="time",
+        order=["7", "0"],
+    )
+    assert out2.exists() and out2.stat().st_size > 0
+
+
 def test_taxa_by_group_group_order_and_colors(tmp_path: Path) -> None:
     from microsuite.viz.metadata import _qualitative_colors, plot_taxa_by_group
 

@@ -88,6 +88,16 @@ def braycurtis_ordination(
     style: Annotated[
         str | None, typer.Option("--style", help="scatter, trajectory, or facet.")
     ] = None,
+    order_by: Annotated[
+        str | None,
+        typer.Option(
+            "--order-by", help="Obs column to order trajectories by (default: --color-by)."
+        ),
+    ] = None,
+    order: Annotated[
+        str | None,
+        typer.Option("--order", help="Explicit order for --order-by values, comma-separated."),
+    ] = None,
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
 ) -> None:
     adata = read_h5ad(ensure_input(table))
@@ -97,4 +107,6 @@ def braycurtis_ordination(
         output=prepare_output(output, force=force),
         subject=subject,
         style=style,
+        order_by=order_by,
+        order=(order.split(",") if order else None),
     )

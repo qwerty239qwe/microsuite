@@ -193,6 +193,8 @@ def plot_braycurtis_ordination(
     output: Path,
     subject: str | None = None,
     style: str | None = None,
+    order_by: str | None = None,
+    order: list[str] | None = None,
 ) -> None:
     color = _require_obs_column(adata, color_by)
     subj = _require_obs_column(adata, subject) if subject is not None else None
@@ -203,6 +205,11 @@ def plot_braycurtis_ordination(
         )
     if effective in ("trajectory", "facet") and subj is None:
         raise MicrobiomeSuiteError(f"--subject is required for style '{effective}'.")
+
+    order_column = _require_obs_column(adata, order_by) if order_by is not None else color
+    order_vals = np.asarray([str(v) for v in order_column.to_numpy()])
+    order_ranking = _resolve_group_order(pd.unique(order_vals), order)
+    order_rank = {value: index for index, value in enumerate(order_ranking)}
 
     coords = _pc_coords(adata)
     x = coords["PC1"].to_numpy()
@@ -290,9 +297,9 @@ def plot_braycurtis_ordination(
     if effective == "trajectory":
         subj_vals = subj.to_numpy()
         for sub in pd.unique(subj_vals):
-            mask = subj_vals == sub
-            order = np.argsort(color_vals[mask]) if is_numeric else np.arange(mask.sum())
-            ax.plot(x[mask][order], y[mask][order], color="gray", alpha=0.6, lw=1.0, zorder=0)
+            idx = np.where(subj_vals == sub)[0]
+            idx = sorted(idx, key=lambda i: order_rank.get(order_vals[i], len(order_rank)))
+            ax.plot(x[idx], y[idx], color="gray", alpha=0.6, lw=1.0, zorder=0)
 
     ax.set_xlabel(xlab)
     ax.set_ylabel(ylab)
