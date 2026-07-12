@@ -49,3 +49,61 @@ def test_grid_both_or_neither_errors(tmp_path: Path) -> None:
     cfg.write_text("[]", encoding="utf-8")
     with pytest.raises(MicrobiomeSuiteError):
         build_grid(config=cfg, axes={"max_ee_f": [2]})
+
+
+def test_grid_config_non_dict_entry(tmp_path: Path) -> None:
+    """Grid entry that is not a dict should raise MicrobiomeSuiteError."""
+    cfg = tmp_path / "grid.json"
+    cfg.write_text(json.dumps(["not-a-dict"]), encoding="utf-8")
+    with pytest.raises(MicrobiomeSuiteError, match="Each grid entry must be a JSON object"):
+        build_grid(config=cfg)
+
+
+def test_grid_config_duplicate_names(tmp_path: Path) -> None:
+    """Duplicate grid point names should raise MicrobiomeSuiteError."""
+    cfg = tmp_path / "grid.json"
+    data = [
+        {"name": "baseline", "baseline": True, "params": {}},
+        {"name": "baseline", "params": {}},
+    ]
+    cfg.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(MicrobiomeSuiteError, match="Duplicate"):
+        build_grid(config=cfg)
+
+
+def test_grid_config_empty_name(tmp_path: Path) -> None:
+    """Grid entry with empty name should raise MicrobiomeSuiteError."""
+    cfg = tmp_path / "grid.json"
+    data = [
+        {"name": "baseline", "baseline": True, "params": {}},
+        {"name": "", "params": {}},
+    ]
+    cfg.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(MicrobiomeSuiteError, match="non-empty"):
+        build_grid(config=cfg)
+
+
+def test_grid_config_missing_name(tmp_path: Path) -> None:
+    """Grid entry without name key should raise MicrobiomeSuiteError."""
+    cfg = tmp_path / "grid.json"
+    data = [
+        {"name": "baseline", "baseline": True, "params": {}},
+        {"params": {}},
+    ]
+    cfg.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(MicrobiomeSuiteError, match="non-empty"):
+        build_grid(config=cfg)
+
+
+def test_grid_config_malformed_json(tmp_path: Path) -> None:
+    """Malformed JSON should raise MicrobiomeSuiteError."""
+    cfg = tmp_path / "grid.json"
+    cfg.write_text("{not json", encoding="utf-8")
+    with pytest.raises(MicrobiomeSuiteError, match="Could not read"):
+        build_grid(config=cfg)
+
+
+def test_grid_axes_unknown_key() -> None:
+    """Unknown sweep axis key should raise MicrobiomeSuiteError."""
+    with pytest.raises(MicrobiomeSuiteError, match="Unknown sweep axes"):
+        build_grid(axes={"bogus": [1]})

@@ -51,6 +51,8 @@ def _grid_from_config(config: Path) -> list[GridPoint]:
     points: list[GridPoint] = []
     names: set[str] = set()
     for entry in entries:
+        if not isinstance(entry, dict):
+            raise MicrobiomeSuiteError("Each grid entry must be a JSON object.")
         name = str(entry.get("name", "")).strip()
         if not name:
             raise MicrobiomeSuiteError("Each grid entry needs a non-empty 'name'.")
