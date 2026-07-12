@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 from dataclasses import dataclass, field
 from itertools import product
 from pathlib import Path
@@ -11,6 +12,7 @@ from scipy import stats as scipy_stats
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite.methods.dada2_qc import summarize_dada2_stats
+from microsuite.methods.denoise import denoise
 
 
 @dataclass(frozen=True)
@@ -250,3 +252,54 @@ def summarize_sweep(runs: list[SweepRun]) -> pd.DataFrame:
 def write_sweep_summary(summary: pd.DataFrame, out_path: Path) -> Path:
     summary.to_csv(out_path, sep="\t", index=False)
     return out_path
+
+
+def run_dada2_sweep(
+    *,
+    input_dir: Path,
+    mode: str,
+    output_dir: Path,
+    grid: list[GridPoint],
+    runtime: str = "local",
+    dada2_image: str | None = None,
+    threads: int = 1,
+    force: bool = False,
+    timeout: float | None = None,
+) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    ordered = sorted(grid, key=lambda p: not p.is_baseline)  # baseline first
+    runs: list[SweepRun] = []
+    for point in ordered:
+        point_dir = output_dir / point.name
+        point_dir.mkdir(parents=True, exist_ok=True)
+        table = point_dir / "table.tsv"
+        rep_seqs = point_dir / "rep_seqs.fasta"
+        stats = point_dir / "stats.tsv"
+        status = "ok"
+        try:
+            denoise(
+                backend="dada2-r",
+                demux=input_dir,
+                mode=mode,
+                output_table=table,
+                output_rep_seqs=rep_seqs,
+                output_stats=stats,
+                runtime=runtime,
+                dada2_image=dada2_image,
+                threads=threads,
+                force=force,
+                timeout=timeout,
+                **point.params,
+            )
+        except MicrobiomeSuiteError as exc:
+            if point.is_baseline:
+                raise MicrobiomeSuiteError(
+                    f"Baseline sweep run '{point.name}' failed: {exc}"
+                ) from exc
+            warnings.warn(f"Sweep run '{point.name}' failed: {exc}", stacklevel=2)
+            status = "failed"
+        runs.append(
+            SweepRun(point=point, table=table, rep_seqs=rep_seqs, stats=stats, status=status)
+        )
+    summary = summarize_sweep(runs)
+    return write_sweep_summary(summary, output_dir / "dada2_sweep_summary.tsv")
