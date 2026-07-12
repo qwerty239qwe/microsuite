@@ -178,16 +178,59 @@ def plot_braycurtis_ordination(
         ncols = min(3, len(subjects))
         nrows = int(np.ceil(len(subjects) / ncols))
         fig, axes = plt.subplots(nrows, ncols, figsize=(4.0 * ncols, 3.5 * nrows), squeeze=False)
-        for idx, sub in enumerate(subjects):
-            ax = axes[idx // ncols][idx % ncols]
-            mask = subj.to_numpy() == sub
-            ax.scatter(x[mask], y[mask], c=_color_arg(color_vals[mask], is_numeric), s=40)
-            ax.set_title(str(sub))
-            ax.set_xlabel(xlab)
-            ax.set_ylabel(ylab)
-        for j in range(len(subjects), nrows * ncols):
-            axes[j // ncols][j % ncols].axis("off")
-        fig.tight_layout()
+        subj_vals = subj.to_numpy()
+
+        if is_numeric:
+            values = color_vals.astype(float)
+            vmin = float(np.nanmin(values))
+            vmax = float(np.nanmax(values))
+            if vmin == vmax:
+                vmax = vmin + 1
+            cmap = plt.get_cmap("viridis")
+            mappable = None
+            for idx, sub in enumerate(subjects):
+                ax = axes[idx // ncols][idx % ncols]
+                mask = subj_vals == sub
+                mappable = ax.scatter(
+                    x[mask], y[mask], c=values[mask], cmap=cmap, vmin=vmin, vmax=vmax, s=40
+                )
+                ax.set_title(str(sub))
+                ax.set_xlabel(xlab)
+                ax.set_ylabel(ylab)
+            for j in range(len(subjects), nrows * ncols):
+                axes[j // ncols][j % ncols].axis("off")
+            fig.tight_layout()
+            if mappable is not None:
+                fig.colorbar(mappable, ax=axes, label=color_by)
+        else:
+            categories = list(pd.unique(color_vals))
+            cmap = plt.get_cmap("tab10")
+            cat_color = {c: cmap(i % 10) for i, c in enumerate(categories)}
+            for idx, sub in enumerate(subjects):
+                ax = axes[idx // ncols][idx % ncols]
+                mask = subj_vals == sub
+                colors = [cat_color[v] for v in color_vals[mask]]
+                ax.scatter(x[mask], y[mask], color=colors, s=40)
+                ax.set_title(str(sub))
+                ax.set_xlabel(xlab)
+                ax.set_ylabel(ylab)
+            for j in range(len(subjects), nrows * ncols):
+                axes[j // ncols][j % ncols].axis("off")
+            fig.tight_layout()
+            handles = [
+                plt.Line2D(
+                    [0],
+                    [0],
+                    marker="o",
+                    color="w",
+                    markerfacecolor=cat_color[cat],
+                    label=str(cat),
+                    markersize=8,
+                )
+                for cat in categories
+            ]
+            fig.legend(handles=handles, title=color_by, bbox_to_anchor=(1.02, 1), loc="upper left")
+
         fig.savefig(output, dpi=160)
         plt.close(fig)
         return
@@ -218,11 +261,3 @@ def plot_braycurtis_ordination(
     fig.tight_layout()
     fig.savefig(output, dpi=160)
     plt.close(fig)
-
-
-def _color_arg(values: np.ndarray, is_numeric: bool):
-    if is_numeric:
-        return values.astype(float)
-    categories = list(pd.unique(values))
-    lookup = {c: i for i, c in enumerate(categories)}
-    return np.array([lookup[v] for v in values], dtype=float)

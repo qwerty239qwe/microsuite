@@ -94,6 +94,26 @@ def test_ordination_scatter_and_trajectory(tmp_path: Path) -> None:
     assert f.exists() and f.stat().st_size > 0
 
 
+def test_ordination_facet_categorical_and_numeric_color_by(tmp_path: Path) -> None:
+    from microsuite.viz.metadata import plot_braycurtis_ordination
+
+    adata = make_adata()
+    # 3 distinct subjects -> exercises multiple facet panels without crashing.
+    assert set(adata.obs["subject"]) == {"s1", "s2", "s3"}
+
+    cat_out = tmp_path / "facet_categorical.png"
+    plot_braycurtis_ordination(
+        adata, color_by="phase", subject="subject", output=cat_out, style="facet"
+    )
+    assert cat_out.exists() and cat_out.stat().st_size > 0
+
+    num_out = tmp_path / "facet_numeric.png"
+    plot_braycurtis_ordination(
+        adata, color_by="time", subject="subject", output=num_out, style="facet"
+    )
+    assert num_out.exists() and num_out.stat().st_size > 0
+
+
 def test_ordination_trajectory_requires_subject(tmp_path: Path) -> None:
     from microsuite.viz.metadata import plot_braycurtis_ordination
 
@@ -143,6 +163,15 @@ def test_plot_clr_by_group_bad_style(tmp_path: Path) -> None:
     with pytest.raises(MicrobiomeSuiteError, match="style"):
         plot_clr_by_group(
             make_adata(), level="genus", group_by="phase", output=tmp_path / "x.png", style="pie"
+        )
+
+
+def test_ordination_bad_style(tmp_path: Path) -> None:
+    from microsuite.viz.metadata import plot_braycurtis_ordination
+
+    with pytest.raises(MicrobiomeSuiteError, match="style"):
+        plot_braycurtis_ordination(
+            make_adata(), color_by="phase", output=tmp_path / "x.png", style="bubble"
         )
 
 
