@@ -36,6 +36,9 @@ def taxa_by_group(
     group_by: Annotated[str, typer.Option("--group-by", help="Metadata (obs) column to group by.")],
     output: Annotated[Path, typer.Option("--output", "-o", help="Output PNG.")],
     top_n: Annotated[int, typer.Option("--top-n", min=1)] = 15,
+    group_order: Annotated[
+        str | None, typer.Option("--group-order", help="Explicit group order, comma-separated.")
+    ] = None,
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
 ) -> None:
     adata = read_h5ad(ensure_input(table))
@@ -45,6 +48,7 @@ def taxa_by_group(
         group_by=group_by,
         output=prepare_output(output, force=force),
         top_n=top_n,
+        group_order=(group_order.split(",") if group_order else None),
     )
 
 
@@ -56,6 +60,9 @@ def clr_by_group(
     output: Annotated[Path, typer.Option("--output", "-o", help="Output PNG.")],
     top_n: Annotated[int, typer.Option("--top-n", min=1)] = 10,
     style: Annotated[str, typer.Option("--style", help="boxplot, heatmap, or violin.")] = "boxplot",
+    group_order: Annotated[
+        str | None, typer.Option("--group-order", help="Explicit group order, comma-separated.")
+    ] = None,
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
 ) -> None:
     adata = read_h5ad(ensure_input(table))
@@ -66,6 +73,7 @@ def clr_by_group(
         output=prepare_output(output, force=force),
         top_n=top_n,
         style=style,
+        group_order=(group_order.split(",") if group_order else None),
     )
 
 

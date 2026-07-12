@@ -26,21 +26,59 @@ def _require_obs_column(adata: ad.AnnData, column: str) -> pd.Series:
     return adata.obs[column]
 
 
+def _natural_group_order(values) -> list[str]:
+    unique = list(dict.fromkeys(str(v) for v in values))
+
+    def key(value: str):
+        try:
+            return (0, float(value), "")
+        except (TypeError, ValueError):
+            return (1, 0.0, value)
+
+    return sorted(unique, key=key)
+
+
+def _resolve_group_order(present, group_order) -> list[str]:
+    present_list = list(dict.fromkeys(str(p) for p in present))
+    if group_order is None:
+        return _natural_group_order(present_list)
+    present_set = set(present_list)
+    ordered = [str(g) for g in group_order if str(g) in present_set]
+    ordered += [g for g in _natural_group_order(present_list) if g not in ordered]
+    return ordered
+
+
+def _qualitative_colors(n: int) -> list:
+    cmap = plt.get_cmap("tab20")
+    return [cmap(i % 20) for i in range(n)]
+
+
 def plot_taxa_by_group(
-    adata: ad.AnnData, *, level: str, group_by: str, output: Path, top_n: int = 15
+    adata: ad.AnnData,
+    *,
+    level: str,
+    group_by: str,
+    output: Path,
+    top_n: int = 15,
+    group_order: list[str] | None = None,
 ) -> None:
     group = _require_obs_column(adata, group_by)
     frame = abundance_native(adata, level=level, relative=True)  # samples x taxa (raises on level)
     grouped = frame.groupby(group.astype(str).to_numpy()).mean()  # group x taxa
+    grouped = grouped.reindex(_resolve_group_order(grouped.index, group_order))
     order = grouped.mean(axis=0).sort_values(ascending=False)
     top = list(order.head(top_n).index)
     plot_df = grouped[top].copy()
     other = grouped.drop(columns=top).sum(axis=1)
     if (other > 0).any():
         plot_df["Other"] = other
+    taxa_cols = [c for c in plot_df.columns if c != "Other"]
+    color_map = dict(zip(taxa_cols, _qualitative_colors(len(taxa_cols)), strict=True))
+    color_map["Other"] = "0.7"
+    colors = [color_map[c] for c in plot_df.columns]
     width = max(6.0, len(plot_df.index) * 0.9)
     height = max(4.5, min(12.0, 2.5 + plot_df.shape[1] * 0.25))
-    ax = plot_df.plot(kind="bar", stacked=True, figsize=(width, height), width=0.85)
+    ax = plot_df.plot(kind="bar", stacked=True, figsize=(width, height), width=0.85, color=colors)
     ax.set_xlabel(group_by)
     ax.set_ylabel("Mean relative abundance")
     ax.set_ylim(0, 1)
@@ -64,6 +102,7 @@ def plot_clr_by_group(
     output: Path,
     top_n: int = 10,
     style: str = "boxplot",
+    group_order: list[str] | None = None,
 ) -> None:
     if style not in _CLR_STYLES:
         raise MicrobiomeSuiteError(
@@ -83,7 +122,7 @@ def plot_clr_by_group(
     top = list(rel.mean(axis=0).sort_values(ascending=False).head(top_n).index)
     clr_top = clr_df[top]
     groups = group.to_numpy()
-    categories = sorted(pd.unique(groups))
+    categories = _resolve_group_order(pd.unique(groups), group_order)
 
     if style == "heatmap":
         mean_by_group = clr_top.groupby(groups).mean().reindex(categories)
@@ -103,13 +142,13 @@ def plot_clr_by_group(
         fig, ax = plt.subplots(figsize=(max(7.0, len(top) * 1.3), 5.0))
         n_groups = len(categories)
         slot = 0.8 / max(n_groups, 1)
-        cmap = plt.get_cmap("tab10")
+        colors = _qualitative_colors(len(categories))
         handles = []
         for gi, cat in enumerate(categories):
             series = [clr_top.loc[groups == cat, taxon].to_numpy() for taxon in top]
             series = [d if len(d) else np.array([np.nan]) for d in series]
             positions = np.arange(len(top)) + (gi - (n_groups - 1) / 2) * slot
-            color = cmap(gi % 10)
+            color = colors[gi]
             if style == "boxplot":
                 bp = ax.boxplot(
                     series,
