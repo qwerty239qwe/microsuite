@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from itertools import product
 from pathlib import Path
 
 import numpy as np
@@ -25,6 +27,82 @@ class SweepRun:
     rep_seqs: Path
     stats: Path
     status: str = "ok"
+
+
+SWEEP_AXES = (
+    "max_ee_f",
+    "max_ee_r",
+    "trunc_len_f",
+    "trunc_len_r",
+    "trunc_q",
+    "min_overlap",
+    "max_ee",
+    "trunc_len",
+)
+
+
+def _grid_from_config(config: Path) -> list[GridPoint]:
+    try:
+        entries = json.loads(config.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise MicrobiomeSuiteError(f"Could not read grid config {config}: {exc}") from exc
+    if not isinstance(entries, list) or not entries:
+        raise MicrobiomeSuiteError("Grid config must be a non-empty JSON list of param sets.")
+    points: list[GridPoint] = []
+    names: set[str] = set()
+    for entry in entries:
+        name = str(entry.get("name", "")).strip()
+        if not name:
+            raise MicrobiomeSuiteError("Each grid entry needs a non-empty 'name'.")
+        if name in names:
+            raise MicrobiomeSuiteError(f"Duplicate grid point name: {name}.")
+        names.add(name)
+        points.append(
+            GridPoint(
+                name=name,
+                params=dict(entry.get("params", {})),
+                is_baseline=bool(entry.get("baseline", False)),
+            )
+        )
+    baselines = sum(p.is_baseline for p in points)
+    if baselines != 1:
+        raise MicrobiomeSuiteError(
+            f"Grid config must flag exactly one baseline (found {baselines})."
+        )
+    return points
+
+
+def _axis_point_name(params: dict) -> str:
+    return "_".join(f"{k}{v}" for k, v in params.items()) or "point"
+
+
+def _grid_from_axes(axes: dict[str, list]) -> list[GridPoint]:
+    keys = [k for k in SWEEP_AXES if k in axes]
+    unknown = [k for k in axes if k not in SWEEP_AXES]
+    if unknown:
+        raise MicrobiomeSuiteError(f"Unknown sweep axes: {unknown}. Allowed: {list(SWEEP_AXES)}.")
+    if not keys:
+        raise MicrobiomeSuiteError("No sweep axes provided.")
+    combos = list(product(*(axes[k] for k in keys)))
+    points: list[GridPoint] = []
+    for index, combo in enumerate(combos):
+        params = dict(zip(keys, combo, strict=True))
+        is_baseline = index == 0
+        name = "baseline" if is_baseline else _axis_point_name(params)
+        points.append(GridPoint(name=name, params=params, is_baseline=is_baseline))
+    return points
+
+
+def build_grid(
+    *, config: Path | None = None, axes: dict[str, list] | None = None
+) -> list[GridPoint]:
+    has_config = config is not None
+    has_axes = bool(axes)
+    if has_config == has_axes:
+        raise MicrobiomeSuiteError(
+            "Provide exactly one grid source: a --grid-config file or axis values."
+        )
+    return _grid_from_config(config) if has_config else _grid_from_axes(axes)
 
 
 def _read_asv_table(path: Path) -> pd.DataFrame:
