@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gzip
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
@@ -106,6 +107,19 @@ def retention_warnings(summary: dict) -> list[str]:
     return messages
 
 
+@dataclass(frozen=True)
+class OverlapReport:
+    read_len_f: int
+    read_len_r: int
+    retained_f: int
+    retained_r: int
+    amplicon_length: int
+    min_overlap: int
+    predicted_overlap: int
+    sufficient: bool
+    warning: str | None
+
+
 def check_overlap(
     *,
     trunc_len_f: int,
@@ -114,17 +128,33 @@ def check_overlap(
     read_len_r: int,
     amplicon_length: int,
     min_overlap: int,
-) -> str | None:
-    retained_f = trunc_len_f if trunc_len_f > 0 else read_len_f
-    retained_r = trunc_len_r if trunc_len_r > 0 else read_len_r
-    overlap = retained_f + retained_r - amplicon_length
-    if overlap < min_overlap:
-        return (
+    trim_left_f: int = 0,
+    trim_left_r: int = 0,
+) -> OverlapReport:
+    # DADA2 truncates to truncLen then trims trimLeft bases off the front; the
+    # merge-usable length is what remains, evaluated independently per mate.
+    retained_f = max((trunc_len_f if trunc_len_f > 0 else read_len_f) - trim_left_f, 0)
+    retained_r = max((trunc_len_r if trunc_len_r > 0 else read_len_r) - trim_left_r, 0)
+    predicted_overlap = retained_f + retained_r - amplicon_length
+    sufficient = predicted_overlap >= min_overlap
+    warning = None
+    if not sufficient:
+        warning = (
             f"Insufficient paired overlap: retained_f({retained_f}) + retained_r({retained_r}) "
-            f"- amplicon({amplicon_length}) = {overlap} < min_overlap({min_overlap}). "
+            f"- amplicon({amplicon_length}) = {predicted_overlap} < min_overlap({min_overlap}). "
             "Merging is likely to fail; increase truncLen or verify the amplicon length."
         )
-    return None
+    return OverlapReport(
+        read_len_f=read_len_f,
+        read_len_r=read_len_r,
+        retained_f=retained_f,
+        retained_r=retained_r,
+        amplicon_length=amplicon_length,
+        min_overlap=min_overlap,
+        predicted_overlap=predicted_overlap,
+        sufficient=sufficient,
+        warning=warning,
+    )
 
 
 def first_read_length(fastq: Path) -> int:

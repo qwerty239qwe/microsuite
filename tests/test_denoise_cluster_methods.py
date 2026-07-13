@@ -1193,15 +1193,19 @@ def test_denoise_dada2_r_strict_qc_raises(tmp_path, monkeypatch) -> None:
         )
 
 
-def _write_paired_demux(demux, read_len=150):
+def _write_paired_demux(demux, read_len=150, read_len_r=None):
     import gzip
 
     demux.mkdir()
-    seq = "ACGT" * (read_len // 4)
-    seq = (seq + "ACGT")[:read_len]
-    record = f"@r1\n{seq}\n+\n{'I' * read_len}\n".encode()
-    for name in ("sampleP_R1.fastq.gz", "sampleP_R2.fastq.gz"):
-        (demux / name).write_bytes(gzip.compress(record))
+
+    def _record(length):
+        seq = ("ACGT" * (length // 4 + 1))[:length]
+        return f"@r1\n{seq}\n+\n{'I' * length}\n".encode()
+
+    (demux / "sampleP_R1.fastq.gz").write_bytes(gzip.compress(_record(read_len)))
+    (demux / "sampleP_R2.fastq.gz").write_bytes(
+        gzip.compress(_record(read_len if read_len_r is None else read_len_r))
+    )
 
 
 def test_denoise_dada2_r_overlap_warns(tmp_path, monkeypatch) -> None:
@@ -1256,6 +1260,64 @@ def test_denoise_dada2_r_overlap_strict_raises_pre_run(tmp_path, monkeypatch) ->
             amplicon_length=600,
             strict_qc=True,
         )
+
+
+def test_denoise_dada2_r_overlap_per_mate_lengths(tmp_path, monkeypatch) -> None:
+    from microsuite.methods.denoise import denoise
+
+    demux = tmp_path / "reads"
+    _write_paired_demux(demux, read_len=250, read_len_r=120)  # unequal mates
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/Rscript")
+    healthy = (
+        "\tinput\tfiltered\tdenoised_f\tdenoised_r\tmerged\tnonchim\n"
+        "sampleP\t1000\t950\t940\t930\t900\t880\n"
+    )
+    monkeypatch.setattr("subprocess.run", _stub_run_writing_stats(healthy))
+    # 250 + 120 - 400 = -30 < 12 -> insufficient; the warning must cite BOTH mates.
+    with pytest.warns(UserWarning, match=r"retained_f\(250\).*retained_r\(120\)"):
+        denoise(
+            backend="dada2-r",
+            demux=demux,
+            output_table=tmp_path / "table.tsv",
+            output_rep_seqs=tmp_path / "rep.fasta",
+            output_stats=tmp_path / "stats.tsv",
+            mode="paired",
+            threads=1,
+            force=True,
+            amplicon_length=400,
+        )
+
+
+def test_denoise_dada2_r_manifest_records_overlap(tmp_path, monkeypatch) -> None:
+    import json
+
+    from microsuite.methods.denoise import denoise
+
+    demux = tmp_path / "reads"
+    _write_paired_demux(demux, read_len=250, read_len_r=120)
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/Rscript")
+    r_params = (Path(__file__).parent / "fixtures" / "dada2_r_params_paired.json").read_text()
+    healthy = (
+        "\tinput\tfiltered\tdenoised_f\tdenoised_r\tmerged\tnonchim\n"
+        "sampleP\t1000\t950\t940\t930\t900\t880\n"
+    )
+    monkeypatch.setattr("subprocess.run", _stub_run_writing_r_params(r_params, healthy))
+    # 250 + 120 - 300 = 70 >= 12 -> sufficient (no warning) but still recorded.
+    denoise(
+        backend="dada2-r",
+        demux=demux,
+        output_table=tmp_path / "table.tsv",
+        output_rep_seqs=tmp_path / "rep.fasta",
+        output_stats=tmp_path / "stats.tsv",
+        mode="paired",
+        threads=1,
+        force=True,
+        amplicon_length=300,
+    )
+    manifest = json.loads((tmp_path / "dada2_denoise_manifest.json").read_text())
+    overlap = manifest["run"]["overlap_check"]
+    assert overlap["read_len_f"] == 250 and overlap["read_len_r"] == 120
+    assert overlap["predicted_overlap"] == 70 and overlap["sufficient"] is True
 
 
 def _stub_run_writing_r_params(r_params_text, stats_text):

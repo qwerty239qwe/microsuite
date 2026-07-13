@@ -39,6 +39,36 @@ def _fastq_stem(name: str) -> str:
     return name
 
 
+def _read_direction(stem: str) -> int | None:
+    """Return 1 for a forward (R1) read, 2 for a reverse (R2) read, else None."""
+    for pattern in _READ_PATTERNS:
+        match = pattern.match(stem)
+        if match is None:
+            continue
+        read = match.groupdict().get("read")
+        if read:
+            return int(read)
+        return 2 if "reverse" in stem.lower() else 1
+    return None
+
+
+def _first_paired_reads(input_dir: Path) -> tuple[Path | None, Path | None]:
+    """Return the first R1 FASTQ and the first R2 FASTQ found in ``input_dir``."""
+    r1: Path | None = None
+    r2: Path | None = None
+    for path in sorted(input_dir.iterdir()):
+        if not (path.is_file() and path.name.endswith(_FASTQ_EXTS)):
+            continue
+        direction = _read_direction(_fastq_stem(path.name))
+        if direction == 1 and r1 is None:
+            r1 = path
+        elif direction == 2 and r2 is None:
+            r2 = path
+        if r1 is not None and r2 is not None:
+            break
+    return r1, r2
+
+
 def _expected_sample_ids(input_dir: Path, *, paired: bool) -> set[str]:
     """Derive expected ASV-table sample ids, mirroring dada2_denoise.R exactly.
 
@@ -578,32 +608,31 @@ def denoise_dada2_r(
     if output_plot_dir is not None:
         output_plot_dir.mkdir(parents=True, exist_ok=True)
 
+    overlap_report = None
     if amplicon_length is not None and paired:
-        peek = next(
-            (
-                p
-                for p in sorted(input_dir.iterdir())
-                if p.is_file() and p.name.endswith((".fastq", ".fq", ".fastq.gz", ".fq.gz"))
-            ),
-            None,
-        )
-        read_len = dada2_qc.first_read_length(peek) if peek is not None else 0
-        overlap_msg = dada2_qc.check_overlap(
+        # Inspect one R1 and one R2 independently (mate lengths can differ, e.g.
+        # after asymmetric primer trimming), and account for per-mate trim/trunc.
+        r1_path, r2_path = _first_paired_reads(input_dir)
+        read_len_f = dada2_qc.first_read_length(r1_path) if r1_path is not None else 0
+        read_len_r = dada2_qc.first_read_length(r2_path) if r2_path is not None else 0
+        overlap_report = dada2_qc.check_overlap(
+            trim_left_f=tuning.trim_left_f,
+            trim_left_r=tuning.trim_left_r,
             trunc_len_f=tuning.trunc_len_f,
             trunc_len_r=tuning.trunc_len_r,
-            read_len_f=read_len,
-            read_len_r=read_len,
+            read_len_f=read_len_f,
+            read_len_r=read_len_r,
             amplicon_length=amplicon_length,
             min_overlap=tuning.min_overlap or 12,
         )
-        if overlap_msg is not None:
+        if overlap_report.warning is not None:
             if strict_qc:
-                raise MicrobiomeSuiteError(overlap_msg)
-            warnings.warn(overlap_msg, stacklevel=2)
+                raise MicrobiomeSuiteError(overlap_report.warning)
+            warnings.warn(overlap_report.warning, stacklevel=2)
 
     script_res = files("microsuite.methods.r").joinpath(DADA2_R_SCRIPT)
 
-    manifest_facts = {
+    manifest_facts: dict = {
         "microsuite_version": _MICROSUITE_VERSION,
         "backend": "dada2-r",
         "runtime": runtime,
@@ -617,6 +646,17 @@ def denoise_dada2_r(
         "output_stats": str(output_stats),
         "output_plot_dir": str(output_plot_dir) if output_plot_dir is not None else None,
     }
+    if overlap_report is not None:
+        manifest_facts["overlap_check"] = {
+            "read_len_f": overlap_report.read_len_f,
+            "read_len_r": overlap_report.read_len_r,
+            "retained_f": overlap_report.retained_f,
+            "retained_r": overlap_report.retained_r,
+            "amplicon_length": overlap_report.amplicon_length,
+            "min_overlap": overlap_report.min_overlap,
+            "predicted_overlap": overlap_report.predicted_overlap,
+            "sufficient": overlap_report.sufficient,
+        }
 
     run_kwargs = dict(
         backend="dada2-r",

@@ -78,21 +78,19 @@ def test_retention_warnings_healthy_is_empty(tmp_path: Path) -> None:
     assert retention_warnings(s) == []
 
 
-def test_check_overlap() -> None:
+def test_check_overlap_equal_mates() -> None:
     # 150 + 150 - 250 = 50 >= 12 -> ok
-    assert (
-        check_overlap(
-            trunc_len_f=0,
-            trunc_len_r=0,
-            read_len_f=150,
-            read_len_r=150,
-            amplicon_length=250,
-            min_overlap=12,
-        )
-        is None
+    r = check_overlap(
+        trunc_len_f=0,
+        trunc_len_r=0,
+        read_len_f=150,
+        read_len_r=150,
+        amplicon_length=250,
+        min_overlap=12,
     )
+    assert r.sufficient and r.warning is None and r.predicted_overlap == 50
     # 150 + 150 - 295 = 5 < 12 -> warn
-    msg = check_overlap(
+    r2 = check_overlap(
         trunc_len_f=0,
         trunc_len_r=0,
         read_len_f=150,
@@ -100,31 +98,66 @@ def test_check_overlap() -> None:
         amplicon_length=295,
         min_overlap=12,
     )
-    assert msg is not None and "overlap" in msg.lower()
+    assert not r2.sufficient and r2.predicted_overlap == 5
+    assert r2.warning is not None and "overlap" in r2.warning.lower()
+    # generous truncLen: 200 + 200 - 250 = 150 -> ok
+    assert check_overlap(
+        trunc_len_f=200,
+        trunc_len_r=200,
+        read_len_f=150,
+        read_len_r=150,
+        amplicon_length=250,
+        min_overlap=12,
+    ).sufficient
+
+
+def test_check_overlap_unequal_mates_and_trim() -> None:
+    # unequal mates: R1=250, R2=180, amplicon 400 -> 250+180-400=30 >= 12 -> ok
+    r = check_overlap(
+        trunc_len_f=0,
+        trunc_len_r=0,
+        read_len_f=250,
+        read_len_r=180,
+        amplicon_length=400,
+        min_overlap=12,
+    )
+    assert r.retained_f == 250 and r.retained_r == 180
+    assert r.predicted_overlap == 30 and r.sufficient
+    # per-mate trimLeft reduces retained: (250-10)+(180-20)-400 = 0 < 12 -> warn
+    r2 = check_overlap(
+        trim_left_f=10,
+        trim_left_r=20,
+        trunc_len_f=0,
+        trunc_len_r=0,
+        read_len_f=250,
+        read_len_r=180,
+        amplicon_length=400,
+        min_overlap=12,
+    )
+    assert r2.retained_f == 240 and r2.retained_r == 160
+    assert r2.predicted_overlap == 0 and not r2.sufficient
     # truncLen overrides read length: 120 + 120 - 250 = -10 < 12 -> warn
-    assert (
-        check_overlap(
-            trunc_len_f=120,
-            trunc_len_r=120,
-            read_len_f=150,
-            read_len_r=150,
-            amplicon_length=250,
-            min_overlap=12,
-        )
-        is not None
+    r3 = check_overlap(
+        trunc_len_f=120,
+        trunc_len_r=120,
+        read_len_f=150,
+        read_len_r=150,
+        amplicon_length=250,
+        min_overlap=12,
     )
-    # generous truncLen: 200 + 200 - 250 = 150 >= 12 -> ok
-    assert (
-        check_overlap(
-            trunc_len_f=200,
-            trunc_len_r=200,
-            read_len_f=150,
-            read_len_r=150,
-            amplicon_length=250,
-            min_overlap=12,
-        )
-        is None
+    assert r3.retained_f == 120 and not r3.sufficient
+    # retained clamped at 0 when trimLeft exceeds the read
+    r4 = check_overlap(
+        trim_left_f=300,
+        trim_left_r=0,
+        trunc_len_f=0,
+        trunc_len_r=0,
+        read_len_f=150,
+        read_len_r=150,
+        amplicon_length=100,
+        min_overlap=12,
     )
+    assert r4.retained_f == 0
 
 
 def test_first_read_length(tmp_path: Path) -> None:
