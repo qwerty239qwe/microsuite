@@ -23,7 +23,7 @@ def _require_obs_column(adata: ad.AnnData, column: str) -> pd.Series:
         raise MicrobiomeSuiteError(
             f"Metadata column '{column}' not found in obs; available: {available}."
         )
-    return adata.obs[column]
+    return pd.Series(adata.obs[column])
 
 
 def _natural_group_order(values) -> list[str]:
@@ -162,7 +162,7 @@ def plot_clr_by_group(
                     box.set_alpha(0.7)
             else:
                 vp = ax.violinplot(series, positions=positions, widths=slot * 0.9, showmeans=True)
-                for body in vp["bodies"]:
+                for body in vp["bodies"]:  # ty: ignore[not-iterable]
                     body.set_facecolor(color)
                     body.set_alpha(0.7)
             handles.append(plt.Line2D([0], [0], color=color, lw=6, label=str(cat)))
@@ -220,6 +220,7 @@ def plot_braycurtis_ordination(
     is_numeric = pd.api.types.is_numeric_dtype(color)
 
     if effective == "facet":
+        assert subj is not None  # guaranteed above for facet/trajectory styles
         subjects = list(pd.unique(subj.to_numpy()))
         ncols = min(3, len(subjects))
         nrows = int(np.ceil(len(subjects) / ncols))
@@ -295,6 +296,7 @@ def plot_braycurtis_ordination(
         ax.legend(title=color_by, bbox_to_anchor=(1.02, 1), loc="upper left")
 
     if effective == "trajectory":
+        assert subj is not None  # guaranteed above for facet/trajectory styles
         subj_vals = subj.to_numpy()
         for sub in pd.unique(subj_vals):
             idx = np.where(subj_vals == sub)[0]

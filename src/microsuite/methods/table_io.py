@@ -16,7 +16,7 @@ def _matrix_frame(matrix, var_names, obs_names) -> pd.DataFrame:
     frame = pd.DataFrame(
         matrix.T,
         index=pd.Index([str(v) for v in var_names], name="feature_id"),
-        columns=[str(s) for s in obs_names],
+        columns=pd.Index([str(s) for s in obs_names]),
     )
     return frame
 
@@ -40,7 +40,7 @@ def export_table(
     frame = _matrix_frame(matrix, adata.var_names, adata.obs_names)
     frame.to_csv(prepare_output(output, force=force), sep="\t")
     if metadata is not None:
-        obs = adata.obs.copy()
+        obs = pd.DataFrame(adata.obs)
         obs.index = obs.index.astype(str)
         obs.index.name = "sample"
         obs.to_csv(prepare_output(metadata, force=force), sep="\t")

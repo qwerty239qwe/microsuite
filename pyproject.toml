@@ -54,7 +54,10 @@ extend-exclude = [".uv-cache", ".venv", "dist", "build"]
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.ty.src]
-include = ["src", "tests"]
+# Type-check shipping code. Tests are runtime-validated by pytest; checking them
+# adds mostly pandas/anndata stub false positives (e.g. DataFrame(index=list[str]))
+# with little signal.
+include = ["src"]
 
 
 [tool.pytest.ini_options]

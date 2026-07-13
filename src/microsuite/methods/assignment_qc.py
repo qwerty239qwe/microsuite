@@ -44,7 +44,7 @@ def _assigned_mask(series: pd.Series) -> np.ndarray:
 
 
 def _assigned_masks(adata: ad.AnnData, ranks: list[str]) -> dict[str, np.ndarray]:
-    return {r: _assigned_mask(adata.var[r]) for r in ranks}
+    return {r: _assigned_mask(pd.Series(adata.var[r])) for r in ranks}
 
 
 def _row(
@@ -77,7 +77,7 @@ def summarize_assignment(adata: ad.AnnData) -> pd.DataFrame:
     pooled_present = pooled_reads > 0
     for rank in ranks:
         rows.append(_row(POOLED_LABEL, pooled_present, pooled_reads, assigned[rank], rank))
-    return pd.DataFrame(rows, columns=SUMMARY_COLUMNS)
+    return pd.DataFrame(rows, columns=pd.Index(SUMMARY_COLUMNS))
 
 
 def write_assignment_summary(summary: pd.DataFrame, out_path: Path) -> Path:
@@ -89,6 +89,6 @@ def deepest_rank_distribution(adata: ad.AnnData) -> pd.Series:
     ranks = _ranks(adata)
     deepest = pd.Series("Unassigned", index=adata.var.index)
     for rank in ranks:  # shallow -> deep; later ranks overwrite
-        mask = _assigned_mask(adata.var[rank])
+        mask = _assigned_mask(pd.Series(adata.var[rank]))
         deepest[mask] = rank
     return deepest.value_counts().reindex([*ranks, "Unassigned"], fill_value=0)

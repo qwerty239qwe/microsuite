@@ -692,7 +692,7 @@ def denoise_dada2_r(
                 run_dir=run_dir,
                 timeout=timeout,
                 validate=validate,
-                **run_kwargs,
+                **run_kwargs,  # ty: ignore[invalid-argument-type]
             )
             if validate:
                 _validate_dada2_asv_samples(output_table, input_dir, paired=paired)
@@ -731,7 +731,7 @@ def denoise_dada2_r(
                 run_dir=run_dir,
                 timeout=timeout,
                 validate=validate,
-                **run_kwargs,
+                **run_kwargs,  # ty: ignore[invalid-argument-type]
             )
             if validate:
                 _validate_dada2_asv_samples(output_table, input_dir, paired=paired)

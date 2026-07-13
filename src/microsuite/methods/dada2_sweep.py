@@ -106,7 +106,10 @@ def build_grid(
         raise MicrobiomeSuiteError(
             "Provide exactly one grid source: a --grid-config file or axis values."
         )
-    return _grid_from_config(config) if has_config else _grid_from_axes(axes)
+    if config is not None:
+        return _grid_from_config(config)
+    assert axes is not None  # guaranteed by the exactly-one-source check above
+    return _grid_from_axes(axes)
 
 
 def _read_asv_table(path: Path) -> pd.DataFrame:
