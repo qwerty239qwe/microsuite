@@ -54,11 +54,13 @@ def test_ancombc_invokes_external_script_path(
 ) -> None:
     table = fixture_table(tmp_path)
     commands: list[list[str]] = []
+    captured_params: list[dict[str, object]] = []
 
     monkeypatch.setattr(shutil, "which", lambda name: "Rscript")
 
     def fake_run(command: list[str], **kwargs: object) -> object:
         commands.append(command)
+        captured_params.append(json.loads(Path(command[4]).read_text(encoding="utf-8")))
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr("subprocess.run", fake_run)
@@ -76,7 +78,10 @@ def test_ancombc_invokes_external_script_path(
     assert command[1].endswith("microsuite/diffab/r/ancombc.R") or command[1].endswith(
         "microsuite\\diffab\\r\\ancombc.R"
     )
-    assert command[-2:] == ["treatment", str(tmp_path / "diff.tsv")]
+    assert command[-1] == str(tmp_path / "diff.tsv")
+    params = captured_params[0]
+    assert params["fix_formula"] == "treatment"
+    assert params["group"] == "treatment"
 
 
 @pytest.mark.parametrize("backend", ["aldex2", "maaslin2", "lefse"])
@@ -136,7 +141,7 @@ def test_diff_abundance_writes_runtime_logs(
     run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
     assert run["task"] == "diff_abundance"
     assert run["backend"] == "ancombc"
-    assert run["inputs"] == {"group": "treatment"}
+    assert run["inputs"] == {"fix_formula": "treatment", "rand_formula": ""}
     assert run["outputs"] == {"output": str(tmp_path / "diff.tsv")}
 
 
