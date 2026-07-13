@@ -86,3 +86,46 @@ def test_run_ancombc_missing_reference_column_raises(tmp_path, monkeypatch) -> N
     _capture(monkeypatch)
     with pytest.raises(MicrobiomeSuiteError, match="nope"):
         run_ancombc(_adata(), output=tmp_path / "out.tsv", group="phase", reference={"nope": "x"})
+
+
+def test_cli_ancombc_threads_options(tmp_path, monkeypatch) -> None:
+    from typer.testing import CliRunner
+
+    from microsuite.cli.app import app
+    from microsuite.io.h5ad import write_h5ad
+
+    src = tmp_path / "t.h5ad"
+    write_h5ad(_adata(), src)
+    captured: dict = {}
+
+    def fake_run_ancombc(adata, **kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr("microsuite.cli.diffab_cmd.run_ancombc", fake_run_ancombc)
+    r = CliRunner().invoke(
+        app,
+        [
+            "diffab",
+            "ancombc",
+            str(src),
+            "--group",
+            "phase",
+            "--rand-formula",
+            "(1|subject)",
+            "--reference",
+            "phase=pre",
+            "--prv-cut",
+            "0.2",
+            "--global",
+            "--n-cl",
+            "4",
+            "-o",
+            str(tmp_path / "o.tsv"),
+        ],
+    )
+    assert r.exit_code == 0, r.stdout
+    assert captured["group"] == "phase"
+    assert captured["rand_formula"] == "(1|subject)"
+    assert captured["reference"] == {"phase": "pre"}
+    assert captured["prv_cut"] == 0.2
+    assert captured["global_test"] is True and captured["n_cl"] == 4
