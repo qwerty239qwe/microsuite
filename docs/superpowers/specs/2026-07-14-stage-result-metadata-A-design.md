@@ -80,6 +80,7 @@ does **not** write stage-result envelopes.
 
 ```python
 _ACTIVE: ContextVar[StageRecord | None] = ContextVar("active_stage", default=None)
+_CANCELLED = (KeyboardInterrupt, SystemExit, GeneratorExit)
 
 @contextmanager
 def stage_execution(
@@ -87,14 +88,20 @@ def stage_execution(
     backend: str | None = None, params: Mapping[str, Any] | None = None,
     inputs: Iterable[Artifact] = (), outputs: Iterable[Artifact] = (),
     provenance_files: Iterable[ProvenanceFile] = (),
+    workflow_context: WorkflowContext | None = None,   # explicit; else per-stage env fallback
 ) -> Iterator[StageRecord]:
     record = StageRecord(run_dir, stage=stage, task=task, backend=backend,
                          params=dict(params or {}), inputs=list(inputs),
-                         outputs=list(outputs), provenance=list(provenance_files))
+                         outputs=list(outputs), provenance=list(provenance_files),
+                         workflow_context=workflow_context or workflow_context_from_env())
     token = _ACTIVE.set(record)
     try:
         yield record            # stage adds outputs/provenance as it produces them
-    except BaseException as exc:
+    except _CANCELLED as exc:   # KeyboardInterrupt / SystemExit / GeneratorExit
+        record.mark_cancelled(exc)    # status cancelled; exit_code null; StageError
+        _publish(record, on_failure=True)
+        raise
+    except Exception as exc:
         record.mark_failure(exc)      # status failed|timed_out; exit_code; StageError
         _publish(record, on_failure=True)   # best-effort; original exception re-raised
         raise
@@ -109,20 +116,46 @@ def stage_execution(
 `add_input(Artifact)`, `note_subprocess(command, exit_code, duration_sec, *, timed_out)`,
 and `to_payload() -> dict`. `stage` is **required** here (schema-required, and the
 stage always knows it) — resolving finding #3 without touching generic `run_command`.
+`task` defaults to `stage` **inside `StageRecord`** when the caller omits it, so the
+schema-required, non-nullable `task` is always populated without burdening callers
+(round-2 finding #1). `workflow_context` is resolved **per `stage_execution` call**
+(explicit arg wins; else `workflow_context_from_env()` reads the env now) — never a
+process-global cache, so one process running several datasets stays correct
+(round-2 finding #7). Interruption types map to `cancelled` (round-2 finding #8).
 
 `run_command` change: after a subprocess completes (or times out) and `run_dir`
 is set, if `_ACTIVE.get()` is not `None`, call
 `record.note_subprocess(command, exit_code, duration_sec, timed_out=...)`. Nothing
-else changes; with no active stage, `run_command` behaves exactly as today. The
-last successful subprocess supplies the envelope's `command`/`exit_code`; on
-timeout the record is marked before `run_command` re-raises.
+else changes; with no active stage, `run_command` behaves exactly as today.
+
+### Subprocesses (round-2 finding #3)
+
+`StageRecord` retains **every** noted subprocess; the envelope carries them in a
+`subprocesses[]` array, so a multi-command stage is represented faithfully and a
+failing final command is never confused with an earlier successful one:
+
+```json
+"subprocesses": [
+  {"command": ["Rscript","learn.R","--token","***"], "exit_code": 0, "duration_sec": 8.1, "timed_out": false},
+  {"command": ["Rscript","denoise.R"], "exit_code": 1, "duration_sec": 2.0, "timed_out": false}
+]
+```
+
+The singular top-level `command`/`exit_code` are an **explicitly-defined
+convenience alias**: on `failed` they are the **failing** subprocess (the timed-out
+one for `timed_out`); on `completed` they are the **last** subprocess; `null` when
+the stage ran no subprocess. Each subprocess `command` is redacted with the same
+mechanism.
 
 ### Status & invariants (finding #4)
 
 `mark_success()` → `completed`. `mark_failure(exc)`: if any noted subprocess timed
 out → `timed_out` (`exit_code = null`); else `failed` (`exit_code =` the failing
 subprocess code if one failed, else `null` for a Python post-processing failure).
-`StageError = {"type": exc.__class__.__name__, "message": <safe, redacted, truncated>}`.
+`mark_cancelled(exc)` → `cancelled` (`exit_code = null`). In all failing cases
+`StageError = {"type": exc.__class__.__name__, "message": <raw>}`; the message is
+redacted **at serialisation** (`to_payload`) using the union of param- and
+command-discovered secrets (round-2 finding #2), then truncated.
 
 Status invariants enforced by the validator:
 - `completed` → `error is null` **and** `exit_code in (0, null)` (null when the
@@ -130,6 +163,7 @@ Status invariants enforced by the validator:
   stages validate).
 - `failed` → `error` is a non-null object.
 - `timed_out` → `exit_code is null` and `error` non-null.
+- `cancelled` → `exit_code is null` and `error` non-null.
 
 ### File layout & concurrency-safe naming (findings #1, #2)
 
@@ -138,18 +172,22 @@ One file per stage attempt, never overwritten, under a run-dir subdirectory:
 ```
 run_dir/
   stage-results/
-    denoise--dada2-r--attempt-1--stage-run-9f3c1a2b7d40.json
-    taxonomy--silva--attempt-1--stage-run-1b77e0c4a219.json
+    denoise--dada2-r--attempt-1--stage-run-9f3c1a2b7d40e14a8c9b2f5d6710a3c4.json
+    taxonomy--silva--attempt-1--stage-run-1b77e0c4a2194f0e8d3a6c15b7290ef8.json
+    diagnostics/
+      denoise--dada2-r--attempt-2--stage-run-....invalid   # never *.json
   microsuite-results.json                 # legacy aggregate, unchanged
 ```
 
 - Name: `<stage>--<backend>--attempt-<N>--<stage_run_id>.json`; components
   slugified (`[^a-z0-9]+`→`-`, lower-cased; `backend` `None` → `none`).
-- **Uniqueness comes from `stage_run_id`** (a UUID), so two concurrent processes
-  cannot collide even if both compute `attempt-1`. `attempt` (`1 + count(existing
+- **Uniqueness comes from `stage_run_id`** — a **full** `uuid4().hex` (32 hex /
+  122 bits, not a 12-char prefix), so two concurrent processes cannot collide even
+  if both compute `attempt-1` (round-2 finding #5). `attempt` (`1 + count(existing
   matching files)`) is **informational/best-effort**, not a uniqueness guarantee.
-- Invalid-on-publish payloads go to a **diagnostic** name
-  (`<same>.invalid.json`), never the normal path (finding #6).
+- Invalid-on-publish payloads go to `stage-results/diagnostics/<same-name>.invalid`
+  — a **subdirectory** and a **non-`.json` terminal extension**, so a consumer
+  scanning `stage-results/*.json` can never ingest them (round-2 finding #4).
 - `run_dir is None` → no envelope (unchanged behaviour).
 
 ### Identifiers (findings #1, #2)
@@ -157,14 +195,16 @@ run_dir/
 | Field | Source | Notes |
 |---|---|---|
 | `run_id` | env `MICROSUITE_RUN_ID`, else `run_dir.name` | stable per workflow execution |
-| `stage_run_id` | generated `stage-run-<uuid4hex12>` | unique per attempt; also in filename |
+| `stage_run_id` | generated `stage-run-<uuid4().hex>` (full 32 hex) | unique per attempt; also in filename |
 | `attempt` | `1 + count(existing files)` | informational; `>= 1` |
 | `workflow_id` | env `MICROSUITE_WORKFLOW_ID` | optional; `null` when absent |
 | `workflow_run_id` | env `MICROSUITE_WORKFLOW_RUN_ID` | optional; separates two DADA2 runs in different benchmarks |
 | `dataset_id` | env `MICROSUITE_DATASET_ID` | optional |
 
-`metadata/context.py:workflow_context(overrides=None)` reads env once (overridable
-for tests).
+`metadata/context.py:workflow_context_from_env()` reads the env **at call time**,
+invoked **once per `stage_execution`** (round-2 finding #7) — never a process-global
+cache. An explicit `workflow_context=WorkflowContext(...)` argument to
+`stage_execution` overrides the env fallback (and drives tests).
 
 ### Models (`metadata/models.py`) — findings #3, #4, #5
 
@@ -224,6 +264,7 @@ never invents artifacts and never derives `count`.
   "status": "completed", "exit_code": 0, "error": null,
   "timing": {"started_at":"2026-07-14T09:12:03Z","finished_at":"2026-07-14T09:12:15Z","duration_sec":12.34},
   "command": ["Rscript","denoise.R","--token","***"],
+  "subprocesses": [{"command":["Rscript","denoise.R","--token","***"],"exit_code":0,"duration_sec":12.34,"timed_out":false}],
   "params": {"trunc_len_f":240,"auth_token":"***"},
   "inputs":  [{"label":"reads","path":"/data/input","format":"directory","external":true,"exists":true}],
   "outputs": [{"label":"feature table","path":"feature-table.tsv","format":"tsv","kind":"feature_table","count":{"value":1842,"unit":"features"},"bytes":928104,"external":false,"exists":true}],
@@ -251,12 +292,13 @@ failure propagates unchanged.
 1. `payload = record.to_payload()` — enrich, relativise, JSON-safe-coerce, redact.
 2. `errors = validate_stage_result(payload)`.
 3. **On the success path (`on_failure=False`):** if `errors`, write the payload to
-   the **diagnostic** path and raise `MicrobiomeSuiteError` — never publish an
-   invalid document at a normal path, and never report success with broken
-   metadata. If valid, atomic-write to the normal path; a write failure raises.
-4. **On the failure path (`on_failure=True`):** if `errors`, write to the
-   diagnostic path and warn; else atomic-write to the normal path. Any exception
-   here is swallowed (warn only) to preserve the original pipeline exception.
+   `stage-results/diagnostics/<name>.invalid` and raise `MicrobiomeSuiteError` —
+   never publish an invalid document at a normal path, and never report success with
+   broken metadata. If valid, atomic-write to the normal path; a write failure raises.
+4. **On the failure path (`on_failure=True`):** if `errors`, write to
+   `stage-results/diagnostics/<name>.invalid` and warn; else atomic-write to the
+   normal path. Any exception here is swallowed (warn only) to preserve the original
+   pipeline exception.
 - **Atomic write:** `tmp = target.with_name(target.name + f".tmp.{os.getpid()}")`;
   render JSON; `os.replace(tmp, target)`. Microboard never reads a partial file.
 
@@ -268,12 +310,18 @@ One mechanism for `params` and `command`:
   dicts/lists). Also **JSON-safe-coerce** every value: `Path`→str, `Enum`→`.value`,
   `tuple`/`set`→list, other non-JSON types→`str(...)`.
 - Capture the set of redacted secret *values*; ignore empty/whitespace ones.
-- `redact_command(argv, secrets)` → mask value after a sensitive flag
-  (`--token X`→`***`), inline `--api-key=X`→`--api-key=***`, and any bare arg equal
-  to a captured secret.
-- `redact_text(s, secrets)` → replace captured secrets in free text, **longest-first**,
-  skipping secrets shorter than 4 chars (avoid corrupting unrelated text). Used for
+- `redact_command(argv, secrets) -> (masked_argv, discovered_secrets)` → mask value
+  after a sensitive flag (`--token X`→`***`), inline `--api-key=X`→`--api-key=***`,
+  and any bare arg equal to a captured secret. It **returns the values it discovered
+  from sensitive flags** so they join the secret set (round-2 finding #2): a secret
+  present only on the command line (never in `params`) must still be scrubbed from
   `error.message`.
+- Serialisation order in `to_payload`: `param_secrets = redact_params(params)` →
+  `masked_cmd, cmd_secrets = redact_command(command, param_secrets)` (and each
+  subprocess command) → `all_secrets = param_secrets | cmd_secrets` →
+  `error.message = truncate(redact_text(raw_message, all_secrets))`.
+- `redact_text(s, secrets)` → replace captured secrets in free text, **longest-first**,
+  skipping secrets shorter than 4 chars (avoid corrupting unrelated text).
 
 **Limitation (documented, finding #7):** A redacts only the stage-result envelope.
 The existing `command.txt`, `events.jsonl`, and `run.json` are still written from
@@ -285,22 +333,34 @@ those is a follow-up.
 A **MicroSuite-specific** schema format — a small subset inspired by JSON Schema,
 **not** a JSON Schema validator (stated in the module docstring). Supports:
 `required`, `allow_unknown`, per-field `type` (`str|int|number|bool|object|array`),
-`const`, `enum`, `nullable`, `min` (numeric), nested `fields`, `array` `items`, and
-a schema-level `invariants` hook (callables returning error strings) for the
-status/exit_code/error cross-field rules.
+`const`, `enum`, `nullable`, `min` (numeric), `format` (`rfc3339`), nested `fields`,
+`array` `items`, and a schema-level `invariants` hook (callables returning error
+strings) for the status/exit_code/error cross-field rules.
+
+**JSON-interop rules (round-2 finding #6):**
+- `int` rejects `bool` (Python `bool` subclasses `int`): a value passes `int` only
+  if `type(v) is int`. `number` accepts `int`/`float` but **rejects `bool`, `NaN`,
+  and ±`inf`**.
+- `format: "rfc3339"` validates `started_at`/`finished_at` against an RFC 3339 /
+  `...Z` regex, not merely "is a string".
+- The writer serialises with `json.dumps(payload, allow_nan=False, indent=2,
+  sort_keys=True)` so a schema-valid payload can never emit tokens Microboard's
+  `JSON.parse` rejects.
 
 `stage-result.v1` **required** (every consistently emitted top-level field):
 `schema_version, run_id, stage_run_id, attempt, stage, task, backend, status,
-exit_code, error, timing, command, params, inputs, outputs, provenance_files,
-metrics, software, reference_db, producer`. Nullable values: `backend, exit_code,
-error, command, reference_db` (and the optional `workflow_id/workflow_run_id/
-dataset_id` when present). Recursive item schemas validate `Artifact`
+exit_code, error, timing, command, subprocesses, params, inputs, outputs,
+provenance_files, metrics, software, reference_db, producer`. Nullable values:
+`backend, exit_code, error, command, reference_db` (and the optional
+`workflow_id/workflow_run_id/dataset_id` when present). `task` is required and
+**non-nullable** (defaulted to `stage`). Recursive item schemas validate `Artifact`
 (`label:str`, `path:str` required; `format/kind` nullable str; `count` →
 `ArtifactCount{value:int min0, unit:str}`; `bytes` int min0 nullable; `external`
 bool; `exists` bool), `ProvenanceFile{kind:str, path:str, external:bool, exists:bool}`,
-`StageError{type:str, message:str}`, `Timing{started_at:str, finished_at:str,
-duration_sec:number min0}`, `Producer{name:str, version:str}`. Numeric
-constraints: `attempt>=1`, `bytes>=0`, `duration_sec>=0`, `count.value>=0`.
+`Subprocess{command:array[str], exit_code:int nullable, duration_sec:number min0,
+timed_out:bool}`, `StageError{type:str, message:str}`, `Timing{started_at:rfc3339,
+finished_at:rfc3339, duration_sec:number min0}`, `Producer{name:str, version:str}`.
+Numeric constraints: `attempt>=1`, `bytes>=0`, `duration_sec>=0`, `count.value>=0`.
 `allow_unknown: true` at top level and on nested objects → B/C add fields without
 breaking older Microboard (finding: forward-compat). `metrics`/`software` are
 `object` (may be empty); unconstrained in A beyond type.
@@ -324,8 +384,22 @@ New: `tests/test_metadata_validate.py`, `test_metadata_redact.py`,
    input → error not crash.
 2. **Redaction:** `redact_params` masks `auth_token`/`api_key`/nested, JSON-safe-
    coerces `Path`/`Enum`/`tuple`; `redact_command` masks `--token X`,
-   `--api-key=X`, bare captured secret; empty secret ignored; `redact_text`
+   `--api-key=X`, bare captured secret **and returns the discovered value**; a
+   secret present only on the command line (not in `params`) is scrubbed from
+   `error.message` (round-2 finding #2); empty secret ignored; `redact_text`
    longest-first and skips <4-char secrets.
+2b. **JSON interop:** validator rejects `bool` for `int`/`number`, rejects `NaN`/
+   `inf` for `number`, rejects a non-RFC3339 `started_at`; the writer's
+   `json.dumps(allow_nan=False)` round-trips (round-2 finding #6).
+2c. **Multiple subprocesses:** two `note_subprocess` calls (first exit 0, second
+   exit 1 on a failed stage) → `subprocesses[]` has both; top-level `command`/
+   `exit_code` alias the **failing** one (round-2 finding #3).
+2d. **Cancellation:** a `KeyboardInterrupt` inside the stage → `status:cancelled`,
+   `exit_code:null`, `error` set, and the `KeyboardInterrupt` still propagates
+   (round-2 finding #8).
+2e. **Diagnostics isolation:** an invalid success payload lands under
+   `stage-results/diagnostics/*.invalid`; a `stage-results/*.json` glob returns
+   only valid envelopes (round-2 finding #4).
 3. **Writer success:** envelope at
    `stage-results/denoise--dada2-r--attempt-1--stage-run-*.json`; validates clean;
    output enriched (`exists`,`bytes` from a real temp file); directory output →
