@@ -6,6 +6,7 @@ from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.metadata import Artifact, stage_execution
 from microsuite.methods._dispatch import require_backend
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
@@ -62,16 +63,25 @@ def diversity_calc(
     timeout: float | None = None,
 ) -> None:
     backend = require_backend(backend, SUPPORTED_METHODS, "diversity calculation")
-    diversity_calc_qiime2(
-        metric=metric,
-        table=table,
-        phylogeny=phylogeny,
-        output=output,
-        threads=threads,
-        force=force,
-        run_dir=run_dir,
-        timeout=timeout,
-    )
+    with stage_execution(
+        output.resolve().parent,
+        stage="diversity",
+        backend=backend,
+        params={"metric": metric, "threads": threads},
+        outputs=[
+            Artifact("alpha diversity", output.resolve(), kind="alpha_diversity", required=False)
+        ],
+    ):
+        diversity_calc_qiime2(
+            metric=metric,
+            table=table,
+            phylogeny=phylogeny,
+            output=output,
+            threads=threads,
+            force=force,
+            run_dir=run_dir,
+            timeout=timeout,
+        )
 
 
 def diversity_calc_qiime2(

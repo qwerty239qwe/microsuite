@@ -5,6 +5,7 @@ from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.metadata import Artifact, stage_execution
 from microsuite.methods._dispatch import require_backend
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
@@ -32,64 +33,71 @@ def tax_classify(
 
     backend = require_backend(backend, SUPPORTED_METHODS, "taxonomy classification")
     resolved_threads = resolve_threads(threads)
-    if backend == "qiime2":
-        tax_classify_qiime2(
-            rep_seqs=rep_seqs,
-            classifier=classifier,
-            output=output,
-            threads=resolved_threads,
-            force=force,
-            run_dir=run_dir,
-            timeout=timeout,
-        )
-        return
-    if backend == "bracken":
-        tax_classify_bracken(
-            kraken_report=rep_seqs,
-            database=classifier,
-            output=output,
-            level=level,
-            read_length=read_length,
-            force=force,
-            run_dir=run_dir,
-            timeout=timeout,
-        )
-        return
-    if backend == "kraken2":
-        tax_classify_kraken2(
-            reads=rep_seqs,
-            database=classifier,
-            output=output,
-            threads=resolved_threads,
-            force=force,
-            run_dir=run_dir,
-            timeout=timeout,
-        )
-        return
-    if backend == "metaphlan":
-        tax_classify_metaphlan(
-            reads=rep_seqs,
-            database=classifier,
-            output=output,
-            input_type=input_type,
-            threads=resolved_threads,
-            force=force,
-            run_dir=run_dir,
-            timeout=timeout,
-        )
-        return
-    if backend == "emu":
-        tax_classify_emu(
-            reads=rep_seqs,
-            database=classifier,
-            output=output,
-            input_type=input_type,
-            threads=resolved_threads,
-            force=force,
-            run_dir=run_dir,
-            timeout=timeout,
-        )
-        return
+    with stage_execution(
+        output.resolve().parent,
+        stage="taxonomy",
+        backend=backend,
+        params={"level": level, "threads": resolved_threads},
+        outputs=[Artifact("taxonomy", output.resolve(), kind="taxonomy_table", required=False)],
+    ):
+        if backend == "qiime2":
+            tax_classify_qiime2(
+                rep_seqs=rep_seqs,
+                classifier=classifier,
+                output=output,
+                threads=resolved_threads,
+                force=force,
+                run_dir=run_dir,
+                timeout=timeout,
+            )
+            return
+        if backend == "bracken":
+            tax_classify_bracken(
+                kraken_report=rep_seqs,
+                database=classifier,
+                output=output,
+                level=level,
+                read_length=read_length,
+                force=force,
+                run_dir=run_dir,
+                timeout=timeout,
+            )
+            return
+        if backend == "kraken2":
+            tax_classify_kraken2(
+                reads=rep_seqs,
+                database=classifier,
+                output=output,
+                threads=resolved_threads,
+                force=force,
+                run_dir=run_dir,
+                timeout=timeout,
+            )
+            return
+        if backend == "metaphlan":
+            tax_classify_metaphlan(
+                reads=rep_seqs,
+                database=classifier,
+                output=output,
+                input_type=input_type,
+                threads=resolved_threads,
+                force=force,
+                run_dir=run_dir,
+                timeout=timeout,
+            )
+            return
+        if backend == "emu":
+            tax_classify_emu(
+                reads=rep_seqs,
+                database=classifier,
+                output=output,
+                input_type=input_type,
+                threads=resolved_threads,
+                force=force,
+                run_dir=run_dir,
+                timeout=timeout,
+            )
+            return
 
 
 def tax_classify_emu(
