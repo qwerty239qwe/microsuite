@@ -11,6 +11,7 @@ from pathlib import Path
 from microsuite import __version__ as _MICROSUITE_VERSION
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.metadata import Artifact, ProvenanceFile, StageRecord, stage_execution
 from microsuite.methods import dada2_manifest, dada2_qc
 from microsuite.methods._dispatch import require_backend
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
@@ -658,6 +659,23 @@ def denoise_dada2_r(
             "sufficient": overlap_report.sufficient,
         }
 
+    log_params = _dada2_log_params(
+        mode="paired" if paired else "single",
+        max_ee=tuning.max_ee,
+        max_ee_f=tuning.max_ee_f,
+        max_ee_r=tuning.max_ee_r,
+        trunc_q=tuning.trunc_q,
+        max_n=max_n,
+        rm_phix=rm_phix,
+        pooling_method=tuning.pooling_method,
+        chimera_method=tuning.chimera_method,
+        min_fold_parent_over_abundance=tuning.min_fold_parent_over_abundance,
+        allow_one_off=tuning.allow_one_off,
+        n_reads_learn=tuning.n_reads_learn,
+        min_overlap=min_overlap,
+        max_merge_mismatch=max_merge_mismatch,
+        trim_overhang=trim_overhang,
+    )
     run_kwargs = dict(
         backend="dada2-r",
         inputs={"input_dir": str(input_dir)},
@@ -667,128 +685,189 @@ def denoise_dada2_r(
             "denoising_stats": str(output_stats),
             **({"plot_dir": str(output_plot_dir)} if output_plot_dir is not None else {}),
         },
-        params=_dada2_log_params(
-            mode="paired" if paired else "single",
-            max_ee=tuning.max_ee,
-            max_ee_f=tuning.max_ee_f,
-            max_ee_r=tuning.max_ee_r,
-            trunc_q=tuning.trunc_q,
-            max_n=max_n,
-            rm_phix=rm_phix,
-            pooling_method=tuning.pooling_method,
-            chimera_method=tuning.chimera_method,
-            min_fold_parent_over_abundance=tuning.min_fold_parent_over_abundance,
-            allow_one_off=tuning.allow_one_off,
-            n_reads_learn=tuning.n_reads_learn,
-            min_overlap=min_overlap,
-            max_merge_mismatch=max_merge_mismatch,
-            trim_overhang=trim_overhang,
-        ),
+        params=log_params,
     )
 
-    if runtime == "docker":
-        # bind mounts cannot expose symlink targets inside input_dir
-        for entry in input_dir.iterdir():
-            if entry.is_symlink() and entry.name.endswith((".fastq", ".fq", ".fastq.gz", ".fq.gz")):
-                raise MicrobiomeSuiteError(
-                    f"Input FASTQ is a symlink and cannot be mounted into the container: "
-                    f"{entry}. Copy/hardlink real files, or use --runtime local."
+    stage_dir = output_stats.parent
+    with stage_execution(
+        stage_dir,
+        stage="denoise",
+        task="denoise",
+        backend="dada2-r",
+        params=log_params,
+        inputs=[Artifact("reads", input_dir.resolve(), format="directory", required=False)],
+    ) as _stage:
+        if runtime == "docker":
+            # bind mounts cannot expose symlink targets inside input_dir
+            for entry in input_dir.iterdir():
+                if entry.is_symlink() and entry.name.endswith(
+                    (".fastq", ".fq", ".fastq.gz", ".fq.gz")
+                ):
+                    raise MicrobiomeSuiteError(
+                        f"Input FASTQ is a symlink and cannot be mounted into the container: "
+                        f"{entry}. Copy/hardlink real files, or use --runtime local."
+                    )
+            with as_file(script_res) as script_path:
+                mapper = PathMapper()
+                mapper.add_dir(input_dir, "ro", "/work/input")
+                mapper.add_dir(script_path.parent, "ro", "/work/script")
+                out_index = 0
+                for out in (output_table, output_rep_seqs, output_stats):
+                    key = out.resolve().parent
+                    if key not in {m.host for m in mapper.mounts()}:
+                        mapper.add_dir(key, "rw", f"/work/out{out_index}")
+                        out_index += 1
+                if output_plot_dir is not None:
+                    if output_plot_dir.resolve() not in {m.host for m in mapper.mounts()}:
+                        mapper.add_dir(output_plot_dir, "rw", f"/work/out{out_index}")
+                inner = [f"{mapper.container_dir(script_path.parent)}/{script_path.name}"]
+                inner += _dada2_r_script_args(
+                    input_dir=mapper.container_dir(input_dir),
+                    output_table=mapper.to_container(output_table),
+                    output_rep_seqs=mapper.to_container(output_rep_seqs),
+                    output_stats=mapper.to_container(output_stats),
+                    output_plot_dir=(
+                        mapper.container_dir(output_plot_dir) if output_plot_dir else None
+                    ),
+                    threads=threads,
+                    paired=paired,
+                    tuning=tuning,
+                    max_n=max_n,
+                    rm_phix=rm_phix,
+                    params_out=mapper.to_container(output_stats.parent / "dada2_r_params.json"),
                 )
-        with as_file(script_res) as script_path:
-            mapper = PathMapper()
-            mapper.add_dir(input_dir, "ro", "/work/input")
-            mapper.add_dir(script_path.parent, "ro", "/work/script")
-            out_index = 0
-            for out in (output_table, output_rep_seqs, output_stats):
-                key = out.resolve().parent
-                if key not in {m.host for m in mapper.mounts()}:
-                    mapper.add_dir(key, "rw", f"/work/out{out_index}")
-                    out_index += 1
-            if output_plot_dir is not None:
-                if output_plot_dir.resolve() not in {m.host for m in mapper.mounts()}:
-                    mapper.add_dir(output_plot_dir, "rw", f"/work/out{out_index}")
-            inner = [f"{mapper.container_dir(script_path.parent)}/{script_path.name}"]
-            inner += _dada2_r_script_args(
-                input_dir=mapper.container_dir(input_dir),
-                output_table=mapper.to_container(output_table),
-                output_rep_seqs=mapper.to_container(output_rep_seqs),
-                output_stats=mapper.to_container(output_stats),
-                output_plot_dir=(
-                    mapper.container_dir(output_plot_dir) if output_plot_dir else None
-                ),
-                threads=threads,
-                paired=paired,
-                tuning=tuning,
-                max_n=max_n,
-                rm_phix=rm_phix,
-                params_out=mapper.to_container(output_stats.parent / "dada2_r_params.json"),
+                command = build_container_command(
+                    inner, resolve_dada2_image(image), mapper.mounts(), engine="docker"
+                )
+                _run(
+                    command,
+                    "R/DADA2 denoising failed.",
+                    run_dir=run_dir,
+                    timeout=timeout,
+                    validate=validate,
+                    **run_kwargs,  # ty: ignore[invalid-argument-type]
+                )
+                if validate:
+                    _validate_dada2_asv_samples(output_table, input_dir, paired=paired)
+                    summary = dada2_qc.summarize_dada2_stats(output_stats)
+                    dada2_qc.write_qc_summary(summary, output_stats.parent)
+                    for message in dada2_qc.retention_warnings(summary):
+                        if strict_qc:
+                            raise MicrobiomeSuiteError(message)
+                        warnings.warn(message, stacklevel=2)
+                _emit_dada2_manifest(
+                    output_stats,
+                    {
+                        **manifest_facts,
+                        "created_at": datetime.now(UTC).isoformat(),
+                        "command": " ".join(command),
+                    },
+                )
+        else:
+            with as_file(script_res) as script_path:
+                command = [rscript, str(script_path)] + _dada2_r_script_args(
+                    input_dir=str(input_dir),
+                    output_table=str(output_table),
+                    output_rep_seqs=str(output_rep_seqs),
+                    output_stats=str(output_stats),
+                    output_plot_dir=(str(output_plot_dir) if output_plot_dir else None),
+                    threads=threads,
+                    paired=paired,
+                    tuning=tuning,
+                    max_n=max_n,
+                    rm_phix=rm_phix,
+                    params_out=str(output_stats.parent / "dada2_r_params.json"),
+                )
+                _run(
+                    command,
+                    "R/DADA2 denoising failed.",
+                    run_dir=run_dir,
+                    timeout=timeout,
+                    validate=validate,
+                    **run_kwargs,  # ty: ignore[invalid-argument-type]
+                )
+                if validate:
+                    _validate_dada2_asv_samples(output_table, input_dir, paired=paired)
+                    summary = dada2_qc.summarize_dada2_stats(output_stats)
+                    dada2_qc.write_qc_summary(summary, output_stats.parent)
+                    for message in dada2_qc.retention_warnings(summary):
+                        if strict_qc:
+                            raise MicrobiomeSuiteError(message)
+                        warnings.warn(message, stacklevel=2)
+                _emit_dada2_manifest(
+                    output_stats,
+                    {
+                        **manifest_facts,
+                        "created_at": datetime.now(UTC).isoformat(),
+                        "command": " ".join(command),
+                    },
+                )
+        _declare_dada2_stage_outputs(
+            _stage,
+            output_table=output_table,
+            output_rep_seqs=output_rep_seqs,
+            output_stats=output_stats,
+            output_plot_dir=output_plot_dir,
+            manifest_path=stage_dir / dada2_manifest.MANIFEST_FILENAME,
+            validate=validate,
+        )
+
+
+def _declare_dada2_stage_outputs(
+    stage: StageRecord,
+    *,
+    output_table: Path,
+    output_rep_seqs: Path,
+    output_stats: Path,
+    output_plot_dir: Path | None,
+    manifest_path: Path,
+    validate: bool,
+) -> None:
+    """Declare the dada2-r outputs + provenance on the active stage record.
+
+    Required-ness of the primary outputs mirrors ``validate``: a caller that
+    skipped output validation is not asserting the files exist. The provenance
+    manifest is best-effort (``required=False``) because ``_emit_dada2_manifest``
+    tolerates a missing DADA2 params file.
+    """
+    stage.add_output(
+        Artifact(
+            "feature table",
+            output_table.resolve(),
+            format="tsv",
+            kind="feature_table",
+            required=validate,
+        )
+    )
+    stage.add_output(
+        Artifact(
+            "representative sequences",
+            output_rep_seqs.resolve(),
+            format="fasta",
+            kind="representative_sequences",
+            required=validate,
+        )
+    )
+    stage.add_output(
+        Artifact(
+            "denoising stats",
+            output_stats.resolve(),
+            format="tsv",
+            kind="denoising_stats",
+            required=validate,
+        )
+    )
+    if output_plot_dir is not None:
+        stage.add_output(
+            Artifact(
+                "plots",
+                output_plot_dir.resolve(),
+                format="directory",
+                kind="plots",
+                required=False,
             )
-            command = build_container_command(
-                inner, resolve_dada2_image(image), mapper.mounts(), engine="docker"
-            )
-            _run(
-                command,
-                "R/DADA2 denoising failed.",
-                run_dir=run_dir,
-                timeout=timeout,
-                validate=validate,
-                **run_kwargs,  # ty: ignore[invalid-argument-type]
-            )
-            if validate:
-                _validate_dada2_asv_samples(output_table, input_dir, paired=paired)
-                summary = dada2_qc.summarize_dada2_stats(output_stats)
-                dada2_qc.write_qc_summary(summary, output_stats.parent)
-                for message in dada2_qc.retention_warnings(summary):
-                    if strict_qc:
-                        raise MicrobiomeSuiteError(message)
-                    warnings.warn(message, stacklevel=2)
-            _emit_dada2_manifest(
-                output_stats,
-                {
-                    **manifest_facts,
-                    "created_at": datetime.now(UTC).isoformat(),
-                    "command": " ".join(command),
-                },
-            )
-    else:
-        with as_file(script_res) as script_path:
-            command = [rscript, str(script_path)] + _dada2_r_script_args(
-                input_dir=str(input_dir),
-                output_table=str(output_table),
-                output_rep_seqs=str(output_rep_seqs),
-                output_stats=str(output_stats),
-                output_plot_dir=(str(output_plot_dir) if output_plot_dir else None),
-                threads=threads,
-                paired=paired,
-                tuning=tuning,
-                max_n=max_n,
-                rm_phix=rm_phix,
-                params_out=str(output_stats.parent / "dada2_r_params.json"),
-            )
-            _run(
-                command,
-                "R/DADA2 denoising failed.",
-                run_dir=run_dir,
-                timeout=timeout,
-                validate=validate,
-                **run_kwargs,  # ty: ignore[invalid-argument-type]
-            )
-            if validate:
-                _validate_dada2_asv_samples(output_table, input_dir, paired=paired)
-                summary = dada2_qc.summarize_dada2_stats(output_stats)
-                dada2_qc.write_qc_summary(summary, output_stats.parent)
-                for message in dada2_qc.retention_warnings(summary):
-                    if strict_qc:
-                        raise MicrobiomeSuiteError(message)
-                    warnings.warn(message, stacklevel=2)
-            _emit_dada2_manifest(
-                output_stats,
-                {
-                    **manifest_facts,
-                    "created_at": datetime.now(UTC).isoformat(),
-                    "command": " ".join(command),
-                },
-            )
+        )
+    stage.add_provenance(ProvenanceFile("dada2_manifest", manifest_path.resolve(), required=False))
 
 
 def _resolve_dada2_mode(*, mode: str | None, paired: bool) -> str:
