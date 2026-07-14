@@ -59,6 +59,10 @@ def test_denoise_stage_envelope_finalized_after_provenance(tmp_path: Path, monke
     assert prov["dada2_manifest"]["exists"] is True
     # the manifest really was written before finalization
     assert (tmp_path / "dada2_denoise_manifest.json").exists()
+    # software versions lifted from the R params file (B)
+    assert env["software"]["dada2"] == {"version": "1.30.0"}
+    assert env["software"]["R"] == {"version": "4.3.1"}
+    assert env["software"]["microsuite"]["version"]
 
 
 def test_denoise_stage_python_or_subprocess_failure(tmp_path: Path, monkeypatch) -> None:

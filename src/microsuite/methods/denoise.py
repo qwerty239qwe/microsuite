@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import warnings
@@ -868,6 +869,29 @@ def _declare_dada2_stage_outputs(
             )
         )
     stage.add_provenance(ProvenanceFile("dada2_manifest", manifest_path.resolve(), required=False))
+    _lift_dada2_software(stage, manifest_path)
+
+
+def _lift_dada2_software(stage: StageRecord, manifest_path: Path) -> None:
+    """Best-effort: declare dada2/R/microsuite versions from the manifest tool block.
+
+    Reads the persisted ``dada2_denoise_manifest.json`` (``_emit_dada2_manifest``
+    deletes the intermediate R params file), so a missing/unparseable manifest
+    simply leaves ``software`` empty and never fails the run.
+    """
+    if not manifest_path.exists():
+        return
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+    tool = manifest.get("tool", {}) if isinstance(manifest, dict) else {}
+    software: dict[str, dict[str, str]] = {"microsuite": {"version": _MICROSUITE_VERSION}}
+    for key, name in (("dada2_version", "dada2"), ("r_version", "R")):
+        version = tool.get(key)
+        if version is not None:
+            software[name] = {"version": str(version)}
+    stage.set_software(software)
 
 
 def _resolve_dada2_mode(*, mode: str | None, paired: bool) -> str:
