@@ -34,8 +34,9 @@ does **not** write stage-result envelopes.
 
 ## Scope of A
 
-- `microsuite/metadata/` package: versioned **schema registry**, a dependency-free
-  **MicroSuite-specific** validator (recursive + status invariants), typed models
+- `microsuite/metadata/` package: versioned **schema registry**, a published,
+  language-neutral **JSON Schema** contract, a dependency-free Python validator
+  (recursive + status invariants), typed models
   (`Artifact`, `ArtifactCount`, `ProvenanceFile`, `StageError`), a mutable
   `StageRecord` accumulator, a shared **secret redactor**, and an **atomic**
   writer producing concurrency-safe, unique per-attempt files.
@@ -113,7 +114,8 @@ def stage_execution(
 ```
 
 `StageRecord` (mutable) exposes `add_output(Artifact)`, `add_provenance(ProvenanceFile)`,
-`add_input(Artifact)`, `note_subprocess(command, *, exit_code, duration_sec, status)`
+`add_input(Artifact)`, `note_subprocess(command, *, exit_code, duration_sec, status,
+required=True)`
 (`status` ∈ `completed|failed|timed_out|launch_failed`), and `to_payload() -> dict`. `stage` is **required** here (schema-required, and the
 stage always knows it) — resolving finding #3 without touching generic `run_command`.
 `task` defaults to `stage` **inside `StageRecord`** when the caller omits it, so the
@@ -125,7 +127,8 @@ process-global cache, so one process running several datasets stays correct
 
 `run_command` change (round-3 findings #1, #3): subprocess recording is
 **independent of `run_command`'s `run_dir`** — it depends only on whether a stage
-is active. In every exit path (success, non-zero exit, `TimeoutExpired`, and a
+is active. A subprocess observed through `run_command` is always recorded with
+`required: true`. In every exit path (success, non-zero exit, `TimeoutExpired`, and a
 launch failure such as `FileNotFoundError` from `subprocess.run`):
 
 ```python
@@ -169,6 +172,13 @@ subprocesses completed successfully, both aliases are `null`: no subprocess
 caused that failure, while `subprocesses[]` still preserves the commands that
 did complete. Each subprocess `command` is redacted with the same mechanism.
 
+`required` distinguishes an expected command from an explicitly handled optional
+attempt. A completed stage may contain a non-completed subprocess only when that
+subprocess is declared `required: false` by stage code that deliberately handles
+the failure, such as an optional diagnostics probe. This is not available through
+`run_command`, whose failures remain required. Consumers can therefore trust that
+`completed` means every required subprocess completed successfully.
+
 ### Status & invariants (finding #4)
 
 `mark_success()` → `completed`. `mark_failure(exc)`: if any noted subprocess has
@@ -186,7 +196,8 @@ redacted" therefore describes the *serialised* form, not stored state.
 Status invariants enforced by the validator:
 - `completed` → `error is null` **and** `exit_code in (0, null)` (null when the
   stage ran no subprocess — a deliberate relaxation of "must be 0" so pure-Python
-  stages validate).
+  stages validate), every required subprocess has `status == "completed"`, and all
+  required outputs/provenance files exist.
 - `failed` → `error` is a non-null object.
 - `timed_out` → `exit_code is null` and `error` non-null.
 - `cancelled` → `exit_code is null` and `error` non-null.
@@ -235,7 +246,7 @@ run_dir/
 
 | Field | Source | Notes |
 |---|---|---|
-| `run_id` | env `MICROSUITE_RUN_ID`, else `run_dir.name` | stable per workflow execution |
+| `run_id` | explicit `WorkflowContext.run_id`, else env `MICROSUITE_RUN_ID`, else generated `standalone-<stage_run_id>` | A workflow caller **must** set an explicit/env value to group stages. The generated fallback intentionally identifies only this standalone stage attempt; `run_dir.name` is not a safe workflow identity. |
 | `stage_run_id` | generated `stage-run-<uuid4().hex>` (full 32 hex) | unique per attempt; also in filename |
 | `attempt` | `1 + count(existing files)` | informational; `>= 1` |
 | `workflow_id` | env `MICROSUITE_WORKFLOW_ID` | optional; `null` when absent |
@@ -273,6 +284,7 @@ class Artifact:
     format: str | None = None
     kind: str | None = None
     count: ArtifactCount | None = None   # declared by the stage; writer never counts
+    required: bool = True                # must exist when the stage completes
     external: bool = False               # set by writer if outside run_dir
     # writer fills on serialise: bytes (int>=0|null), exists (bool)
 
@@ -280,6 +292,7 @@ class Artifact:
 class ProvenanceFile:
     kind: str
     path: str | Path              # absolute when declared
+    required: bool = True         # must exist when the stage completes
     # writer fills: external, exists
 
 @dataclass(frozen=True)
@@ -291,6 +304,13 @@ class StageError:
 Writer **enrichment** (from the absolute path, before relativising): `exists` and,
 for regular files, `bytes = stat().st_size` (`null` for directories/missing). It
 never invents artifacts and never derives `count`.
+
+An output/provenance declaration describes a final stage contract, not an intended
+path. A `completed` record is valid only when every output with `required: true`
+exists. `ProvenanceFile` has the same `required: bool = true` default. Optional
+outputs/provenance remain visible with `exists: false`, which is useful for
+conditional products; failed, timed-out, and cancelled stages may have missing
+required artifacts so partial state can still be reported.
 
 `CommandLog` is **unchanged** (legacy dict `inputs/outputs/params` still feed
 `microsuite-results.json`). Typed artifacts live on the stage, not `CommandLog`.
@@ -310,11 +330,11 @@ never invents artifacts and never derives `count`.
   "status": "completed", "exit_code": 0, "error": null,
   "timing": {"started_at":"2026-07-14T09:12:03Z","finished_at":"2026-07-14T09:12:15Z","duration_sec":12.34},
   "command": ["Rscript","denoise.R","--token","***"],
-  "subprocesses": [{"command":["Rscript","denoise.R","--token","***"],"status":"completed","exit_code":0,"duration_sec":12.34}],
+  "subprocesses": [{"command":["Rscript","denoise.R","--token","***"],"status":"completed","exit_code":0,"duration_sec":12.34,"required":true}],
   "params": {"trunc_len_f":240,"auth_token":"***"},
-  "inputs":  [{"label":"reads","path":"/data/input","format":"directory","external":true,"exists":true}],
-  "outputs": [{"label":"feature table","path":"feature-table.tsv","format":"tsv","kind":"feature_table","count":{"value":1842,"unit":"features"},"bytes":928104,"external":false,"exists":true}],
-  "provenance_files": [{"kind":"dada2_manifest","path":"dada2_denoise_manifest.json","external":false,"exists":true}],
+  "inputs":  [{"label":"reads","path":"/data/input","format":"directory","required":true,"external":true,"exists":true}],
+  "outputs": [{"label":"feature table","path":"feature-table.tsv","format":"tsv","kind":"feature_table","count":{"value":1842,"unit":"features"},"required":true,"bytes":928104,"external":false,"exists":true}],
+  "provenance_files": [{"kind":"dada2_manifest","path":"dada2_denoise_manifest.json","required":true,"external":false,"exists":true}],
   "metrics": {}, "software": {}, "reference_db": null,
   "producer": {"name":"microsuite","version":"0.x.y"}
 }
@@ -398,8 +418,20 @@ those is a follow-up.
 
 ### Schema registry & validator (`metadata/schemas.py`, `metadata/validate.py`) — findings #4, #7
 
+`schemas/stage-result.v1.schema.json` is the canonical, published JSON Schema
+(draft 2020-12, with a stable `$id`) for consumers in Microboard, Nextflow, and
+other languages. It expresses the structural contract, enums, numeric bounds,
+required fields, and status-conditioned rules that JSON Schema can represent.
+Versioned valid/invalid JSON fixtures are part of that public contract and are
+tested by both the JSON Schema validation test and the Python writer validator.
+The Python validator remains the authoritative writer-side guard for additional
+semantic invariants that are impractical to express declaratively. Schema and
+validator parity tests must ensure neither accepts an envelope the other rejects,
+apart from documented semantic extensions.
+
 A **MicroSuite-specific** schema format — a small subset inspired by JSON Schema,
-**not** a JSON Schema validator (stated in the module docstring). Supports:
+is used internally by the dependency-free Python validator; it is **not** the
+published interoperability contract or a general JSON Schema validator. Supports:
 `required`, `allow_unknown`, per-field `type` (`str|int|number|bool|object|array`),
 `const`, `enum`, `nullable`, `min` (numeric), `format` (`rfc3339`), nested `fields`,
 `array` `items`, and a schema-level `invariants` hook (callables returning error
@@ -425,16 +457,19 @@ provenance_files, metrics, software, reference_db, producer`. Nullable values:
 `workflow_id/workflow_run_id/dataset_id` when present). `task` is required and
 **non-nullable** (defaulted to `stage`). Recursive item schemas validate `Artifact`
 (`label:str`, `path:str` required; `format/kind` nullable str; `count` →
-`ArtifactCount{value:int min0, unit:str}`; `bytes` int min0 nullable; `external`
-bool; `exists` bool), `ProvenanceFile{kind:str, path:str, external:bool, exists:bool}`,
+`ArtifactCount{value:int min0, unit:str}`; `required:bool`; `bytes` int min0 nullable;
+`external` bool; `exists` bool), `ProvenanceFile{kind:str, path:str, required:bool,
+external:bool, exists:bool}`,
 `Subprocess{command:array[str], status:enum[completed,failed,timed_out,launch_failed],
-exit_code:int nullable, duration_sec:number min0}`, `StageError{type:str,
+ exit_code:int nullable, duration_sec:number min0, required:bool}`, `StageError{type:str,
 message:str}`, `Timing{started_at:rfc3339,
 finished_at:rfc3339, duration_sec:number min0}`, `Producer{name:str, version:str}`.
 Numeric constraints: `attempt>=1`, `bytes>=0`, `duration_sec>=0`, `count.value>=0`.
 Subprocess invariants enforce `completed`→exit 0, `failed`→non-zero exit, and
 `timed_out|launch_failed`→null exit code.
-`allow_unknown: true` at top level and on nested objects → B/C add fields without
+`Artifact` and `ProvenanceFile` include `required:bool`; for `completed` records,
+every required output/provenance file must have `exists:true`. `allow_unknown: true`
+at top level and on nested objects → B/C add fields without
 breaking older Microboard (finding: forward-compat). `metrics`/`software` are
 `object` (may be empty); unconstrained in A beyond type.
 
@@ -453,8 +488,10 @@ New: `tests/test_metadata_validate.py`, `test_metadata_redact.py`,
    `attempt:0`/`bytes:-1`/`duration_sec:-1` rejected; `{"outputs":[{}]}` rejected
    (Artifact requires `label`,`path`); **unknown top-level & nested field
    accepted** (forward-compat); invariants: `completed`+`error!=null` rejected,
-   `failed`+`error==null` rejected, `timed_out`+`exit_code!=null` rejected; non-dict
-   input → error not crash.
+   `failed`+`error==null` rejected, `timed_out`+`exit_code!=null` rejected;
+   `completed` with a missing required output/provenance or failed required
+   subprocess rejected, while missing optional output and failed optional subprocess
+   are accepted; non-dict input → error not crash.
 2. **Redaction:** `redact_params` masks `auth_token`/`api_key`/nested, JSON-safe-
    coerces `Path`/`Enum`/`tuple`; `redact_command` masks `--token X`,
    `--api-key=X`, bare captured secret **and returns the discovered value**; a
@@ -510,7 +547,7 @@ New: `tests/test_metadata_validate.py`, `test_metadata_redact.py`,
    with no log / no active stage writes **no** envelope (existing test still
    passes) and still writes `microsuite-results.json`.
 10. **Success-path publish strictness:** an intentionally invalid payload on the
-    success path raises and lands only at `*.invalid.json`; a writer failure after
+    success path raises and lands only at `stage-results/diagnostics/*.invalid`; a writer failure after
     a successful stage raises `MicrobiomeSuiteError`.
 11. **Relative paths with custom `cwd`:** an output declared absolute but produced
     under a `run_command(cwd=...)` still serialises relative to `run_dir` when
@@ -525,9 +562,9 @@ New: `tests/test_metadata_validate.py`, `test_metadata_redact.py`,
 
 ## Success criteria
 
-1. `microsuite/metadata/` provides the schema registry, recursive+invariant
-   dependency-free validator, typed models, redactor, and atomic writer with
-   concurrency-safe unique filenames.
+1. `microsuite/metadata/` provides the schema registry, published versioned JSON
+   Schema and fixtures, recursive+invariant dependency-free validator, typed models,
+   redactor, and atomic writer with concurrency-safe unique filenames.
 2. `stage_execution(...)` finalizes exactly one validating `stage-result.v1.json`
    per stage on success, failure, timeout, and cancellation, from explicit
    declarations, with dual identifiers + optional workflow identity, redacted
