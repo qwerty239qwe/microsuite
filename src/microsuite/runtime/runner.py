@@ -10,7 +10,19 @@ from pathlib import Path
 from typing import Any
 
 from microsuite._errors import MicrobiomeSuiteError
+from microsuite.metadata.stage import active_stage
 from microsuite.runtime.results import write_results_manifest
+
+
+def _note_active_subprocess(
+    command: list[str], *, exit_code: int | None, duration_sec: float, status: str
+) -> None:
+    """Contribute this subprocess to the active stage, if any (independent of run_dir)."""
+    record = active_stage()
+    if record is not None:
+        record.note_subprocess(
+            command, exit_code=exit_code, duration_sec=duration_sec, status=status
+        )
 
 
 @dataclass(frozen=True)
@@ -66,6 +78,9 @@ def run_command(
         result = subprocess.run(command, **run_kwargs)
     except subprocess.TimeoutExpired as exc:
         duration_sec = time.time() - started
+        _note_active_subprocess(
+            command, exit_code=None, duration_sec=duration_sec, status="timed_out"
+        )
         if run_dir is not None:
             (run_dir / "stdout.log").write_text(_timeout_stream(exc.stdout), encoding="utf-8")
             (run_dir / "stderr.log").write_text(_timeout_stream(exc.stderr), encoding="utf-8")
@@ -90,8 +105,20 @@ def run_command(
         raise MicrobiomeSuiteError(
             f"Command timed out after {timeout} seconds: {command[0]}"
         ) from exc
+    except OSError as exc:
+        duration_sec = time.time() - started
+        _note_active_subprocess(
+            command, exit_code=None, duration_sec=duration_sec, status="launch_failed"
+        )
+        raise MicrobiomeSuiteError(f"Failed to launch command: {command[0]}: {exc}") from exc
 
     duration_sec = time.time() - started
+    _note_active_subprocess(
+        command,
+        exit_code=result.returncode,
+        duration_sec=duration_sec,
+        status="completed" if result.returncode == 0 else "failed",
+    )
     if run_dir is not None:
         (run_dir / "stdout.log").write_text(result.stdout or "", encoding="utf-8")
         (run_dir / "stderr.log").write_text(result.stderr or "", encoding="utf-8")
