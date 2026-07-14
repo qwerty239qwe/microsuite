@@ -1,0 +1,31 @@
+{
+  "schema_version": "stage-result.v1",
+  "run_id": "run-9",
+  "stage_run_id": "stage-run-cc00cc00cc00cc00cc00cc00cc00cc00",
+  "attempt": 1,
+  "stage": "denoise",
+  "task": "denoise",
+  "backend": "dada2-r",
+  "status": "failed",
+  "exit_code": null,
+  "error": {"type": "MicrobiomeSuiteError", "message": "output validation failed"},
+  "timing": {
+    "started_at": "2026-07-14T11:00:00Z",
+    "finished_at": "2026-07-14T11:00:30Z",
+    "duration_sec": 30.0
+  },
+  "command": null,
+  "subprocesses": [
+    {"command": ["Rscript", "denoise.R"], "status": "completed", "exit_code": 0, "duration_sec": 20.0, "required": true}
+  ],
+  "params": {},
+  "inputs": [],
+  "outputs": [
+    {"label": "feature table", "path": "feature-table.tsv", "required": true, "external": false, "exists": false}
+  ],
+  "provenance_files": [],
+  "metrics": {},
+  "software": {},
+  "reference_db": null,
+  "producer": {"name": "microsuite", "version": "0.1.0"}
+}

@@ -1,0 +1,38 @@
+{
+  "schema_version": "stage-result.v1",
+  "run_id": "results_erp120510_end_to_end",
+  "stage_run_id": "stage-run-9f3c1a2b7d40e14a8c9b2f5d6710a3c4",
+  "workflow_id": "oral-standard",
+  "workflow_run_id": "oral-standard--erp120510--001",
+  "dataset_id": "ERP120510",
+  "attempt": 1,
+  "stage": "denoise",
+  "task": "denoise",
+  "backend": "dada2-r",
+  "status": "completed",
+  "exit_code": 0,
+  "error": null,
+  "timing": {
+    "started_at": "2026-07-14T09:12:03Z",
+    "finished_at": "2026-07-14T09:12:15Z",
+    "duration_sec": 12.34
+  },
+  "command": ["Rscript", "denoise.R", "--token", "***"],
+  "subprocesses": [
+    {"command": ["Rscript", "denoise.R", "--token", "***"], "status": "completed", "exit_code": 0, "duration_sec": 12.34, "required": true}
+  ],
+  "params": {"trunc_len_f": 240, "auth_token": "***"},
+  "inputs": [
+    {"label": "reads", "path": "/data/input", "format": "directory", "required": true, "external": true, "exists": true}
+  ],
+  "outputs": [
+    {"label": "feature table", "path": "feature-table.tsv", "format": "tsv", "kind": "feature_table", "count": {"value": 1842, "unit": "features"}, "required": true, "bytes": 928104, "external": false, "exists": true}
+  ],
+  "provenance_files": [
+    {"kind": "dada2_manifest", "path": "dada2_denoise_manifest.json", "required": true, "external": false, "exists": true}
+  ],
+  "metrics": {},
+  "software": {},
+  "reference_db": null,
+  "producer": {"name": "microsuite", "version": "0.1.0"}
+}

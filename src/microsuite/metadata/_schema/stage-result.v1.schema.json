@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://microsuite.dev/schemas/stage-result.v1.schema.json",
+  "title": "MicroSuite stage-result.v1",
+  "description": "Per-stage execution metadata envelope emitted by MicroSuite for Microboard and other consumers. The MicroSuite Python validator additionally enforces semantic invariants (top-level command/exit_code alias selection, RFC 3339 timestamp parsing, and required-artifact existence for completed stages) that are impractical to express here; those are documented extensions.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version", "run_id", "stage_run_id", "attempt", "stage", "task",
+    "backend", "status", "exit_code", "error", "timing", "command",
+    "subprocesses", "params", "inputs", "outputs", "provenance_files",
+    "metrics", "software", "reference_db", "producer"
+  ],
+  "properties": {
+    "schema_version": {"const": "stage-result.v1"},
+    "run_id": {"type": "string"},
+    "stage_run_id": {"type": "string"},
+    "attempt": {"type": "integer", "minimum": 1},
+    "stage": {"type": "string"},
+    "task": {"type": "string"},
+    "backend": {"type": ["string", "null"]},
+    "status": {"enum": ["running", "completed", "failed", "timed_out", "cancelled"]},
+    "exit_code": {"type": ["integer", "null"]},
+    "error": {
+      "type": ["object", "null"],
+      "required": ["type", "message"],
+      "properties": {"type": {"type": "string"}, "message": {"type": "string"}}
+    },
+    "timing": {"$ref": "#/$defs/timing"},
+    "command": {"type": ["array", "null"], "items": {"type": "string"}},
+    "subprocesses": {"type": "array", "items": {"$ref": "#/$defs/subprocess"}},
+    "params": {"type": "object"},
+    "inputs": {"type": "array", "items": {"$ref": "#/$defs/artifact"}},
+    "outputs": {"type": "array", "items": {"$ref": "#/$defs/artifact"}},
+    "provenance_files": {"type": "array", "items": {"$ref": "#/$defs/provenance"}},
+    "metrics": {"type": "object"},
+    "software": {"type": "object"},
+    "reference_db": {"type": ["object", "null"]},
+    "producer": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {"name": {"type": "string"}, "version": {"type": "string"}}
+    },
+    "workflow_id": {"type": ["string", "null"]},
+    "workflow_run_id": {"type": ["string", "null"]},
+    "dataset_id": {"type": ["string", "null"]}
+  },
+  "$defs": {
+    "count": {
+      "type": ["object", "null"],
+      "required": ["value", "unit"],
+      "properties": {
+        "value": {"type": "integer", "minimum": 0},
+        "unit": {"type": "string"}
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["label", "path"],
+      "properties": {
+        "label": {"type": "string"},
+        "path": {"type": "string"},
+        "format": {"type": ["string", "null"]},
+        "kind": {"type": ["string", "null"]},
+        "count": {"$ref": "#/$defs/count"},
+        "required": {"type": "boolean"},
+        "external": {"type": "boolean"},
+        "exists": {"type": "boolean"},
+        "bytes": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["kind", "path"],
+      "properties": {
+        "kind": {"type": "string"},
+        "path": {"type": "string"},
+        "required": {"type": "boolean"},
+        "external": {"type": "boolean"},
+        "exists": {"type": "boolean"}
+      }
+    },
+    "subprocess": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["command", "status", "exit_code", "duration_sec"],
+      "properties": {
+        "command": {"type": "array", "items": {"type": "string"}},
+        "status": {"enum": ["completed", "failed", "timed_out", "launch_failed"]},
+        "exit_code": {"type": ["integer", "null"]},
+        "duration_sec": {"type": "number", "minimum": 0},
+        "required": {"type": "boolean"}
+      }
+    },
+    "timing": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["started_at", "finished_at", "duration_sec"],
+      "properties": {
+        "started_at": {"type": "string", "format": "date-time"},
+        "finished_at": {"type": "string", "format": "date-time"},
+        "duration_sec": {"type": "number", "minimum": 0}
+      }
+    }
+  }
+}

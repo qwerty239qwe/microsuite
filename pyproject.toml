@@ -35,6 +35,10 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.6",
     "ty>=0.0.1a6",
+    # Validates the published stage-result JSON Schema + fixtures in tests; the
+    # runtime validator stays dependency-free (test_metadata_schema_contract.py
+    # skips the JSON-Schema parity checks when jsonschema is absent).
+    "jsonschema>=4.20",
 ]
 
 [project.scripts]
