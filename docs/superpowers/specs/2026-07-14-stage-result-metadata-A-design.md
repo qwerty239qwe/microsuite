@@ -113,8 +113,8 @@ def stage_execution(
 ```
 
 `StageRecord` (mutable) exposes `add_output(Artifact)`, `add_provenance(ProvenanceFile)`,
-`add_input(Artifact)`, `note_subprocess(command, exit_code, duration_sec, *, timed_out)`,
-and `to_payload() -> dict`. `stage` is **required** here (schema-required, and the
+`add_input(Artifact)`, `note_subprocess(command, *, exit_code, duration_sec, status)`
+(`status` ∈ `completed|failed|timed_out|launch_failed`), and `to_payload() -> dict`. `stage` is **required** here (schema-required, and the
 stage always knows it) — resolving finding #3 without touching generic `run_command`.
 `task` defaults to `stage` **inside `StageRecord`** when the caller omits it, so the
 schema-required, non-nullable `task` is always populated without burdening callers
@@ -123,39 +123,63 @@ schema-required, non-nullable `task` is always populated without burdening calle
 process-global cache, so one process running several datasets stays correct
 (round-2 finding #7). Interruption types map to `cancelled` (round-2 finding #8).
 
-`run_command` change: after a subprocess completes (or times out) and `run_dir`
-is set, if `_ACTIVE.get()` is not `None`, call
-`record.note_subprocess(command, exit_code, duration_sec, timed_out=...)`. Nothing
-else changes; with no active stage, `run_command` behaves exactly as today.
+`run_command` change (round-3 findings #1, #3): subprocess recording is
+**independent of `run_command`'s `run_dir`** — it depends only on whether a stage
+is active. In every exit path (success, non-zero exit, `TimeoutExpired`, and a
+launch failure such as `FileNotFoundError` from `subprocess.run`):
+
+```python
+record = _ACTIVE.get()
+if record is not None:
+    record.note_subprocess(command, exit_code=<code|None>, duration_sec=<d>,
+                           status=<completed|failed|timed_out|launch_failed>)
+```
+
+The call happens **immediately** after `subprocess.run` returns / raises — *before*
+the existing log-file and `microsuite-results.json` writes, so a subprocess is
+never lost even if those later writes fail. `run_command`'s own `run_dir` still
+governs only its legacy artifacts (`command.txt`, `events.jsonl`, `run.json`,
+logs, `microsuite-results.json`); a stage whose `run_command(run_dir=None)` still
+contributes to `subprocesses[]`. With no active stage, `run_command` behaves
+exactly as today.
 
 ### Subprocesses (round-2 finding #3)
 
-`StageRecord` retains **every** noted subprocess; the envelope carries them in a
-`subprocesses[]` array, so a multi-command stage is represented faithfully and a
-failing final command is never confused with an earlier successful one:
+`StageRecord` retains **every** noted subprocess (including launch failures); the
+envelope carries them in a `subprocesses[]` array with an explicit per-subprocess
+`status` enum `completed | failed | timed_out | launch_failed` (clearer than
+inferring state from `exit_code`+a bool, round-3 finding #3), so a multi-command
+stage is represented faithfully and a failing final command is never confused with
+an earlier successful one:
 
 ```json
 "subprocesses": [
-  {"command": ["Rscript","learn.R","--token","***"], "exit_code": 0, "duration_sec": 8.1, "timed_out": false},
-  {"command": ["Rscript","denoise.R"], "exit_code": 1, "duration_sec": 2.0, "timed_out": false}
+  {"command": ["Rscript","learn.R","--token","***"], "status": "completed", "exit_code": 0, "duration_sec": 8.1},
+  {"command": ["Rscript","denoise.R"], "status": "failed", "exit_code": 1, "duration_sec": 2.0}
 ]
 ```
 
-The singular top-level `command`/`exit_code` are an **explicitly-defined
-convenience alias**: on `failed` they are the **failing** subprocess (the timed-out
-one for `timed_out`); on `completed` they are the **last** subprocess; `null` when
-the stage ran no subprocess. Each subprocess `command` is redacted with the same
-mechanism.
+`exit_code` is `null` for `timed_out` and `launch_failed` subprocesses (the latter
+still preserves the attempted `command`, so the executable is never lost — round-3
+finding #3). The singular top-level `command`/`exit_code` are an
+**explicitly-defined convenience alias**: on `failed` they are the **failing**
+subprocess (the timed-out one for `timed_out`); on `completed` they are the
+**last** subprocess; `null` when the stage ran no subprocess (a pure-Python
+failure). Each subprocess `command` is redacted with the same mechanism.
 
 ### Status & invariants (finding #4)
 
-`mark_success()` → `completed`. `mark_failure(exc)`: if any noted subprocess timed
-out → `timed_out` (`exit_code = null`); else `failed` (`exit_code =` the failing
-subprocess code if one failed, else `null` for a Python post-processing failure).
-`mark_cancelled(exc)` → `cancelled` (`exit_code = null`). In all failing cases
-`StageError = {"type": exc.__class__.__name__, "message": <raw>}`; the message is
-redacted **at serialisation** (`to_payload`) using the union of param- and
-command-discovered secrets (round-2 finding #2), then truncated.
+`mark_success()` → `completed`. `mark_failure(exc)`: if any noted subprocess has
+`status == "timed_out"` → stage `timed_out` (`exit_code = null`); else `failed`
+(`exit_code =` the failing subprocess code if one failed, else `null` for a Python
+post-processing failure). `mark_cancelled(exc)` → `cancelled` (`exit_code = null`).
+
+`mark_*` store only the **raw** exception on `StageRecord` (`_raw_exc` /
+`_raw_message`) — never a "safe" object (round-3 finding #2). The public
+`StageError = {"type": exc.__class__.__name__, "message": ...}` is constructed
+**only during redacted serialisation** in `to_payload`, so an unredacted message
+can never be mistaken for safe. The `Artifact`/`StageError` model comment "safe,
+redacted" therefore describes the *serialised* form, not stored state.
 
 Status invariants enforced by the validator:
 - `completed` → `error is null` **and** `exit_code in (0, null)` (null when the
@@ -164,6 +188,16 @@ Status invariants enforced by the validator:
 - `failed` → `error` is a non-null object.
 - `timed_out` → `exit_code is null` and `error` non-null.
 - `cancelled` → `exit_code is null` and `error` non-null.
+
+Alias-consistency invariants (round-3 finding #4), so the top-level `command`/
+`exit_code` alias always matches the subprocess it claims to summarise:
+- `timed_out` → at least one `subprocesses[*].status == "timed_out"`.
+- `completed` with a non-empty `subprocesses` → top-level `command`/`exit_code`
+  equal the **final** subprocess's.
+- `failed` with any non-zero/failed subprocess → top-level `command`/`exit_code`
+  equal that **failing** subprocess's.
+- pure-Python failure (no failing subprocess) → top-level `command == null` and
+  `exit_code == null`.
 
 ### File layout & concurrency-safe naming (findings #1, #2)
 
@@ -264,7 +298,7 @@ never invents artifacts and never derives `count`.
   "status": "completed", "exit_code": 0, "error": null,
   "timing": {"started_at":"2026-07-14T09:12:03Z","finished_at":"2026-07-14T09:12:15Z","duration_sec":12.34},
   "command": ["Rscript","denoise.R","--token","***"],
-  "subprocesses": [{"command":["Rscript","denoise.R","--token","***"],"exit_code":0,"duration_sec":12.34,"timed_out":false}],
+  "subprocesses": [{"command":["Rscript","denoise.R","--token","***"],"status":"completed","exit_code":0,"duration_sec":12.34}],
   "params": {"trunc_len_f":240,"auth_token":"***"},
   "inputs":  [{"label":"reads","path":"/data/input","format":"directory","external":true,"exists":true}],
   "outputs": [{"label":"feature table","path":"feature-table.tsv","format":"tsv","kind":"feature_table","count":{"value":1842,"unit":"features"},"bytes":928104,"external":false,"exists":true}],
@@ -306,21 +340,32 @@ failure propagates unchanged.
 
 One mechanism for `params` and `command`:
 - `SENSITIVE_KEY_RE = (?i)(token|secret|password|passwd|api[-_]?key|credential|auth)`.
-- `redact_params(mapping)` → deep copy; sensitive keys → `"***"` (recurse
-  dicts/lists). Also **JSON-safe-coerce** every value: `Path`→str, `Enum`→`.value`,
-  `tuple`/`set`→list, other non-JSON types→`str(...)`.
-- Capture the set of redacted secret *values*; ignore empty/whitespace ones.
+- `redact_params(mapping) -> (masked_params, param_secrets)` → deep copy; sensitive
+  keys → `"***"` (recurse dicts/lists); **JSON-safe-coerce** every value: `Path`→str,
+  `Enum`→`.value`, `tuple`/`set`→list, other non-JSON types→`str(...)`; also
+  **returns** the set of redacted secret *values* (empty/whitespace ignored).
 - `redact_command(argv, secrets) -> (masked_argv, discovered_secrets)` → mask value
   after a sensitive flag (`--token X`→`***`), inline `--api-key=X`→`--api-key=***`,
-  and any bare arg equal to a captured secret. It **returns the values it discovered
-  from sensitive flags** so they join the secret set (round-2 finding #2): a secret
-  present only on the command line (never in `params`) must still be scrubbed from
-  `error.message`.
-- Serialisation order in `to_payload`: `param_secrets = redact_params(params)` →
-  `masked_cmd, cmd_secrets = redact_command(command, param_secrets)` (and each
-  subprocess command) → `all_secrets = param_secrets | cmd_secrets` →
-  `error.message = truncate(redact_text(raw_message, all_secrets))`.
-- `redact_text(s, secrets)` → replace captured secrets in free text, **longest-first**,
+  and any bare arg equal to a known secret. It **returns the values it discovered
+  from sensitive flags** so they join the secret set: a secret present only on the
+  command line (never in `params`) is still scrubbed from `error.message`.
+- **Serialisation order in `to_payload`** (round-3 finding #2 — explicit tuple APIs):
+
+  ```python
+  masked_params, param_secrets = redact_params(self.params)
+  all_secrets = set(param_secrets)
+  masked_subprocesses = []
+  for sp in self.subprocesses:
+      masked_cmd, discovered = redact_command(sp.command, all_secrets)
+      all_secrets.update(discovered)
+      masked_subprocesses.append({**sp, "command": masked_cmd})
+  masked_command = <alias-selected masked subprocess command, or None>
+  error = None if self._raw_exc is None else {
+      "type": type(self._raw_exc).__name__,
+      "message": truncate(redact_text(self._raw_message, all_secrets)),
+  }
+  ```
+- `redact_text(s, secrets)` → replace secrets in free text, **longest-first**,
   skipping secrets shorter than 4 chars (avoid corrupting unrelated text).
 
 **Limitation (documented, finding #7):** A redacts only the stage-result envelope.
@@ -341,8 +386,10 @@ strings) for the status/exit_code/error cross-field rules.
 - `int` rejects `bool` (Python `bool` subclasses `int`): a value passes `int` only
   if `type(v) is int`. `number` accepts `int`/`float` but **rejects `bool`, `NaN`,
   and ±`inf`**.
-- `format: "rfc3339"` validates `started_at`/`finished_at` against an RFC 3339 /
-  `...Z` regex, not merely "is a string".
+- `format: "rfc3339"` validates `started_at`/`finished_at` by **parsing**, not just
+  regex-matching (round-3 finding #5): require the `Z` suffix, then
+  `datetime.fromisoformat(value.replace("Z", "+00:00"))` must succeed — a
+  regex-shaped but impossible timestamp (e.g. month 13) is rejected.
 - The writer serialises with `json.dumps(payload, allow_nan=False, indent=2,
   sort_keys=True)` so a schema-valid payload can never emit tokens Microboard's
   `JSON.parse` rejects.
@@ -357,8 +404,9 @@ provenance_files, metrics, software, reference_db, producer`. Nullable values:
 (`label:str`, `path:str` required; `format/kind` nullable str; `count` →
 `ArtifactCount{value:int min0, unit:str}`; `bytes` int min0 nullable; `external`
 bool; `exists` bool), `ProvenanceFile{kind:str, path:str, external:bool, exists:bool}`,
-`Subprocess{command:array[str], exit_code:int nullable, duration_sec:number min0,
-timed_out:bool}`, `StageError{type:str, message:str}`, `Timing{started_at:rfc3339,
+`Subprocess{command:array[str], status:enum[completed,failed,timed_out,launch_failed],
+exit_code:int nullable, duration_sec:number min0}`, `StageError{type:str,
+message:str}`, `Timing{started_at:rfc3339,
 finished_at:rfc3339, duration_sec:number min0}`, `Producer{name:str, version:str}`.
 Numeric constraints: `attempt>=1`, `bytes>=0`, `duration_sec>=0`, `count.value>=0`.
 `allow_unknown: true` at top level and on nested objects → B/C add fields without
@@ -391,9 +439,10 @@ New: `tests/test_metadata_validate.py`, `test_metadata_redact.py`,
 2b. **JSON interop:** validator rejects `bool` for `int`/`number`, rejects `NaN`/
    `inf` for `number`, rejects a non-RFC3339 `started_at`; the writer's
    `json.dumps(allow_nan=False)` round-trips (round-2 finding #6).
-2c. **Multiple subprocesses:** two `note_subprocess` calls (first exit 0, second
-   exit 1 on a failed stage) → `subprocesses[]` has both; top-level `command`/
-   `exit_code` alias the **failing** one (round-2 finding #3).
+2c. **Multiple subprocesses:** two `note_subprocess` calls (first `completed` exit
+   0, second `failed` exit 1) → `subprocesses[]` has both with per-subprocess
+   `status`; top-level `command`/`exit_code` alias the **failing** one, and the
+   alias-consistency invariant passes (round-2 #3, round-3 #4).
 2d. **Cancellation:** a `KeyboardInterrupt` inside the stage → `status:cancelled`,
    `exit_code:null`, `error` set, and the `KeyboardInterrupt` still propagates
    (round-2 finding #8).
@@ -410,7 +459,17 @@ New: `tests/test_metadata_validate.py`, `test_metadata_redact.py`,
    `status:timed_out` with `exit_code:null`; a partial existing output still
    recorded; the original exception still propagates.
 5. **FileNotFoundError / launch error** inside the stage → a `failed` envelope is
-   still published, exception preserved.
+   still published, exception preserved; `subprocesses[]` contains the attempted
+   command with `status: "launch_failed"`, `exit_code: null` (command not lost),
+   and the top-level `command` aliases it (round-3 #3).
+5b. **Subprocess recording independent of `run_command`'s `run_dir`:** a stage that
+   calls `run_command(..., run_dir=None)` still contributes to `subprocesses[]`
+   (round-3 #1); and `note_subprocess` fires before the legacy log/manifest writes.
+5c. **Alias-consistency invariants:** `timed_out` with no timed-out subprocess is
+   rejected; a `completed` stage whose top-level `command` ≠ final subprocess is
+   rejected; a pure-Python failure requires `command == null` (round-3 #4).
+5d. **RFC3339 parsing:** `2026-13-01T00:00:00Z` (month 13) is rejected though it is
+   regex-shaped; a missing `Z` is rejected (round-3 #5).
 6. **Multiple subprocesses in one stage** → exactly **one** envelope (not several
    "retries").
 7. **Retry:** two `stage_execution` runs for the same stage+backend → two files
