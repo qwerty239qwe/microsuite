@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 from typing import Any
 
 from microsuite.metadata.validate import validate, validate_stage_result
@@ -35,9 +34,7 @@ def _valid() -> dict[str, Any]:
         ],
         "params": {"trunc_len_f": 240},
         "inputs": [],
-        "outputs": [
-            {"label": "table", "path": "table.tsv", "required": True, "exists": True}
-        ],
+        "outputs": [{"label": "table", "path": "table.tsv", "required": True, "exists": True}],
         "provenance_files": [],
         "metrics": {},
         "software": {},
@@ -95,7 +92,13 @@ def test_nullable_exit_code_accepted() -> None:
     p["error"] = {"type": "Timeout", "message": "slow"}
     p["command"] = None
     p["subprocesses"] = [
-        {"command": ["r"], "status": "timed_out", "exit_code": None, "duration_sec": 1.0, "required": True}
+        {
+            "command": ["r"],
+            "status": "timed_out",
+            "exit_code": None,
+            "duration_sec": 1.0,
+            "required": True,
+        }
     ]
     # alias for timed_out points to the timed_out subprocess
     p["command"] = ["r"]

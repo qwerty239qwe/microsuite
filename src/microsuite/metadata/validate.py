@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Dependency-free validator for the ``stage-result.v1`` envelope.
 
 ``validate`` checks structure against the internal schema grammar
@@ -8,6 +6,8 @@ enforces the cross-field status/exit/alias/required invariants that are the
 authoritative writer-side guard. Both return a list of human-readable error
 strings; an empty list means valid.
 """
+
+from __future__ import annotations
 
 import math
 from datetime import datetime

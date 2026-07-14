@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Typed declaration models for the ``stage-result.v1`` envelope.
 
 A stage declares its inputs, outputs, and provenance files explicitly (never
@@ -10,15 +8,15 @@ relative path was based on the process CWD, ``run_command(cwd=...)``, or
 ``run_dir``.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
 
 
 def _require_absolute(path: str | Path, what: str) -> None:
     if not Path(path).is_absolute():
-        raise ValueError(
-            f"{what} path must be absolute when declared, got relative: {path!r}"
-        )
+        raise ValueError(f"{what} path must be absolute when declared, got relative: {path!r}")
 
 
 @dataclass(frozen=True)

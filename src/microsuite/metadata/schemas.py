@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Internal schema definitions for the ``stage-result.v1`` envelope.
 
 This module holds the *MicroSuite-specific* schema format consumed by the
@@ -15,6 +13,8 @@ Schema grammar (a small subset inspired by JSON Schema):
 ``required`` (list), ``allow_unknown`` (bool), ``fields`` (name -> spec); arrays
 carry ``items`` (spec).
 """
+
+from __future__ import annotations
 
 from importlib.resources import files
 from pathlib import Path
@@ -91,10 +91,27 @@ STAGE_RESULT_V1 = {
     "type": "object",
     "allow_unknown": True,
     "required": [
-        "schema_version", "run_id", "stage_run_id", "attempt", "stage", "task",
-        "backend", "status", "exit_code", "error", "timing", "command",
-        "subprocesses", "params", "inputs", "outputs", "provenance_files",
-        "metrics", "software", "reference_db", "producer",
+        "schema_version",
+        "run_id",
+        "stage_run_id",
+        "attempt",
+        "stage",
+        "task",
+        "backend",
+        "status",
+        "exit_code",
+        "error",
+        "timing",
+        "command",
+        "subprocesses",
+        "params",
+        "inputs",
+        "outputs",
+        "provenance_files",
+        "metrics",
+        "software",
+        "reference_db",
+        "producer",
     ],
     "fields": {
         "schema_version": {"type": "str", "const": SCHEMA_VERSION},

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Shared secret redaction for the ``stage-result.v1`` envelope.
 
 One mechanism scrubs ``params``, every subprocess ``command``, and the free-text
@@ -9,6 +7,8 @@ values are collected so a secret that appears only on a command line (never in
 coerced to JSON-safe types so a valid payload never emits tokens Microboard's
 ``JSON.parse`` rejects.
 """
+
+from __future__ import annotations
 
 import re
 from enum import Enum
@@ -102,7 +102,8 @@ def redact_command(argv: list[str], secrets: set[str]) -> tuple[list[str], set[s
 def redact_text(text: str, secrets: set[str]) -> str:
     """Scrub every non-empty secret from free text, longest-first."""
     out = text
-    for secret in sorted((s for s in secrets if s), key=len, reverse=True):
+    ordered: list[str] = sorted((s for s in secrets if s), key=lambda s: len(s), reverse=True)
+    for secret in ordered:
         if len(secret) < 4:
             out = re.sub(rf"(?<!\w){re.escape(secret)}(?!\w)", MASK, out)
         else:

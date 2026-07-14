@@ -27,9 +27,7 @@ def test_redact_params_masks_sensitive_and_returns_secrets() -> None:
 
 
 def test_redact_params_json_safe_coercion() -> None:
-    masked, _ = redact_params(
-        {"path": Path("/a/b"), "mode": _Mode.FAST, "items": (1, 2), "s": {3, 3}}
-    )
+    masked, _ = redact_params({"path": Path("/a/b"), "mode": _Mode.FAST, "items": (1, 2), "s": {3}})
     assert masked["path"] == "/a/b"
     assert masked["mode"] == "fast"
     assert masked["items"] == [1, 2]
