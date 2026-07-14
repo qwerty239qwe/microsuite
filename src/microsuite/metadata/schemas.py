@@ -152,9 +152,31 @@ STAGE_RESULT_V1 = {
     },
 }
 
-SCHEMAS = {SCHEMA_VERSION: STAGE_RESULT_V1}
+RESOLVED_CONFIG_VERSION = "resolved-config.v1"
+
+RESOLVED_CONFIG_V1 = {
+    "type": "object",
+    "allow_unknown": True,
+    "required": ["schema_version", "generated_at", "producer", "config"],
+    "fields": {
+        "schema_version": {"type": "str", "const": RESOLVED_CONFIG_VERSION},
+        "generated_at": {"type": "str", "format": "rfc3339"},
+        "producer": {
+            "type": "object",
+            "required": ["name", "version"],
+            "allow_unknown": True,
+            "fields": {"name": {"type": "str"}, "version": {"type": "str"}},
+        },
+        "config": _OBJECT_ANY,
+    },
+}
+
+SCHEMAS = {
+    SCHEMA_VERSION: STAGE_RESULT_V1,
+    RESOLVED_CONFIG_VERSION: RESOLVED_CONFIG_V1,
+}
 
 
-def published_schema_path() -> Path:
-    """Path to the packaged, language-neutral JSON Schema (draft 2020-12)."""
-    return Path(str(files("microsuite.metadata._schema").joinpath("stage-result.v1.schema.json")))
+def published_schema_path(schema_name: str = SCHEMA_VERSION) -> Path:
+    """Path to a packaged, language-neutral JSON Schema (draft 2020-12)."""
+    return Path(str(files("microsuite.metadata._schema").joinpath(f"{schema_name}.schema.json")))

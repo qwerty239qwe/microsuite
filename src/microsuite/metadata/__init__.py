@@ -8,6 +8,7 @@ registry + validator that guard the envelope contract. See
 
 from __future__ import annotations
 
+from microsuite.metadata.config import write_resolved_config
 from microsuite.metadata.context import WorkflowContext, workflow_context_from_env
 from microsuite.metadata.models import (
     Artifact,
@@ -34,4 +35,5 @@ __all__ = [
     "validate",
     "validate_stage_result",
     "workflow_context_from_env",
+    "write_resolved_config",
 ]

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://microsuite.dev/schemas/resolved-config.v1.schema.json",
+  "title": "MicroSuite resolved-config.v1",
+  "description": "A redacted snapshot of the complete analysis-relevant configuration (defaults included, secrets excluded) written by the end-to-end runner.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "generated_at", "producer", "config"],
+  "properties": {
+    "schema_version": {"const": "resolved-config.v1"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "producer": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {"name": {"type": "string"}, "version": {"type": "string"}}
+    },
+    "config": {"type": "object"}
+  }
+}

@@ -203,6 +203,31 @@ def test_run_dir_none_writes_nothing(tmp_path: Path) -> None:
     assert not (tmp_path / "stage-results").exists()
 
 
+def test_set_software_and_reference_db(tmp_path: Path) -> None:
+    with stage_execution(tmp_path, stage="tax", backend="qiime2") as rec:
+        rec.set_software({"qiime2": {"version": "2024.2"}, "microsuite": {"version": "0.1.0"}})
+        rec.set_reference_db(
+            {
+                "name": "silva",
+                "version": "138",
+                "build_target": "vsearch",
+                "checksum": "deadbeef",
+                "provider": "biodbs",
+            }
+        )
+    env, _ = _one(tmp_path)
+    assert env["software"]["qiime2"] == {"version": "2024.2"}
+    assert env["reference_db"]["name"] == "silva" and env["reference_db"]["provider"] == "biodbs"
+    assert validate_stage_result(env) == []
+
+
+def test_software_reference_default_empty(tmp_path: Path) -> None:
+    with stage_execution(tmp_path, stage="denoise", backend="dada2-r"):
+        pass
+    env, _ = _one(tmp_path)
+    assert env["software"] == {} and env["reference_db"] is None
+
+
 def test_provenance_reference_exists(tmp_path: Path) -> None:
     prov = tmp_path / "dada2_denoise_manifest.json"
     prov.write_text("{}")

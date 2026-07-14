@@ -27,7 +27,7 @@ from microsuite import __version__
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite.metadata.context import WorkflowContext, workflow_context_from_env
 from microsuite.metadata.models import Artifact, ProvenanceFile
-from microsuite.metadata.redact import redact_command, redact_params, redact_text
+from microsuite.metadata.redact import json_safe, redact_command, redact_params, redact_text
 from microsuite.metadata.schemas import SCHEMA_VERSION
 from microsuite.metadata.validate import expected_alias, validate_stage_result
 
@@ -97,6 +97,8 @@ class StageRecord:
         self._raw_exc: BaseException | None = None
         self._raw_message = ""
         self._attempt = 1
+        self._software: dict[str, Any] = {}
+        self._reference_db: dict[str, Any] | None = None
 
     # -- declaration API ---------------------------------------------------
     def add_input(self, artifact: Artifact) -> None:
@@ -107,6 +109,15 @@ class StageRecord:
 
     def add_provenance(self, provenance: ProvenanceFile) -> None:
         self.provenance.append(provenance)
+
+    def set_software(self, mapping: Mapping[str, Any]) -> None:
+        """Declaratively record tool versions (e.g. {"dada2": {"version": "1.30"}})."""
+        for name, info in mapping.items():
+            self._software[str(name)] = json_safe(info)
+
+    def set_reference_db(self, info: Mapping[str, Any] | None) -> None:
+        """Record the reference database used (name/version/build_target/checksum/provider)."""
+        self._reference_db = None if info is None else json_safe(dict(info))
 
     def note_subprocess(
         self,
@@ -200,8 +211,8 @@ class StageRecord:
             "outputs": [self._artifact_payload(a) for a in self.outputs],
             "provenance_files": [self._provenance_payload(p) for p in self.provenance],
             "metrics": {},
-            "software": {},
-            "reference_db": None,
+            "software": self._software,
+            "reference_db": self._reference_db,
             "producer": {"name": "microsuite", "version": __version__},
         }
 
