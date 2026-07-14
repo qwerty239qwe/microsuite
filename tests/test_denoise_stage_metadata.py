@@ -29,7 +29,7 @@ def _run_denoise(tmp_path: Path, monkeypatch, returncode: int) -> None:
         if returncode == 0:
             out_table.write_text("#OTU\ts1\nASV1\t5\n")
             out_rep.write_text(">ASV1\nACGT\n")
-            out_stats.write_text("sample\tinput\ndenoised\ns1\t10\n9\n")
+            out_stats.write_text("\tinput\tfiltered\tmerged\tnonchim\ns1\t100\t90\t80\t70\n")
             (out_stats.parent / "dada2_r_params.json").write_text(
                 json.dumps({"dada2_version": "1.30.0", "r_version": "4.3.1"})
             )
@@ -63,6 +63,11 @@ def test_denoise_stage_envelope_finalized_after_provenance(tmp_path: Path, monke
     assert env["software"]["dada2"] == {"version": "1.30.0"}
     assert env["software"]["R"] == {"version": "4.3.1"}
     assert env["software"]["microsuite"]["version"]
+    # retention metrics with units (C)
+    m = env["metrics"]
+    assert m["input_reads"] == {"value": 100, "unit": "reads"}
+    assert m["nonchimeric_fraction"] == {"value": 0.7, "unit": "fraction"}
+    assert m["nonchimeric_reads"] == {"value": 70, "unit": "reads"}
 
 
 def test_denoise_stage_python_or_subprocess_failure(tmp_path: Path, monkeypatch) -> None:

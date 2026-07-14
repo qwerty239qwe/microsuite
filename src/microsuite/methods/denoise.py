@@ -870,6 +870,27 @@ def _declare_dada2_stage_outputs(
         )
     stage.add_provenance(ProvenanceFile("dada2_manifest", manifest_path.resolve(), required=False))
     _lift_dada2_software(stage, manifest_path)
+    _lift_dada2_metrics(stage, output_stats)
+
+
+def _lift_dada2_metrics(stage: StageRecord, output_stats: Path) -> None:
+    """Best-effort: emit read-retention metrics from the DADA2 stats summary."""
+    if not output_stats.exists():
+        return
+    try:
+        overall = dada2_qc.summarize_dada2_stats(output_stats)["overall"]
+    except (MicrobiomeSuiteError, OSError, KeyError, ValueError):
+        return
+    inp = overall.get("input") or 0
+    stage.add_metric("input_reads", inp, "reads")
+    if overall.get("filtered_frac") is not None:
+        stage.add_metric("filtered_fraction", overall["filtered_frac"], "fraction")
+    if overall.get("merged_frac") is not None:
+        stage.add_metric("merged_fraction", overall["merged_frac"], "fraction")
+    nonchim = overall.get("nonchim_frac")
+    if nonchim is not None:
+        stage.add_metric("nonchimeric_fraction", nonchim, "fraction")
+        stage.add_metric("nonchimeric_reads", round(inp * nonchim), "reads")
 
 
 def _lift_dada2_software(stage: StageRecord, manifest_path: Path) -> None:

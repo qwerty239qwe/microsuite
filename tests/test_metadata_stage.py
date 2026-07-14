@@ -226,6 +226,19 @@ def test_software_reference_default_empty(tmp_path: Path) -> None:
         pass
     env, _ = _one(tmp_path)
     assert env["software"] == {} and env["reference_db"] is None
+    assert env["metrics"] == {}
+
+
+def test_add_and_set_metrics(tmp_path: Path) -> None:
+    with stage_execution(tmp_path, stage="denoise", backend="dada2-r") as rec:
+        rec.add_metric("input_reads", 1200, "reads")
+        rec.set_metrics({"mean_shannon": {"value": 3.4, "unit": "bits"}})
+        rec.add_metric("bad", float("nan"), "reads")  # NaN skipped
+    env, _ = _one(tmp_path)
+    assert env["metrics"]["input_reads"] == {"value": 1200, "unit": "reads"}
+    assert env["metrics"]["mean_shannon"] == {"value": 3.4, "unit": "bits"}
+    assert "bad" not in env["metrics"]
+    assert validate_stage_result(env) == []
 
 
 def test_provenance_reference_exists(tmp_path: Path) -> None:

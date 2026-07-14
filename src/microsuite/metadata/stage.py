@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import re
 import time
@@ -99,6 +100,7 @@ class StageRecord:
         self._attempt = 1
         self._software: dict[str, Any] = {}
         self._reference_db: dict[str, Any] | None = None
+        self._metrics: dict[str, Any] = {}
 
     # -- declaration API ---------------------------------------------------
     def add_input(self, artifact: Artifact) -> None:
@@ -118,6 +120,17 @@ class StageRecord:
     def set_reference_db(self, info: Mapping[str, Any] | None) -> None:
         """Record the reference database used (name/version/build_target/checksum/provider)."""
         self._reference_db = None if info is None else json_safe(dict(info))
+
+    def add_metric(self, name: str, value: float, unit: str) -> None:
+        """Record one unit-tagged metric (e.g. add_metric("input_reads", 1200, "reads"))."""
+        if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+            return  # best-effort: never emit a non-JSON number
+        self._metrics[str(name)] = {"value": value, "unit": str(unit)}
+
+    def set_metrics(self, mapping: Mapping[str, Mapping[str, Any]]) -> None:
+        """Merge a {name: {"value", "unit"}} mapping of unit-tagged metrics."""
+        for name, entry in mapping.items():
+            self.add_metric(str(name), entry["value"], entry["unit"])
 
     def note_subprocess(
         self,
@@ -210,7 +223,7 @@ class StageRecord:
             "inputs": [self._artifact_payload(a) for a in self.inputs],
             "outputs": [self._artifact_payload(a) for a in self.outputs],
             "provenance_files": [self._provenance_payload(p) for p in self.provenance],
-            "metrics": {},
+            "metrics": self._metrics,
             "software": self._software,
             "reference_db": self._reference_db,
             "producer": {"name": "microsuite", "version": __version__},
