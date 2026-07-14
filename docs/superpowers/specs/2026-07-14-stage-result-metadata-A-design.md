@@ -164,8 +164,10 @@ still preserves the attempted `command`, so the executable is never lost — rou
 finding #3). The singular top-level `command`/`exit_code` are an
 **explicitly-defined convenience alias**: on `failed` they are the **failing**
 subprocess (the timed-out one for `timed_out`); on `completed` they are the
-**last** subprocess; `null` when the stage ran no subprocess (a pure-Python
-failure). Each subprocess `command` is redacted with the same mechanism.
+**last** subprocess. When the stage fails in Python post-processing after all
+subprocesses completed successfully, both aliases are `null`: no subprocess
+caused that failure, while `subprocesses[]` still preserves the commands that
+did complete. Each subprocess `command` is redacted with the same mechanism.
 
 ### Status & invariants (finding #4)
 
@@ -194,9 +196,14 @@ Alias-consistency invariants (round-3 finding #4), so the top-level `command`/
 - `timed_out` → at least one `subprocesses[*].status == "timed_out"`.
 - `completed` with a non-empty `subprocesses` → top-level `command`/`exit_code`
   equal the **final** subprocess's.
-- `failed` with any non-zero/failed subprocess → top-level `command`/`exit_code`
-  equal that **failing** subprocess's.
-- pure-Python failure (no failing subprocess) → top-level `command == null` and
+- `failed` with any `failed` or `launch_failed` subprocess → top-level
+  `command`/`exit_code` equal that **failing** subprocess's. A `launch_failed`
+  subprocess is aliased with `exit_code == null`.
+- Python post-processing failure (no `failed`, `timed_out`, or `launch_failed`
+  subprocess) → top-level `command == null` and `exit_code == null`, even when
+  `subprocesses[]` contains earlier successful commands.
+- Per-subprocess status/exit consistency: `completed` requires `exit_code == 0`;
+  `failed` requires a non-zero integer; `timed_out` and `launch_failed` require
   `exit_code == null`.
 
 ### File layout & concurrency-safe naming (findings #1, #2)
@@ -247,6 +254,11 @@ absolute `Path`s); the writer serialises them **relative to `run_dir` when the
 target is under it**, else keeps them absolute and sets `external: true`. `external`
 applies uniformly to inputs, outputs, and provenance (DADA2's provenance is written
 beside `output_stats`, which may sit outside `run_dir`).
+
+`Artifact.__post_init__` and `ProvenanceFile.__post_init__` enforce this declaration
+contract with `Path(path).is_absolute()` and raise `ValueError` for a relative path.
+This prevents the writer from guessing whether a relative path was based on the
+process CWD, `run_command(cwd=...)`, or `run_dir`.
 
 ```python
 @dataclass(frozen=True)
@@ -349,15 +361,24 @@ One mechanism for `params` and `command`:
   and any bare arg equal to a known secret. It **returns the values it discovered
   from sensitive flags** so they join the secret set: a secret present only on the
   command line (never in `params`) is still scrubbed from `error.message`.
-- **Serialisation order in `to_payload`** (round-3 finding #2 — explicit tuple APIs):
+- **Serialisation is two-pass across every subprocess command.** Secret discovery
+  must finish before any command is masked: a bare secret in an earlier command
+  must still be removed when a later sensitive flag reveals the same value.
+- **Serialisation order in `to_payload`** (round-4 findings #1, #2):
 
   ```python
   masked_params, param_secrets = redact_params(self.params)
   all_secrets = set(param_secrets)
+
+  # Pass 1: discover command-only secrets across the complete stage.
+  for sp in self.subprocesses:
+      _, discovered = redact_command(sp.command, set())
+      all_secrets.update(discovered)
+
+  # Pass 2: mask every command using the complete secret set.
   masked_subprocesses = []
   for sp in self.subprocesses:
-      masked_cmd, discovered = redact_command(sp.command, all_secrets)
-      all_secrets.update(discovered)
+      masked_cmd, _ = redact_command(sp.command, all_secrets)
       masked_subprocesses.append({**sp, "command": masked_cmd})
   masked_command = <alias-selected masked subprocess command, or None>
   error = None if self._raw_exc is None else {
@@ -365,8 +386,10 @@ One mechanism for `params` and `command`:
       "message": truncate(redact_text(self._raw_message, all_secrets)),
   }
   ```
-- `redact_text(s, secrets)` → replace secrets in free text, **longest-first**,
-  skipping secrets shorter than 4 chars (avoid corrupting unrelated text).
+- `redact_text(s, secrets)` replaces **every non-empty discovered secret**,
+  longest-first. For secrets shorter than four characters it uses boundary-aware
+  matching rather than skipping them; short passwords/tokens must not leak merely
+  to avoid over-redaction. Longer secrets use literal substring replacement.
 
 **Limitation (documented, finding #7):** A redacts only the stage-result envelope.
 The existing `command.txt`, `events.jsonl`, and `run.json` are still written from
@@ -409,6 +432,8 @@ exit_code:int nullable, duration_sec:number min0}`, `StageError{type:str,
 message:str}`, `Timing{started_at:rfc3339,
 finished_at:rfc3339, duration_sec:number min0}`, `Producer{name:str, version:str}`.
 Numeric constraints: `attempt>=1`, `bytes>=0`, `duration_sec>=0`, `count.value>=0`.
+Subprocess invariants enforce `completed`→exit 0, `failed`→non-zero exit, and
+`timed_out|launch_failed`→null exit code.
 `allow_unknown: true` at top level and on nested objects → B/C add fields without
 breaking older Microboard (finding: forward-compat). `metrics`/`software` are
 `object` (may be empty); unconstrained in A beyond type.
@@ -434,8 +459,10 @@ New: `tests/test_metadata_validate.py`, `test_metadata_redact.py`,
    coerces `Path`/`Enum`/`tuple`; `redact_command` masks `--token X`,
    `--api-key=X`, bare captured secret **and returns the discovered value**; a
    secret present only on the command line (not in `params`) is scrubbed from
-   `error.message` (round-2 finding #2); empty secret ignored; `redact_text`
-   longest-first and skips <4-char secrets.
+   `error.message` (round-2 finding #2); empty secret ignored. Two-pass discovery
+   masks a bare secret in subprocess 1 when subprocess 2 later reveals it through
+   `--token`; `redact_text` replaces longest-first and boundary-masks a discovered
+   secret shorter than four characters (round-4 findings #1, #2).
 2b. **JSON interop:** validator rejects `bool` for `int`/`number`, rejects `NaN`/
    `inf` for `number`, rejects a non-RFC3339 `started_at`; the writer's
    `json.dumps(allow_nan=False)` round-trips (round-2 finding #6).
@@ -467,7 +494,10 @@ New: `tests/test_metadata_validate.py`, `test_metadata_redact.py`,
    (round-3 #1); and `note_subprocess` fires before the legacy log/manifest writes.
 5c. **Alias-consistency invariants:** `timed_out` with no timed-out subprocess is
    rejected; a `completed` stage whose top-level `command` ≠ final subprocess is
-   rejected; a pure-Python failure requires `command == null` (round-3 #4).
+   rejected; a Python post-processing failure after successful subprocesses
+   requires `command == null`; `launch_failed` is selected as the failing alias.
+   Per-subprocess mismatches (`completed`+exit 1, `failed`+exit 0,
+   `timed_out|launch_failed`+non-null exit) are rejected (round-3 #4, round-4 #3/#4).
 5d. **RFC3339 parsing:** `2026-13-01T00:00:00Z` (month 13) is rejected though it is
    regex-shaped; a missing `Z` is rejected (round-3 #5).
 6. **Multiple subprocesses in one stage** → exactly **one** envelope (not several
@@ -484,7 +514,8 @@ New: `tests/test_metadata_validate.py`, `test_metadata_redact.py`,
     a successful stage raises `MicrobiomeSuiteError`.
 11. **Relative paths with custom `cwd`:** an output declared absolute but produced
     under a `run_command(cwd=...)` still serialises relative to `run_dir` when
-    under it, else `external:true`.
+    under it, else `external:true`; constructing `Artifact` or `ProvenanceFile`
+    with a relative declaration raises `ValueError` (round-4 finding #5).
 12. **DADA2 reference:** the `denoise` envelope is finalized **after** output
     validation, QC, and `dada2_denoise_manifest.json` are written — the provenance
     file is `exists:true`, QC outputs are present, and a forced Python
@@ -498,10 +529,11 @@ New: `tests/test_metadata_validate.py`, `test_metadata_redact.py`,
    dependency-free validator, typed models, redactor, and atomic writer with
    concurrency-safe unique filenames.
 2. `stage_execution(...)` finalizes exactly one validating `stage-result.v1.json`
-   per stage on success, failure, and timeout, from explicit declarations, with
-   dual identifiers + optional workflow identity, redacted `command`/`params`, and
-   empty `metrics`/`software`/`reference_db`. Invalid documents never reach a
-   normal path; success is never reported with unwritten/broken metadata.
+   per stage on success, failure, timeout, and cancellation, from explicit
+   declarations, with dual identifiers + optional workflow identity, redacted
+   `command`/`params`, and empty `metrics`/`software`/`reference_db`. Invalid
+   documents never reach a normal path; success is never reported with
+   unwritten/broken metadata.
 3. `run_command` stays generic (contributes subprocess details to the active stage
    only) and `microsuite-results.json` is byte-for-byte unchanged.
 4. `denoise` is wrapped as the worked stage, with provenance/QC inside the
