@@ -23,8 +23,8 @@ RUN set -eux; \
         /opt/microsuite/smoke/counts.tsv \
         /opt/microsuite/smoke/metadata.tsv \
         group \
-        /opt/microsuite/smoke_out.tsv; \
-    test -s /opt/microsuite/smoke_out.tsv; \
-    rm -f /opt/microsuite/smoke_out.tsv
+        /tmp/microsuite-smoke-out.tsv; \
+    test -s /tmp/microsuite-smoke-out.tsv; \
+    rm -f /tmp/microsuite-smoke-out.tsv
 
 ENTRYPOINT ["Rscript"]

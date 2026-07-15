@@ -140,8 +140,10 @@ for `ancombc`, `aldex2`, `maaslin2`, `lefse`, each:
   samples/taxa; the smoke fixture is a real, if minimal, dataset, not a 1-row
   stub).
 - **Build-time smoke:** `RUN Rscript /opt/microsuite/<backend>.R
-  /opt/microsuite/smoke/... /opt/microsuite/smoke_out.tsv && test -s
-  /opt/microsuite/smoke_out.tsv` (echo diagnostics before any cleanup). A broken
+  /opt/microsuite/smoke/... /tmp/microsuite-smoke-out.tsv && test -s
+  /tmp/microsuite-smoke-out.tsv` (echo diagnostics before any cleanup). The
+  smoke output belongs under `/tmp` because the micromamba base runs as an
+  unprivileged user and `/opt/microsuite` is root-owned after `COPY`. A broken
   package fails the build, per-image, and only for that backend (#4).
 - `ENTRYPOINT ["Rscript"]`.
 

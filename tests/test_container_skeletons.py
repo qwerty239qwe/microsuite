@@ -59,6 +59,15 @@ def test_microsuite_dada2_install_does_not_update_base_library() -> None:
     assert "update = TRUE" not in text
 
 
+def test_r_diffab_smoke_outputs_use_writable_tmp() -> None:
+    for backend in ("ancombc", "aldex2", "maaslin2", "lefse"):
+        text = (CONTAINERS / f"r-diffab-{backend}" / "Dockerfile").read_text(
+            encoding="utf-8"
+        )
+        assert "/tmp/microsuite-smoke-out.tsv" in text
+        assert "/opt/microsuite/smoke_out.tsv" not in text
+
+
 def test_dockerignore_excludes_local_artifacts() -> None:
     text = (ROOT / ".dockerignore").read_text(encoding="utf-8")
 
