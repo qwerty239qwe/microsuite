@@ -43,6 +43,13 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
             assert token in text
 
 
+@pytest.mark.parametrize("name", ["r-dada2", "microsuite-dada2"])
+def test_dada2_container_install_does_not_update_base_library(name: str) -> None:
+    text = (CONTAINERS / name / "Dockerfile").read_text(encoding="utf-8")
+    assert "BiocManager::install('dada2', ask = FALSE, update = FALSE)" in text
+    assert "update = TRUE" not in text
+
+
 def test_dockerignore_excludes_local_artifacts() -> None:
     text = (ROOT / ".dockerignore").read_text(encoding="utf-8")
 

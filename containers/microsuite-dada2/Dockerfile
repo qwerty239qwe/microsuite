@@ -6,11 +6,10 @@ LABEL org.opencontainers.image.description="microsuite CLI + R DADA2 backend in 
 # Expected commands: microsuite, uv, Rscript
 # Expected R packages: dada2
 
-# R DADA2 backend. The Bioconductor base pins R + Bioconductor 3.20 + a matching
-# CRAN snapshot and ships the compile toolchain, so dada2 installs reproducibly.
-# The trailing library() call turns a failed install (BiocManager only warns)
-# into a hard build failure instead of a silently broken image.
-RUN Rscript -e "BiocManager::install('dada2', ask = FALSE, update = TRUE)" && \
+# R DADA2 backend. Preserve the compatible package stack supplied by the base
+# image instead of updating every installed package during this layer. The
+# trailing library() call turns a failed install into a hard build failure.
+RUN Rscript -e "BiocManager::install('dada2', ask = FALSE, update = FALSE)" && \
     Rscript -e "library(dada2)"
 
 # microsuite CLI + SDK. Install uv via its standalone installer (base-agnostic;
