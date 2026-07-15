@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import json
-import shutil
-from importlib.resources import files
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -10,10 +8,9 @@ import anndata as ad
 import pandas as pd
 
 from microsuite._errors import MicrobiomeSuiteError
+from microsuite.diffab._runner import invoke_r_backend
 from microsuite.diversity._matrix import dense_counts
-from microsuite.runtime.runner import CommandLog, run_command
-
-ANCOMBC_SCRIPT = files("microsuite.diffab.r").joinpath("ancombc.R")
+from microsuite.runtime.runner import CommandLog
 
 
 def run_ancombc(
@@ -37,6 +34,9 @@ def run_ancombc(
     n_cl: int = 1,
     run_dir: Path | None = None,
     timeout: float | None = None,
+    runtime: str = "local",
+    image: str | None = None,
+    engine: str = "docker",
 ) -> None:
     resolved_fix = fix_formula or group
     if not resolved_fix:
@@ -47,13 +47,6 @@ def run_ancombc(
     missing = [c for c in referenced if c not in obs_cols]
     if missing:
         raise MicrobiomeSuiteError(f"Metadata columns not found in obs: {missing}")
-
-    rscript = shutil.which("Rscript")
-    if rscript is None:
-        raise MicrobiomeSuiteError(
-            "ANCOM-BC requires external Rscript and the R packages 'ANCOMBC' and "
-            "'jsonlite'. Install R and those packages, then rerun this command."
-        )
 
     with TemporaryDirectory() as temp_dir:
         temp = Path(temp_dir)
@@ -85,22 +78,23 @@ def run_ancombc(
         }
         params_path.write_text(json.dumps(params, indent=2), encoding="utf-8")
 
-        run_command(
-            [
-                rscript,
-                str(ANCOMBC_SCRIPT),
-                str(counts_path),
-                str(metadata_path),
-                str(params_path),
-                str(output),
-            ],
-            failure_message="ANCOM-BC failed.",
+        invoke_r_backend(
+            backend="ancombc",
+            positional=[counts_path, metadata_path, params_path, output],
+            runtime=runtime,
+            image=image,
+            engine=engine,
             run_dir=run_dir,
+            timeout=timeout,
             log=CommandLog(
                 task="diff_abundance",
                 backend="ancombc",
                 inputs={"fix_formula": resolved_fix, "rand_formula": rand_formula or ""},
                 outputs={"output": str(output)},
             ),
-            timeout=timeout,
+            local_missing_message=(
+                "ANCOM-BC requires external Rscript and the R packages 'ANCOMBC' and "
+                "'jsonlite'. Install R and those packages, then rerun this command, or "
+                "use --runtime docker with the r-diffab-ancombc image."
+            ),
         )

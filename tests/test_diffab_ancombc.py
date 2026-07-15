@@ -34,7 +34,7 @@ def _capture(monkeypatch) -> dict:
         # counts/metadata written to command[2]/command[3]
         captured["counts_exists"] = Path(command[2]).exists()
 
-    monkeypatch.setattr("microsuite.diffab.ancombc.run_command", fake_run_command)
+    monkeypatch.setattr("microsuite.diffab._runner.run_command", fake_run_command)
     monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/Rscript")
     return captured
 
@@ -129,3 +129,36 @@ def test_cli_ancombc_threads_options(tmp_path, monkeypatch) -> None:
     assert captured["reference"] == {"phase": "pre"}
     assert captured["prv_cut"] == 0.2
     assert captured["global_test"] is True and captured["n_cl"] == 4
+
+
+def test_cli_ancombc_runtime_docker_image_reaches_backend(tmp_path, monkeypatch) -> None:
+    from typer.testing import CliRunner
+
+    from microsuite.cli.app import app
+    from microsuite.io.h5ad import write_h5ad
+
+    src = tmp_path / "t.h5ad"
+    write_h5ad(_adata(), src)
+    captured: dict = {}
+    monkeypatch.setattr(
+        "microsuite.cli.diffab_cmd.run_ancombc",
+        lambda adata, **kwargs: captured.update(kwargs),
+    )
+    r = CliRunner().invoke(
+        app,
+        [
+            "diffab",
+            "ancombc",
+            str(src),
+            "--group",
+            "phase",
+            "--runtime",
+            "docker",
+            "--image",
+            "my/img:1",
+            "-o",
+            str(tmp_path / "o.tsv"),
+        ],
+    )
+    assert r.exit_code == 0, r.stdout
+    assert captured["runtime"] == "docker" and captured["image"] == "my/img:1"

@@ -238,3 +238,38 @@ def test_legacy_diffab_ancombc_command_still_reports_rscript(
     assert result.exit_code == 1
     assert result.exception is not None
     assert "Rscript" in str(result.exception)
+
+
+def test_diff_abundance_threads_runtime_and_image(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    table = fixture_table(tmp_path)
+    captured: dict = {}
+    monkeypatch.setattr(
+        "microsuite.methods.diff_abundance.run_ancombc",
+        lambda adata, **kw: captured.update(kw),
+    )
+    diff_abundance(
+        backend="ancombc",
+        table=table,
+        group="x",
+        output=tmp_path / "o.tsv",
+        runtime="docker",
+        image="img:2",
+    )
+    assert captured["runtime"] == "docker" and captured["image"] == "img:2"
+
+    captured_r: dict = {}
+    monkeypatch.setattr(
+        "microsuite.methods.diff_abundance.run_r_diffab_backend",
+        lambda adata, **kw: captured_r.update(kw),
+    )
+    diff_abundance(
+        backend="aldex2",
+        table=table,
+        group="x",
+        output=tmp_path / "o2.tsv",
+        runtime="docker",
+        image="img:3",
+    )
+    assert captured_r["runtime"] == "docker" and captured_r["image"] == "img:3"

@@ -86,6 +86,14 @@ def ancombc(
     timeout: Annotated[
         float | None, typer.Option("--timeout", help="Command timeout in seconds.")
     ] = None,
+    runtime: Annotated[
+        str,
+        typer.Option("--runtime", help="R backend runtime: 'local' Rscript or 'docker'."),
+    ] = "local",
+    image: Annotated[
+        str | None,
+        typer.Option("--image", help="Override the r-diffab-ancombc container image."),
+    ] = None,
 ) -> None:
     adata = read_h5ad(ensure_input(table))
     run_ancombc(
@@ -108,4 +116,6 @@ def ancombc(
         n_cl=n_cl,
         run_dir=run_dir,
         timeout=timeout,
+        runtime=runtime,
+        image=image,
     )

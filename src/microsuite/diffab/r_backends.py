@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import shutil
-from importlib.resources import files
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -9,8 +7,9 @@ import anndata as ad
 import pandas as pd
 
 from microsuite._errors import MicrobiomeSuiteError
+from microsuite.diffab._runner import invoke_r_backend
 from microsuite.diversity._matrix import dense_counts
-from microsuite.runtime.runner import CommandLog, run_command
+from microsuite.runtime.runner import CommandLog
 
 R_BACKEND_PACKAGES = {
     "aldex2": "ALDEx2",
@@ -27,20 +26,16 @@ def run_r_diffab_backend(
     output: Path,
     run_dir: Path | None = None,
     timeout: float | None = None,
+    runtime: str = "local",
+    image: str | None = None,
+    engine: str = "docker",
 ) -> None:
     if backend not in R_BACKEND_PACKAGES:
         raise MicrobiomeSuiteError(f"Unsupported R differential abundance backend: {backend}")
     if group not in adata.obs.columns:
         raise MicrobiomeSuiteError(f"Group column not found in sample metadata: {group}")
-    rscript = shutil.which("Rscript")
-    if rscript is None:
-        package = R_BACKEND_PACKAGES[backend]
-        raise MicrobiomeSuiteError(
-            f"{backend} requires external Rscript and the R package '{package}'. "
-            f"Install R, install {package}, then rerun this command."
-        )
 
-    script = files("microsuite.diffab.r").joinpath(f"{backend}.R")
+    package = R_BACKEND_PACKAGES[backend]
     with TemporaryDirectory() as temp_dir:
         temp = Path(temp_dir)
         counts_path = temp / "counts.tsv"
@@ -51,22 +46,23 @@ def run_r_diffab_backend(
         )
         pd.DataFrame(adata.obs).to_csv(metadata_path, sep="\t")
 
-        run_command(
-            [
-                rscript,
-                str(script),
-                str(counts_path),
-                str(metadata_path),
-                group,
-                str(output),
-            ],
-            failure_message=f"{backend} failed.",
+        invoke_r_backend(
+            backend=backend,
+            positional=[counts_path, metadata_path, group, output],
+            runtime=runtime,
+            image=image,
+            engine=engine,
             run_dir=run_dir,
+            timeout=timeout,
             log=CommandLog(
                 task="diff_abundance",
                 backend=backend,
                 inputs={"group": group},
                 outputs={"output": str(output)},
             ),
-            timeout=timeout,
+            local_missing_message=(
+                f"{backend} requires external Rscript and the R package '{package}'. "
+                f"Install R, install {package}, then rerun this command, or use "
+                f"--runtime docker with the r-diffab-{backend} image."
+            ),
         )

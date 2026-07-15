@@ -29,6 +29,14 @@ def register(app: typer.Typer) -> None:
         timeout: Annotated[
             float | None, typer.Option("--timeout", help="Command timeout in seconds.")
         ] = None,
+        runtime: Annotated[
+            str,
+            typer.Option("--runtime", help="R backend runtime: 'local' Rscript or 'docker'."),
+        ] = "local",
+        image: Annotated[
+            str | None,
+            typer.Option("--image", help="Override the per-backend r-diffab container image."),
+        ] = None,
     ) -> None:
         diff_abundance(
             backend=backend,
@@ -39,6 +47,8 @@ def register(app: typer.Typer) -> None:
             force=force,
             run_dir=run_dir,
             timeout=timeout,
+            runtime=runtime,
+            image=image,
         )
 
     @app.command("functional_profile")

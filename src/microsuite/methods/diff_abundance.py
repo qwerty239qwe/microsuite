@@ -24,6 +24,9 @@ def diff_abundance(
     force: bool = False,
     run_dir: Path | None = None,
     timeout: float | None = None,
+    runtime: str = "local",
+    image: str | None = None,
+    engine: str = "docker",
 ) -> None:
     backend = require_backend(backend, SUPPORTED_BACKENDS, "differential abundance")
     if backend == "qiime2-ancombc":
@@ -63,6 +66,9 @@ def diff_abundance(
             output=prepare_output(output, force=force),
             run_dir=run_dir,
             timeout=timeout,
+            runtime=runtime,
+            image=image,
+            engine=engine,
         )
         return
 
@@ -73,4 +79,7 @@ def diff_abundance(
         output=prepare_output(output, force=force),
         run_dir=run_dir,
         timeout=timeout,
+        runtime=runtime,
+        image=image,
+        engine=engine,
     )
