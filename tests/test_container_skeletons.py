@@ -43,9 +43,15 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
             assert token in text
 
 
-@pytest.mark.parametrize("name", ["r-dada2", "microsuite-dada2"])
-def test_dada2_container_install_does_not_update_base_library(name: str) -> None:
-    text = (CONTAINERS / name / "Dockerfile").read_text(encoding="utf-8")
+def test_r_dada2_uses_digest_pinned_prebuilt_package() -> None:
+    text = (CONTAINERS / "r-dada2" / "Dockerfile").read_text(encoding="utf-8")
+    assert "quay.io/biocontainers/bioconductor-dada2:1.34.0--r44he5774e6_2@sha256:" in text
+    assert "packageVersion('dada2')) == '1.34.0'" in text
+    assert "BiocManager::install" not in text
+
+
+def test_microsuite_dada2_install_does_not_update_base_library() -> None:
+    text = (CONTAINERS / "microsuite-dada2" / "Dockerfile").read_text(encoding="utf-8")
     assert "BiocManager::install('dada2', ask = FALSE, update = FALSE)" in text
     assert "update = TRUE" not in text
 
