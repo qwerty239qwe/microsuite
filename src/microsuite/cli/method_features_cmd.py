@@ -116,6 +116,19 @@ def register(app: typer.Typer) -> None:
                 "--n-reads-learn", min=1, help="Reads used to train the DADA2 error model."
             ),
         ] = None,
+        homopolymer_gap_penalty: Annotated[
+            int | None,
+            typer.Option(
+                "--homopolymer-gap-penalty",
+                help="R/DADA2 homopolymer gap penalty; use -1 for 454/Ion Torrent.",
+            ),
+        ] = None,
+        band_size: Annotated[
+            int | None,
+            typer.Option(
+                "--band-size", min=1, help="R/DADA2 alignment band size; use 32 for 454/Ion Torrent."
+            ),
+        ] = None,
         hashed_feature_ids: Annotated[
             bool | None,
             typer.Option(
@@ -235,6 +248,8 @@ def register(app: typer.Typer) -> None:
             min_fold_parent_over_abundance=min_fold_parent_over_abundance,
             allow_one_off=allow_one_off,
             n_reads_learn=n_reads_learn,
+            homopolymer_gap_penalty=homopolymer_gap_penalty,
+            band_size=band_size,
             hashed_feature_ids=hashed_feature_ids,
             retain_all_samples=retain_all_samples,
             min_overlap=min_overlap,

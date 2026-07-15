@@ -135,6 +135,8 @@ class Dada2Tuning:
     min_fold_parent_over_abundance: float | None = None
     allow_one_off: bool | None = None
     n_reads_learn: int | None = None
+    homopolymer_gap_penalty: int | None = None
+    band_size: int | None = None
     min_overlap: int | None = None
     max_merge_mismatch: int | None = None
     trim_overhang: bool | None = None
@@ -169,6 +171,8 @@ def denoise(
     min_fold_parent_over_abundance: float | None = None,
     allow_one_off: bool | None = None,
     n_reads_learn: int | None = None,
+    homopolymer_gap_penalty: int | None = None,
+    band_size: int | None = None,
     hashed_feature_ids: bool | None = None,
     retain_all_samples: bool | None = None,
     min_overlap: int | None = None,
@@ -195,6 +199,12 @@ def denoise(
         raise MicrobiomeSuiteError("--runtime docker is only supported for --backend dada2-r.")
     if amplicon_length is not None and backend != "dada2-r":
         raise MicrobiomeSuiteError("--amplicon-length only applies to --backend dada2-r.")
+    if backend != "dada2-r" and any(
+        value is not None for value in (homopolymer_gap_penalty, band_size)
+    ):
+        raise MicrobiomeSuiteError(
+            "--homopolymer-gap-penalty and --band-size only apply to --backend dada2-r."
+        )
     resolved_threads = resolve_threads(threads)
     tuning = Dada2Tuning(
         trim_left=trim_left,
@@ -212,6 +222,8 @@ def denoise(
         min_fold_parent_over_abundance=min_fold_parent_over_abundance,
         allow_one_off=allow_one_off,
         n_reads_learn=n_reads_learn,
+        homopolymer_gap_penalty=homopolymer_gap_penalty,
+        band_size=band_size,
         min_overlap=min_overlap,
         max_merge_mismatch=max_merge_mismatch,
         trim_overhang=trim_overhang,
@@ -674,6 +686,8 @@ def denoise_dada2_r(
         min_fold_parent_over_abundance=tuning.min_fold_parent_over_abundance,
         allow_one_off=tuning.allow_one_off,
         n_reads_learn=tuning.n_reads_learn,
+        homopolymer_gap_penalty=tuning.homopolymer_gap_penalty,
+        band_size=tuning.band_size,
         min_overlap=min_overlap,
         max_merge_mismatch=max_merge_mismatch,
         trim_overhang=trim_overhang,
@@ -1004,6 +1018,8 @@ def _dada2_r_script_args(
     _append_value(args, "--min-fold-parent-over-abundance", tuning.min_fold_parent_over_abundance)
     _append_bool(args, "--allow-one-off", tuning.allow_one_off)
     _append_value(args, "--n-reads-learn", tuning.n_reads_learn)
+    _append_value(args, "--homopolymer-gap-penalty", tuning.homopolymer_gap_penalty)
+    _append_value(args, "--band-size", tuning.band_size)
     if params_out is not None:
         args.extend(["--params-out", params_out])
     return args

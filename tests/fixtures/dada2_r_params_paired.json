@@ -20,6 +20,8 @@
   "min_fold_parent_over_abundance": 1.0,
   "allow_one_off": false,
   "n_reads_learn": 1000000,
+  "homopolymer_gap_penalty": null,
+  "band_size": null,
   "dada2_version": "1.30.0",
   "r_version": "R version 4.3.2 (2023-10-31)"
 }

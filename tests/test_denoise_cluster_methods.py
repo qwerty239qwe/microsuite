@@ -443,6 +443,8 @@ def test_denoise_dada2_r_builds_rscript_command(
         trunc_len_f=151,
         trim_left_r=11,
         trunc_len_r=149,
+        homopolymer_gap_penalty=-1,
+        band_size=32,
         threads=4,
         validate=False,
     )
@@ -459,6 +461,8 @@ def test_denoise_dada2_r_builds_rscript_command(
     assert "4" in command
     assert "--output-plot-dir" in command
     assert str(tmp_path / "plots") in command
+    assert command[command.index("--homopolymer-gap-penalty") + 1] == "-1"
+    assert command[command.index("--band-size") + 1] == "32"
 
 
 def test_dada2_r_script_writes_matching_asv_feature_ids() -> None:
@@ -491,6 +495,8 @@ def test_dada2_r_script_wires_advanced_controls() -> None:
     assert "minOverlap" in script
     assert "maxMismatch" in script
     assert "trimOverhang" in script
+    assert "HOMOPOLYMER_GAP_PENALTY" in script
+    assert "BAND_SIZE" in script
 
 
 def test_denoise_dada2_r_missing_rscript(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

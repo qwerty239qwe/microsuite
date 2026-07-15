@@ -16,6 +16,18 @@ Use `dada2-r` when the input is a FASTQ directory and the desired outputs are
 microsuite-native files: an ASV table TSV, representative sequence FASTA, and
 denoising stats TSV.
 
+For Roche 454 or Ion Torrent reads, use DADA2's recommended homopolymer-aware
+alignment settings:
+
+```bash
+microsuite denoise --backend dada2-r --mode single \
+  --homopolymer-gap-penalty -1 --band-size 32 ...
+```
+
+These options are forwarded to `dada()` as `HOMOPOLYMER_GAP_PENALTY` and
+`BAND_SIZE` and are recorded in the DADA2 parameter manifest. They are omitted
+by default, preserving the standard settings for Illumina data.
+
 ## Running DADA2 in a container
 
 For the `dada2-r` Docker runtime, microsuite runs the container as the invoking

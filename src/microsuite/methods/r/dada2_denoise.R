@@ -56,6 +56,10 @@ chimera_method <- value_after("--chimera-method", "consensus")
 min_fold_parent_over_abundance <- as.numeric(value_after("--min-fold-parent-over-abundance", "1.0"))
 allow_one_off <- has_flag("--allow-one-off")
 n_reads_learn <- as.integer(value_after("--n-reads-learn", "1000000"))
+homopolymer_gap_penalty_text <- value_after("--homopolymer-gap-penalty")
+homopolymer_gap_penalty <- if (is.null(homopolymer_gap_penalty_text)) NULL else as.integer(homopolymer_gap_penalty_text)
+band_size_text <- value_after("--band-size")
+band_size <- if (is.null(band_size_text)) NULL else as.integer(band_size_text)
 
 params_out <- value_after("--params-out")
 
@@ -123,6 +127,17 @@ write_retention_plot <- function(track, output) {
   grid()
 }
 
+dada_with_tuning <- function(reads, err) {
+  args <- list(reads, err = err, pool = pool, multithread = threads)
+  if (!is.null(homopolymer_gap_penalty)) {
+    args$HOMOPOLYMER_GAP_PENALTY <- homopolymer_gap_penalty
+  }
+  if (!is.null(band_size)) {
+    args$BAND_SIZE <- band_size
+  }
+  do.call(dada, args)
+}
+
 # dada() and mergePairs() return a bare per-sample object for a single sample and
 # a named list for multiple samples. Wrap the single-sample case so the read
 # tallies below work either way (otherwise vapply() iterates the object's
@@ -176,8 +191,8 @@ if (paired) {
     write_error_plot(errF, file.path(output_plot_dir, "error_rates_forward.png"))
     write_error_plot(errR, file.path(output_plot_dir, "error_rates_reverse.png"))
   }
-  dadaFs <- dada(filtFs, err = errF, pool = pool, multithread = threads)
-  dadaRs <- dada(filtRs, err = errR, pool = pool, multithread = threads)
+  dadaFs <- dada_with_tuning(filtFs, errF)
+  dadaRs <- dada_with_tuning(filtRs, errR)
   names(dadaFs) <- sampleFs
   names(dadaRs) <- sampleFs
   mergers <- mergePairs(
@@ -221,7 +236,7 @@ if (paired) {
   if (!is.null(output_plot_dir)) {
     write_error_plot(err, file.path(output_plot_dir, "error_rates.png"))
   }
-  dada_out <- dada(filt, err = err, pool = pool, multithread = threads)
+  dada_out <- dada_with_tuning(filt, err)
   names(dada_out) <- samples
   seqtab <- makeSequenceTable(dada_out)
   seqtab.nochim <- removeBimeraDenovo(
@@ -274,6 +289,8 @@ if (!is.null(params_out)) {
     min_fold_parent_over_abundance = min_fold_parent_over_abundance,
     allow_one_off = allow_one_off,
     n_reads_learn = n_reads_learn,
+    homopolymer_gap_penalty = if (is.null(homopolymer_gap_penalty)) NA else homopolymer_gap_penalty,
+    band_size = if (is.null(band_size)) NA else band_size,
     dada2_version = as.character(packageVersion("dada2")),
     r_version = R.version.string
   ))
