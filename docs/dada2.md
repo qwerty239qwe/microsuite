@@ -18,6 +18,11 @@ denoising stats TSV.
 
 ## Running DADA2 in a container
 
+For the `dada2-r` Docker runtime, microsuite runs the container as the invoking
+host user's UID and GID. Files written to bind-mounted output directories are
+therefore owned by that user rather than by root, which also allows desktop
+sync clients to process the generated ASV tables and diagnostic plots.
+
 The `dada2-r` backend needs R and the `dada2` package. You do **not** have to
 install R locally — run the R step in a container instead. There are three ways:
 
@@ -39,7 +44,7 @@ CLI and the packaged `dada2_denoise.R`, so the entire command runs inside one
 container — mount your working directory:
 
 ```bash
-docker run --rm -v "$PWD:/work" -w /work \
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work \
   ghcr.io/qwerty239qwe/microsuite/microsuite-dada2:latest \
   denoise --backend dada2-r --demux reads_dir --mode paired \
   --output-table asv_table.tsv --output-rep-seqs rep_seqs.fasta \

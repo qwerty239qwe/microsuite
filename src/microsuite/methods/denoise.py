@@ -588,6 +588,7 @@ def denoise_dada2_r(
     from microsuite.runtime.container import (
         PathMapper,
         build_container_command,
+        host_user_spec,
         require_engine,
         resolve_dada2_image,
     )
@@ -738,7 +739,11 @@ def denoise_dada2_r(
                     params_out=mapper.to_container(output_stats.parent / "dada2_r_params.json"),
                 )
                 command = build_container_command(
-                    inner, resolve_dada2_image(image), mapper.mounts(), engine="docker"
+                    inner,
+                    resolve_dada2_image(image),
+                    mapper.mounts(),
+                    engine="docker",
+                    user=host_user_spec(),
                 )
                 _run(
                     command,

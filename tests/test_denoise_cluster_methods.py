@@ -521,6 +521,7 @@ def test_denoise_dada2_r_docker_builds_container_command(tmp_path, monkeypatch) 
     out.mkdir()
 
     monkeypatch.setattr("shutil.which", lambda name: "docker" if name == "docker" else None)
+    monkeypatch.setattr("microsuite.runtime.container.host_user_spec", lambda: "1234:5678")
     calls: list[list[str]] = []
 
     def fake_run(command, **kwargs):
@@ -545,6 +546,7 @@ def test_denoise_dada2_r_docker_builds_container_command(tmp_path, monkeypatch) 
 
     cmd = calls[0]
     assert cmd[0] == "docker" and cmd[1] == "run" and "--rm" in cmd
+    assert cmd[cmd.index("--user") + 1] == "1234:5678"
     assert any(tok.endswith("dada2_denoise.R") for tok in cmd)
     # input mounted ro, outputs rw
     assert any(v.endswith(":ro") and "reads" in v for v in cmd)

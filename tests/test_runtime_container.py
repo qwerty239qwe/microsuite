@@ -10,6 +10,7 @@ from microsuite.runtime.container import (
     Mount,
     PathMapper,
     build_container_command,
+    host_user_spec,
     require_engine,
     resolve_dada2_image,
 )
@@ -41,6 +42,17 @@ def test_build_container_command_argv() -> None:
 def test_build_container_command_engine_override() -> None:
     cmd = build_container_command(["x"], "img", [], engine="podman")
     assert cmd[:3] == ["podman", "run", "--rm"]
+
+
+def test_build_container_command_user() -> None:
+    cmd = build_container_command(["x"], "img", [], user="1000:1001")
+    assert cmd[:5] == ["docker", "run", "--rm", "--user", "1000:1001"]
+
+
+def test_host_user_spec_posix(monkeypatch) -> None:
+    monkeypatch.setattr("os.getuid", lambda: 1234)
+    monkeypatch.setattr("os.getgid", lambda: 5678)
+    assert host_user_spec() == "1234:5678"
 
 
 def test_resolve_image_precedence(monkeypatch) -> None:

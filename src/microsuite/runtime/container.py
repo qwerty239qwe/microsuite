@@ -19,9 +19,16 @@ class Mount:
 
 
 def build_container_command(
-    inner: list[str], image: str, mounts: list[Mount], *, engine: str = "docker"
+    inner: list[str],
+    image: str,
+    mounts: list[Mount],
+    *,
+    engine: str = "docker",
+    user: str | None = None,
 ) -> list[str]:
     command = [engine, "run", "--rm"]
+    if user is not None:
+        command.extend(["--user", user])
     for mount in mounts:
         spec = f"{mount.host}:{mount.container}"
         if mount.mode == "ro":
@@ -30,6 +37,15 @@ def build_container_command(
     command.append(image)
     command.extend(inner)
     return command
+
+
+def host_user_spec() -> str | None:
+    """Return the invoking POSIX UID:GID for ownership-safe bind mounts."""
+    getuid = getattr(os, "getuid", None)
+    getgid = getattr(os, "getgid", None)
+    if getuid is None or getgid is None:
+        return None
+    return f"{getuid()}:{getgid()}"
 
 
 def require_engine(engine: str = "docker") -> str:
