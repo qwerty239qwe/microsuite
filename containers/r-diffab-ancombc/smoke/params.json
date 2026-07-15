@@ -1,0 +1,17 @@
+{
+  "fix_formula": "group",
+  "rand_formula": null,
+  "group": "group",
+  "reference": {},
+  "prv_cut": 0.1,
+  "lib_cut": 0,
+  "struc_zero": false,
+  "neg_lb": false,
+  "p_adj_method": "BH",
+  "global": false,
+  "pairwise": false,
+  "trend": false,
+  "dunnet": false,
+  "pseudo_sens": true,
+  "n_cl": 1
+}

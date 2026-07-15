@@ -96,8 +96,20 @@ jobs:
             dockerfile: containers/r-dada2/Dockerfile
             context: .
             heavy: true
-          - image: r-diffab
-            dockerfile: containers/r-diffab/Dockerfile
+          - image: r-diffab-ancombc
+            dockerfile: containers/r-diffab-ancombc/Dockerfile
+            context: .
+            heavy: true
+          - image: r-diffab-aldex2
+            dockerfile: containers/r-diffab-aldex2/Dockerfile
+            context: .
+            heavy: true
+          - image: r-diffab-maaslin2
+            dockerfile: containers/r-diffab-maaslin2/Dockerfile
+            context: .
+            heavy: true
+          - image: r-diffab-lefse
+            dockerfile: containers/r-diffab-lefse/Dockerfile
             context: .
             heavy: true
           - image: microsuite-picrust2
@@ -278,12 +290,6 @@ jobs:
       - name: Smoke test MetaPhlAn image
         if: ${{ matrix.image == 'metaphlan' && github.event.inputs.build-heavy-containers == 'true' }}
         run: docker run --rm microsuite/${{ matrix.image }}:ci --version
-
-      - name: Smoke test R diffab image
-        if: ${{ matrix.image == 'r-diffab' && github.event.inputs.build-heavy-containers == 'true' }}
-        run: |
-          docker run --rm microsuite/${{ matrix.image }}:ci -e \
-            'for (pkg in c("ANCOMBC", "ALDEx2", "Maaslin2", "lefser")) stopifnot(requireNamespace(pkg, quietly = TRUE)); for (script in c("ancombc", "aldex2", "maaslin2", "lefse")) stopifnot(file.exists(sprintf("/opt/microsuite/%s.R", script)))'
 
       - name: Smoke test microsuite-dada2 image
         if: ${{ matrix.image == 'microsuite-dada2' && github.event.inputs.build-heavy-containers == 'true' }}

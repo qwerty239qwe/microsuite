@@ -26,7 +26,10 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
         "metaphlan": ["metaphlan"],
         "qiime2-amplicon": ["qiime", "QIIME 2"],
         "r-dada2": ["Rscript", "dada2"],
-        "r-diffab": ["Rscript", "ANCOMBC", "ALDEx2", "MaAsLin2", "lefser"],
+        "r-diffab-ancombc": ["Rscript", "ANCOMBC"],
+        "r-diffab-aldex2": ["Rscript", "ALDEx2"],
+        "r-diffab-maaslin2": ["Rscript", "Maaslin2"],
+        "r-diffab-lefse": ["Rscript", "lefser"],
         "kraken2": ["kraken2", "bracken"],
         "microsuite-picrust2": ["microsuite", "picrust2"],
         "microsuite-dada2": ["microsuite", "Rscript", "dada2"],
@@ -85,7 +88,10 @@ def test_methods_reference_links_backends_to_environments() -> None:
     assert "[FastQC](../containers/fastqc/Dockerfile)" in text
     assert "[MultiQC](../containers/multiqc/Dockerfile)" in text
     assert "[QIIME 2 amplicon](../containers/qiime2-amplicon/Dockerfile)" in text
-    assert "[R diffab](../containers/r-diffab/Dockerfile)" in text
+    assert "[R diffab ancombc](../containers/r-diffab-ancombc/Dockerfile)" in text
+    assert "[R diffab aldex2](../containers/r-diffab-aldex2/Dockerfile)" in text
+    assert "[R diffab maaslin2](../containers/r-diffab-maaslin2/Dockerfile)" in text
+    assert "[R diffab lefse](../containers/r-diffab-lefse/Dockerfile)" in text
     assert "[Kraken2](../containers/kraken2/Dockerfile)" in text
     assert "[VSEARCH](../containers/vsearch/Dockerfile)" in text
     assert "[USEARCH 12](../containers/usearch/Dockerfile)" in text
