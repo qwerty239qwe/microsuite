@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -9,6 +10,8 @@ from microsuite._errors import MicrobiomeSuiteError
 
 DEFAULT_DADA2_IMAGE = "ghcr.io/qwerty239qwe/microsuite/r-dada2:latest"
 _DADA2_IMAGE_ENV = "MICROSUITE_R_DADA2_IMAGE"
+DEFAULT_DIFFAB_IMAGE_PREFIX = "ghcr.io/qwerty239qwe/microsuite/r-diffab-"
+_DIFFAB_IMAGE_ENV_PREFIX = "MICROSUITE_R_DIFFAB_"
 
 
 @dataclass(frozen=True)
@@ -53,8 +56,8 @@ def require_engine(engine: str = "docker") -> str:
     if resolved is None:
         raise MicrobiomeSuiteError(
             f"The '{engine}' container engine is required for --runtime docker but was "
-            f"not found on PATH. Install {engine}, or use --runtime local with R and the "
-            "dada2 package installed."
+            f"not found on PATH. Install {engine}, or use --runtime local with the "
+            "required backend package installed."
         )
     return resolved
 
@@ -66,6 +69,39 @@ def resolve_dada2_image(override: str | None) -> str:
     if env:
         return env
     return DEFAULT_DADA2_IMAGE
+
+
+def resolve_diffab_image(backend: str, override: str | None) -> str:
+    """Resolve the per-backend r-diffab image: override, then env, then default."""
+    if override:
+        return override
+    env = os.environ.get(f"{_DIFFAB_IMAGE_ENV_PREFIX}{backend.upper()}_IMAGE")
+    if env:
+        return env
+    return f"{DEFAULT_DIFFAB_IMAGE_PREFIX}{backend}:latest"
+
+
+def resolve_image_digest(engine: str, image: str) -> str | None:
+    """Best-effort image digest via `<engine> inspect`; None if unavailable."""
+    exe = shutil.which(engine)
+    if exe is None:
+        return None
+    for fmt in ("{{index .RepoDigests 0}}", "{{.Id}}"):
+        try:
+            result = subprocess.run(
+                [exe, "inspect", "--format", fmt, image],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if result.returncode == 0:
+            value = result.stdout.strip()
+            if value:
+                return value
+    return None
 
 
 class PathMapper:

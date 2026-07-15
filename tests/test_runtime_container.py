@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from microsuite._errors import MicrobiomeSuiteError
+from microsuite.runtime import container
 from microsuite.runtime.container import (
     DEFAULT_DADA2_IMAGE,
     Mount,
@@ -13,6 +14,8 @@ from microsuite.runtime.container import (
     host_user_spec,
     require_engine,
     resolve_dada2_image,
+    resolve_diffab_image,
+    resolve_image_digest,
 )
 
 
@@ -61,6 +64,50 @@ def test_resolve_image_precedence(monkeypatch) -> None:
     monkeypatch.setenv("MICROSUITE_R_DADA2_IMAGE", "env:img")
     assert resolve_dada2_image(None) == "env:img"
     assert resolve_dada2_image("override:img") == "override:img"
+
+
+def test_resolve_diffab_image_precedence(monkeypatch) -> None:
+    monkeypatch.delenv("MICROSUITE_R_DIFFAB_ANCOMBC_IMAGE", raising=False)
+    assert resolve_diffab_image("ancombc", None) == (
+        "ghcr.io/qwerty239qwe/microsuite/r-diffab-ancombc:latest"
+    )
+    monkeypatch.setenv("MICROSUITE_R_DIFFAB_ANCOMBC_IMAGE", "env:img")
+    assert resolve_diffab_image("ancombc", None) == "env:img"
+    assert resolve_diffab_image("ancombc", "override:img") == "override:img"
+
+
+def test_resolve_image_digest_repo_digest_then_id(monkeypatch) -> None:
+    import subprocess
+
+    monkeypatch.setattr(container.shutil, "which", lambda name: "/usr/bin/docker")
+    calls: list[str] = []
+
+    def fake_run(cmd, **kw):
+        fmt = cmd[cmd.index("--format") + 1]
+        calls.append(fmt)
+        if "RepoDigests" in fmt:
+            return subprocess.CompletedProcess(cmd, 0, "img@sha256:dead\n", "")
+        return subprocess.CompletedProcess(cmd, 0, "sha256:beef\n", "")
+
+    monkeypatch.setattr(container.subprocess, "run", fake_run)
+    assert resolve_image_digest("docker", "img:1") == "img@sha256:dead"
+
+
+def test_resolve_image_digest_falls_back_and_none(monkeypatch) -> None:
+    import subprocess
+
+    monkeypatch.setattr(container.shutil, "which", lambda name: "/usr/bin/docker")
+
+    def empty_then_id(cmd, **kw):
+        fmt = cmd[cmd.index("--format") + 1]
+        out = "" if "RepoDigests" in fmt else "sha256:beef\n"
+        return subprocess.CompletedProcess(cmd, 0, out, "")
+
+    monkeypatch.setattr(container.subprocess, "run", empty_then_id)
+    assert resolve_image_digest("docker", "img:1") == "sha256:beef"
+
+    monkeypatch.setattr(container.shutil, "which", lambda name: None)
+    assert resolve_image_digest("docker", "img:1") is None
 
 
 def test_require_engine_missing(monkeypatch) -> None:
