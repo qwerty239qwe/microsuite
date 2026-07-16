@@ -26,7 +26,7 @@ rarefy_table(adata, depth=10000)
 alpha_diversity(adata, metric="shannon")
 beta_diversity(adata, metric="bray-curtis")
 pcoa(distance_matrix)
-beta_significance(distance_matrix, metadata, column="body_site", method="permanova")
+beta_significance(distance_matrix, metadata, column="body_site", method="permanova")  # or permdisp / anosim
 mantel_test(matrix_a, matrix_b, method="spearman")
 gamma_diversity(adata, group="body_site")
 beta_turnover(adata, level="genus")

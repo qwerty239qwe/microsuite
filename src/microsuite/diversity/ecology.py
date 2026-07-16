@@ -33,11 +33,14 @@ def beta_significance(
     if method == "permanova":
         result = _permanova(distances, labels, permutations=permutations, seed=seed)
         statistic_name = "pseudo_f"
+    elif method == "permdisp":
+        result = _permdisp(distances, labels, permutations=permutations, seed=seed)
+        statistic_name = "f_value"
     elif method == "anosim":
         result = _anosim(distances, labels, permutations=permutations, seed=seed)
         statistic_name = "r"
     else:
-        raise MicrobiomeSuiteError("--method must be permanova or anosim.")
+        raise MicrobiomeSuiteError("--method must be permanova, permdisp, or anosim.")
     return pd.DataFrame(
         [
             {
@@ -48,6 +51,7 @@ def beta_significance(
                 statistic_name: result.statistic,
                 "p_value": result.p_value,
                 "permutations": result.permutations,
+                "permutation_scheme": "unrestricted",
             }
         ]
     )
@@ -266,6 +270,54 @@ def _permanova_statistic(distances: np.ndarray, labels: np.ndarray) -> float:
     df_within = n - len(groups)
     if df_within <= 0 or within_ss <= 0:
         return 0.0
+    return (between_ss / df_between) / (within_ss / df_within)
+
+
+def _permdisp(
+    distances: np.ndarray, labels: np.ndarray, *, permutations: int, seed: int
+) -> PermutationResult:
+    coordinates = _positive_pcoa_coordinates(distances)
+    observed = _permdisp_statistic(coordinates, labels)
+    rng = np.random.default_rng(seed)
+    exceedances = 1
+    for _ in range(permutations):
+        if _permdisp_statistic(coordinates, rng.permutation(labels)) >= observed:
+            exceedances += 1
+    return PermutationResult(observed, exceedances / (permutations + 1), permutations)
+
+
+def _positive_pcoa_coordinates(distances: np.ndarray) -> np.ndarray:
+    n = distances.shape[0]
+    centering = np.eye(n) - np.ones((n, n)) / n
+    gram = -0.5 * centering @ np.square(distances) @ centering
+    eigenvalues, eigenvectors = np.linalg.eigh(gram)
+    positive = eigenvalues > max(float(np.max(np.abs(eigenvalues))) * 1e-12, 0.0)
+    if not np.any(positive):
+        return np.zeros((n, 1), dtype=float)
+    return eigenvectors[:, positive] * np.sqrt(eigenvalues[positive])
+
+
+def _permdisp_statistic(coordinates: np.ndarray, labels: np.ndarray) -> float:
+    groups = sorted(set(labels))
+    dispersions = np.zeros(coordinates.shape[0], dtype=float)
+    for group in groups:
+        indices = np.flatnonzero(labels == group)
+        centroid = coordinates[indices].mean(axis=0)
+        dispersions[indices] = np.linalg.norm(coordinates[indices] - centroid, axis=1)
+    grand_mean = float(dispersions.mean())
+    between_ss = 0.0
+    within_ss = 0.0
+    for group in groups:
+        values = dispersions[labels == group]
+        group_mean = float(values.mean())
+        between_ss += len(values) * (group_mean - grand_mean) ** 2
+        within_ss += float(np.square(values - group_mean).sum())
+    df_between = len(groups) - 1
+    df_within = len(dispersions) - len(groups)
+    if df_between <= 0 or df_within <= 0:
+        return 0.0
+    if within_ss <= np.finfo(float).eps:
+        return float("inf") if between_ss > np.finfo(float).eps else 0.0
     return (between_ss / df_between) / (within_ss / df_within)
 
 

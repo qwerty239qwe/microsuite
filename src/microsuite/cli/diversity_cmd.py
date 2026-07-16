@@ -63,7 +63,9 @@ def beta_significance_cmd(
     metadata: Annotated[Path, typer.Option("--metadata", "-m", help="Sample metadata TSV.")],
     column: Annotated[str, typer.Option("--column", help="Metadata grouping column.")],
     output: Annotated[Path, typer.Option("--output", "-o", help="Output TSV.")],
-    method: Annotated[str, typer.Option("--method", help="permanova or anosim.")] = "permanova",
+    method: Annotated[
+        str, typer.Option("--method", help="permanova, permdisp, or anosim.")
+    ] = "permanova",
     permutations: Annotated[int, typer.Option("--permutations", min=0)] = 999,
     seed: Annotated[int, typer.Option("--seed")] = 0,
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,

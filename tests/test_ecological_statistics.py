@@ -26,7 +26,7 @@ def fixture_adata():
     return read_tsv(FIXTURE / "table.tsv", FIXTURE / "metadata.tsv", FIXTURE / "taxonomy.tsv")
 
 
-def test_beta_significance_permanova_and_anosim() -> None:
+def test_beta_significance_permanova_permdisp_and_anosim() -> None:
     adata = fixture_adata()
     beta = beta_diversity(adata, "bray-curtis")
     metadata = pd.DataFrame(adata.obs)
@@ -36,6 +36,14 @@ def test_beta_significance_permanova_and_anosim() -> None:
         metadata,
         column="body_site",
         method="permanova",
+        permutations=19,
+        seed=1,
+    )
+    permdisp = beta_significance(
+        beta,
+        metadata,
+        column="body_site",
+        method="permdisp",
         permutations=19,
         seed=1,
     )
@@ -51,6 +59,11 @@ def test_beta_significance_permanova_and_anosim() -> None:
     assert permanova.loc[0, "method"] == "permanova"
     assert permanova.loc[0, "n_groups"] == 2
     assert 0 <= permanova.loc[0, "p_value"] <= 1
+    assert permdisp.loc[0, "method"] == "permdisp"
+    assert permdisp.loc[0, "n_groups"] == 2
+    assert permdisp.loc[0, "f_value"] >= 0
+    assert 0 <= permdisp.loc[0, "p_value"] <= 1
+    assert permdisp.loc[0, "permutation_scheme"] == "unrestricted"
     assert anosim.loc[0, "method"] == "anosim"
     assert "r" in anosim.columns
 
