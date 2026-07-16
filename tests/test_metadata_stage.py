@@ -60,6 +60,24 @@ def test_success_writes_valid_enriched_envelope(tmp_path: Path) -> None:
     assert not list((tmp_path / "stage-results").glob("*.tmp*"))
 
 
+def test_stage_duration_uses_monotonic_clock_when_wall_clock_moves_backward(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wall_times = iter([1000.0, 900.0])
+    monotonic_times = iter([50.0, 55.0])
+    monkeypatch.setattr("microsuite.metadata.stage.time.time", lambda: next(wall_times))
+    monkeypatch.setattr(
+        "microsuite.metadata.stage.time.monotonic", lambda: next(monotonic_times)
+    )
+
+    with stage_execution(tmp_path, stage="clock-change"):
+        pass
+
+    env, _ = _one(tmp_path)
+    assert env["timing"]["duration_sec"] == 5.0
+    assert validate_stage_result(env) == []
+
+
 def test_directory_output_and_external_input(tmp_path: Path) -> None:
     d = tmp_path / "outdir"
     d.mkdir()

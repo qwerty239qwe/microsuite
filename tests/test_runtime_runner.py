@@ -57,6 +57,26 @@ def test_run_command_writes_structured_logs(
     assert manifest["executions"][0]["task"] == "trim"
 
 
+def test_run_command_duration_uses_monotonic_clock_when_wall_clock_moves_backward(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wall_times = iter([1000.0])
+    monotonic_times = iter([50.0, 55.0])
+    monkeypatch.setattr("microsuite.runtime.runner.time.time", lambda: next(wall_times))
+    monkeypatch.setattr(
+        "microsuite.runtime.runner.time.monotonic", lambda: next(monotonic_times)
+    )
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 0, "", ""),
+    )
+
+    run_command(["tool"], "failed", run_dir=tmp_path)
+
+    run = json.loads((tmp_path / "run.json").read_text(encoding="utf-8"))
+    assert run["duration_sec"] == 5.0
+
+
 def test_run_command_writes_results_manifest_artifacts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

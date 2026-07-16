@@ -61,6 +61,7 @@ def run_command(
     env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     started = time.time()
+    started_monotonic = time.monotonic()
     log = log or CommandLog()
     if run_dir is not None:
         run_dir.mkdir(parents=True, exist_ok=True)
@@ -77,7 +78,7 @@ def run_command(
             run_kwargs["env"] = env
         result = subprocess.run(command, **run_kwargs)
     except subprocess.TimeoutExpired as exc:
-        duration_sec = time.time() - started
+        duration_sec = time.monotonic() - started_monotonic
         _note_active_subprocess(
             command, exit_code=None, duration_sec=duration_sec, status="timed_out"
         )
@@ -106,13 +107,13 @@ def run_command(
             f"Command timed out after {timeout} seconds: {command[0]}"
         ) from exc
     except OSError as exc:
-        duration_sec = time.time() - started
+        duration_sec = time.monotonic() - started_monotonic
         _note_active_subprocess(
             command, exit_code=None, duration_sec=duration_sec, status="launch_failed"
         )
         raise MicrobiomeSuiteError(f"Failed to launch command: {command[0]}: {exc}") from exc
 
-    duration_sec = time.time() - started
+    duration_sec = time.monotonic() - started_monotonic
     _note_active_subprocess(
         command,
         exit_code=result.returncode,

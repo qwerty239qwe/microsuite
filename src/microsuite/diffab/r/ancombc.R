@@ -61,9 +61,12 @@ if (any(unlist(group_tests)) && is.null(group_col)) {
   stop("--global/--pairwise/--trend/--dunnet require --group.")
 }
 
-if (!requireNamespace("ANCOMBC", quietly = TRUE)) {
-  stop("R package 'ANCOMBC' is required. Install it with BiocManager::install('ANCOMBC').")
-}
+tryCatch(
+  loadNamespace("ANCOMBC"),
+  error = function(exc) {
+    stop(sprintf("R package 'ANCOMBC' could not be loaded: %s", conditionMessage(exc)))
+  }
+)
 if (!("ancombc2" %in% getNamespaceExports("ANCOMBC"))) {
   stop("This command requires ANCOM-BC2; update the ANCOMBC package.")
 }

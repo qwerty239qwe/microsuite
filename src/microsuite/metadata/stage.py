@@ -101,6 +101,7 @@ class StageRecord:
         self._software: dict[str, Any] = {}
         self._reference_db: dict[str, Any] | None = None
         self._metrics: dict[str, Any] = {}
+        self._started_monotonic = time.monotonic()
 
     # -- declaration API ---------------------------------------------------
     def add_input(self, artifact: Artifact) -> None:
@@ -154,10 +155,12 @@ class StageRecord:
     # -- finalization ------------------------------------------------------
     def mark_success(self) -> None:
         self._finished = time.time()
+        self._duration_sec = time.monotonic() - self._started_monotonic
         self.status = "completed"
 
     def mark_failure(self, exc: BaseException) -> None:
         self._finished = time.time()
+        self._duration_sec = time.monotonic() - self._started_monotonic
         self.status = (
             "timed_out" if any(s.status == "timed_out" for s in self.subprocesses) else "failed"
         )
@@ -166,6 +169,7 @@ class StageRecord:
 
     def mark_cancelled(self, exc: BaseException) -> None:
         self._finished = time.time()
+        self._duration_sec = time.monotonic() - self._started_monotonic
         self.status = "cancelled"
         self._raw_exc = exc
         self._raw_message = str(exc)
@@ -173,6 +177,11 @@ class StageRecord:
     # -- serialisation -----------------------------------------------------
     def to_payload(self) -> dict[str, Any]:
         finished = self._finished if self._finished is not None else time.time()
+        duration_sec = (
+            self._duration_sec
+            if hasattr(self, "_duration_sec")
+            else time.monotonic() - self._started_monotonic
+        )
         masked_params, param_secrets = redact_params(self.params)
         all_secrets = set(param_secrets)
         for sp in self.subprocesses:  # pass 1: discover across the whole stage
@@ -215,7 +224,7 @@ class StageRecord:
             "timing": {
                 "started_at": _utc(self._started),
                 "finished_at": _utc(finished),
-                "duration_sec": round(finished - self._started, 3),
+                "duration_sec": round(duration_sec, 3),
             },
             "command": alias_cmd,
             "subprocesses": masked_subs,
