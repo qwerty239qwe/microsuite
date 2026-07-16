@@ -70,10 +70,24 @@ tryCatch(
 if (!("ancombc2" %in% getNamespaceExports("ANCOMBC"))) {
   stop("This command requires ANCOM-BC2; update the ANCOMBC package.")
 }
+tryCatch(
+  loadNamespace("TreeSummarizedExperiment"),
+  error = function(exc) {
+    stop(sprintf("R package 'TreeSummarizedExperiment' could not be loaded: %s", conditionMessage(exc)))
+  }
+)
+
+# ANCOMBC 2.4 accepts metadata through a TreeSummarizedExperiment, while newer
+# releases also accept a matrix plus meta_data. The container uses the object
+# form so the backend remains compatible across both APIs.
+tse <- TreeSummarizedExperiment::TreeSummarizedExperiment(
+  assays = list(counts = as.matrix(counts)),
+  colData = S4Vectors::DataFrame(metadata)
+)
 
 fit <- ANCOMBC::ancombc2(
-  data = counts,
-  meta_data = metadata,
+  data = tse,
+  assay_name = "counts",
   fix_formula = fix_formula,
   rand_formula = rand_formula,
   group = group_col,

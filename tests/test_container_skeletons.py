@@ -68,6 +68,12 @@ def test_r_diffab_smoke_outputs_use_writable_tmp() -> None:
         assert "/opt/microsuite/smoke_out.tsv" not in text
 
 
+def test_ancombc_backend_uses_cross_version_tse_input() -> None:
+    source = (ROOT / "src/microsuite/diffab/r/ancombc.R").read_text(encoding="utf-8")
+    assert "TreeSummarizedExperiment::TreeSummarizedExperiment" in source
+    assert "meta_data = metadata" not in source
+
+
 def test_dockerignore_excludes_local_artifacts() -> None:
     text = (ROOT / ".dockerignore").read_text(encoding="utf-8")
 
