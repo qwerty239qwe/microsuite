@@ -66,9 +66,7 @@ def test_stage_duration_uses_monotonic_clock_when_wall_clock_moves_backward(
     wall_times = iter([1000.0, 900.0])
     monotonic_times = iter([50.0, 55.0])
     monkeypatch.setattr("microsuite.metadata.stage.time.time", lambda: next(wall_times))
-    monkeypatch.setattr(
-        "microsuite.metadata.stage.time.monotonic", lambda: next(monotonic_times)
-    )
+    monkeypatch.setattr("microsuite.metadata.stage.time.monotonic", lambda: next(monotonic_times))
 
     with stage_execution(tmp_path, stage="clock-change"):
         pass

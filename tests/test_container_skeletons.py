@@ -67,9 +67,7 @@ def test_nextflow_facing_images_install_process_metrics_tool() -> None:
 
 def test_r_diffab_smoke_outputs_use_writable_tmp() -> None:
     for backend in ("ancombc", "aldex2", "maaslin2", "lefse"):
-        text = (CONTAINERS / f"r-diffab-{backend}" / "Dockerfile").read_text(
-            encoding="utf-8"
-        )
+        text = (CONTAINERS / f"r-diffab-{backend}" / "Dockerfile").read_text(encoding="utf-8")
         assert "/tmp/microsuite-smoke-out.tsv" in text
         assert "/opt/microsuite/smoke_out.tsv" not in text
 
