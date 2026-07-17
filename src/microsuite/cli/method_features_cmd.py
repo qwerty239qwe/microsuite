@@ -126,7 +126,9 @@ def register(app: typer.Typer) -> None:
         band_size: Annotated[
             int | None,
             typer.Option(
-                "--band-size", min=1, help="R/DADA2 alignment band size; use 32 for 454/Ion Torrent."
+                "--band-size",
+                min=1,
+                help="R/DADA2 alignment band size; use 32 for 454/Ion Torrent.",
             ),
         ] = None,
         hashed_feature_ids: Annotated[

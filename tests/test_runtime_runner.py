@@ -63,9 +63,7 @@ def test_run_command_duration_uses_monotonic_clock_when_wall_clock_moves_backwar
     wall_times = iter([1000.0])
     monotonic_times = iter([50.0, 55.0])
     monkeypatch.setattr("microsuite.runtime.runner.time.time", lambda: next(wall_times))
-    monkeypatch.setattr(
-        "microsuite.runtime.runner.time.monotonic", lambda: next(monotonic_times)
-    )
+    monkeypatch.setattr("microsuite.runtime.runner.time.monotonic", lambda: next(monotonic_times))
     monkeypatch.setattr(
         "subprocess.run",
         lambda command, **kwargs: subprocess.CompletedProcess(command, 0, "", ""),
