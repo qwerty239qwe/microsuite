@@ -5,7 +5,7 @@ LABEL org.opencontainers.image.description="fastp trimming and read-filtering ba
 
 # Expected commands: fastp
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates fastp && \
+    apt-get install -y --no-install-recommends ca-certificates fastp procps && \
     rm -rf /var/lib/apt/lists/*
 
 ENTRYPOINT ["fastp"]

@@ -16,7 +16,7 @@ RUN Rscript -e "BiocManager::install('dada2', ask = FALSE, update = FALSE)" && \
 # avoids the system-pip PEP-668 flag mismatch on the Ubuntu base). uv fetches its
 # own Python for the venv, so `uv sync` installs the package and the packaged
 # dada2_denoise.R that denoise_dada2_r invokes.
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates procps \
     && rm -rf /var/lib/apt/lists/*
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:${PATH}"

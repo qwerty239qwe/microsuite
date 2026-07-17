@@ -59,6 +59,12 @@ def test_microsuite_dada2_install_does_not_update_base_library() -> None:
     assert "update = TRUE" not in text
 
 
+def test_nextflow_facing_images_install_process_metrics_tool() -> None:
+    for image in ("cutadapt", "fastp", "microsuite", "microsuite-dada2", "multiqc"):
+        text = (CONTAINERS / image / "Dockerfile").read_text(encoding="utf-8")
+        assert "procps" in text, f"{image} must provide ps for Nextflow task metrics"
+
+
 def test_r_diffab_smoke_outputs_use_writable_tmp() -> None:
     for backend in ("ancombc", "aldex2", "maaslin2", "lefse"):
         text = (CONTAINERS / f"r-diffab-{backend}" / "Dockerfile").read_text(

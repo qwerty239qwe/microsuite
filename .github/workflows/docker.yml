@@ -139,6 +139,10 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
 
+      - name: Verify Nextflow process metrics support
+        if: ${{ (!matrix.heavy || github.event.inputs.build-heavy-containers == 'true') && contains(fromJSON('["cutadapt", "fastp", "microsuite", "microsuite-dada2", "multiqc"]'), matrix.image) }}
+        run: docker run --rm --entrypoint sh microsuite/${{ matrix.image }}:ci -c 'command -v ps'
+
       - name: Smoke test microsuite image
         if: ${{ matrix.image == 'microsuite' }}
         run: docker run --rm microsuite/${{ matrix.image }}:ci --help
