@@ -318,25 +318,25 @@ API; additions to the core metadata models wait for Wave 1C.
 
 ### Tasks
 
-- [ ] Add failing tests proving a known `MicrobiomeSuiteError` exits 1 without
+- [x] Add failing tests proving a known `MicrobiomeSuiteError` exits 1 without
   `Traceback` or `click.exceptions.Exit` in output.
-- [ ] Implement clean error handling and a global `--debug` switch.
-- [ ] Replace the duplicated hard-coded `0.1.0` version with one authoritative
+- [x] Implement clean error handling and a global `--debug` switch.
+- [x] Replace the duplicated hard-coded `0.1.0` version with one authoritative
   version source. Prefer `importlib.metadata.version("microsuite")`, with a safe
   source-tree fallback for tests.
-- [ ] Implement `version` human and JSON output. For editable source checkouts,
+- [x] Implement `version` human and JSON output. For editable source checkouts,
   include a best-effort Git commit without making Git a runtime requirement.
-- [ ] Implement a static capability registry with schema versioning. Initial
+- [x] Implement a static capability registry with schema versioning. Initial
   registry describes capabilities present on the Wave 0 base only.
-- [ ] Implement `doctor` checks for Python version, output/cache writability,
+- [x] Implement `doctor` checks for Python version, output/cache writability,
   Docker/Podman presence, Docker socket access, host UID/GID, and optional
   executable discovery.
-- [ ] Add reusable container probes to `runtime/container.py`: engine info,
+- [x] Add reusable container probes to `runtime/container.py`: engine info,
   image existence, image inspect, and a non-destructive bind-mount write test.
-- [ ] Ensure every probe has a timeout and returns structured data instead of
+- [x] Ensure every probe has a timeout and returns structured data instead of
   printing internally.
-- [ ] Add `--require` capability validation with actionable remediation.
-- [ ] Register `version`, `capabilities`, and `doctor` in `cli/app.py`.
+- [x] Add `--require` capability validation with actionable remediation.
+- [x] Register `version`, `capabilities`, and `doctor` in `cli/app.py`.
 
 ### Acceptance tests
 
