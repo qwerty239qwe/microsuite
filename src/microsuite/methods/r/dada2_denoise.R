@@ -138,10 +138,16 @@ dada_with_tuning <- function(reads, err) {
   do.call(dada, args)
 }
 
-# dada() and mergePairs() return a bare per-sample object for a single sample and
-# a named list for multiple samples. Wrap the single-sample case so the read
-# tallies below work either way (otherwise vapply() iterates the object's
-# internal slots and getUniques() errors on them).
+# dada() and mergePairs() return a bare per-sample object for one sample and a
+# list for multiple samples. Normalize that boundary before making tables.
+as_sample_list <- function(x, samples) {
+  if (is.data.frame(x) || inherits(x, "dada") || inherits(x, "derep")) {
+    x <- list(x)
+  }
+  names(x) <- samples
+  x
+}
+
 count_reads <- function(x) {
   if (is.data.frame(x) || inherits(x, "dada") || inherits(x, "derep")) {
     return(getN(x))
@@ -193,15 +199,15 @@ if (paired) {
   }
   dadaFs <- dada_with_tuning(filtFs, errF)
   dadaRs <- dada_with_tuning(filtRs, errR)
-  names(dadaFs) <- sampleFs
-  names(dadaRs) <- sampleFs
+  dadaFs <- as_sample_list(dadaFs, sampleFs)
+  dadaRs <- as_sample_list(dadaRs, sampleFs)
   mergers <- mergePairs(
     dadaFs, filtFs, dadaRs, filtRs,
     minOverlap = resolved_min_overlap,
     maxMismatch = resolved_max_merge_mismatch,
     trimOverhang = resolved_trim_overhang
   )
-  names(mergers) <- sampleFs
+  mergers <- as_sample_list(mergers, sampleFs)
   seqtab <- makeSequenceTable(mergers)
   seqtab.nochim <- removeBimeraDenovo(
     seqtab,
@@ -237,7 +243,7 @@ if (paired) {
     write_error_plot(err, file.path(output_plot_dir, "error_rates.png"))
   }
   dada_out <- dada_with_tuning(filt, err)
-  names(dada_out) <- samples
+  dada_out <- as_sample_list(dada_out, samples)
   seqtab <- makeSequenceTable(dada_out)
   seqtab.nochim <- removeBimeraDenovo(
     seqtab,
