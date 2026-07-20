@@ -42,9 +42,7 @@ def write_metadata_document(
         document, _ = redact_params(document)
     errors = validate_metadata(document, schema_name)
     if errors:
-        raise MicrobiomeSuiteError(
-            f"Refusing to write invalid {schema_name} metadata: {errors}"
-        )
+        raise MicrobiomeSuiteError(f"Refusing to write invalid {schema_name} metadata: {errors}")
     target.parent.mkdir(parents=True, exist_ok=True)
     _atomic_write(target, document)
     return target

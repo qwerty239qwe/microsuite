@@ -234,9 +234,7 @@ def validate_workflow(payload: Any) -> list[str]:
             errors.append(f"intermediate_files[{i}].producer_node: unknown node {producer!r}")
         for consumer in file_def.get("consumer_nodes", []):
             if consumer not in node_set:
-                errors.append(
-                    f"intermediate_files[{i}].consumer_nodes: unknown node {consumer!r}"
-                )
+                errors.append(f"intermediate_files[{i}].consumer_nodes: unknown node {consumer!r}")
     return errors
 
 

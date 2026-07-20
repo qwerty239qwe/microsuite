@@ -124,7 +124,5 @@ def validate_run_bundle(run_dir: Path) -> list[str]:
             )
             errors.extend(ref_errors)
             if stage_result is not None and stage_result.get("run_id") != manifest["run_id"]:
-                errors.append(
-                    f"stages[{i}].result_files[{j}].run_id: does not match run manifest"
-                )
+                errors.append(f"stages[{i}].result_files[{j}].run_id: does not match run manifest")
     return errors
