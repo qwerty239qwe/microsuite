@@ -1,4 +1,11 @@
-FROM quay.io/biocontainers/bioconductor-dada2:1.34.0--r44he5774e6_2@sha256:64580af72a35a3ba07447c8b10e8bcf28a9f12ce7298e315c89df485d78354a2
+FROM quay.io/biocontainers/bioconductor-dada2:1.34.0--r44he5774e6_2@sha256:64580af72a35a3ba07447c8b10e8bcf28a9f12ce7298e315c89df485d78354a2 AS dada2-runtime
+
+FROM debian:bookworm-slim
+
+# Biocontainers packages are installed into /usr/local. Copy that complete,
+# mutually compatible R environment into a base that can also provide the
+# process-inspection tools required by Nextflow.
+COPY --from=dada2-runtime /usr/local/ /usr/local/
 
 LABEL org.opencontainers.image.title="microsuite-dada2"
 LABEL org.opencontainers.image.description="microsuite CLI + R DADA2 backend in one image (microsuite denoise --backend dada2-r)"
