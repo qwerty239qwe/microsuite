@@ -1,4 +1,4 @@
-FROM bioconductor/bioconductor_docker:RELEASE_3_20
+FROM quay.io/biocontainers/bioconductor-dada2:1.34.0--r44he5774e6_2@sha256:64580af72a35a3ba07447c8b10e8bcf28a9f12ce7298e315c89df485d78354a2
 
 LABEL org.opencontainers.image.title="microsuite-dada2"
 LABEL org.opencontainers.image.description="microsuite CLI + R DADA2 backend in one image (microsuite denoise --backend dada2-r)"
@@ -6,11 +6,10 @@ LABEL org.opencontainers.image.description="microsuite CLI + R DADA2 backend in 
 # Expected commands: microsuite, uv, Rscript
 # Expected R packages: dada2
 
-# R DADA2 backend. Preserve the compatible package stack supplied by the base
-# image instead of updating every installed package during this layer. The
-# trailing library() call turns a failed install into a hard build failure.
-RUN Rscript -e "BiocManager::install('dada2', ask = FALSE, update = FALSE)" && \
-    Rscript -e "library(dada2)"
+# DADA2 and its matching R/Bioconductor dependencies are supplied by the
+# digest-pinned base image. Verify the expected package without resolving R
+# repositories during this build.
+RUN Rscript -e "library(dada2); stopifnot(as.character(packageVersion('dada2')) == '1.34.0')"
 
 # microsuite CLI + SDK. Install uv via its standalone installer (base-agnostic;
 # avoids the system-pip PEP-668 flag mismatch on the Ubuntu base). uv fetches its
