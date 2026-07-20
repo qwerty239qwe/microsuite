@@ -70,6 +70,11 @@ def test_nextflow_facing_images_install_process_metrics_tool() -> None:
         assert "procps" in text, f"{image} must provide ps for Nextflow task metrics"
 
 
+def test_microsuite_image_supports_downloaded_blast_binaries() -> None:
+    text = (CONTAINERS / "microsuite" / "Dockerfile").read_text(encoding="utf-8")
+    assert "libgomp1" in text
+
+
 def test_r_diffab_smoke_outputs_use_writable_tmp() -> None:
     for backend in ("ancombc", "aldex2", "maaslin2", "lefse"):
         text = (CONTAINERS / f"r-diffab-{backend}" / "Dockerfile").read_text(encoding="utf-8")
