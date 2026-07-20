@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://microsuite.dev/schemas/reads-manifest.v1.schema.json",
+  "title": "MicroSuite reads-manifest.v1",
+  "type": "object",
+  "required": ["schema_version", "dataset_id", "generated_at", "producer", "layout", "samples"],
+  "properties": {
+    "schema_version": {"const": "reads-manifest.v1"},
+    "dataset_id": {"type": "string"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "producer": {"$ref": "#/$defs/producer"},
+    "layout": {"enum": ["SE", "PE", "mixed"]},
+    "samples": {"type": "array", "items": {"$ref": "#/$defs/sample"}},
+    "selection": {"type": "object"},
+    "source": {"type": "object"}
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "producer": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"type": "string"},
+        "version": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "read_file": {
+      "type": "object",
+      "required": ["path", "read", "external"],
+      "properties": {
+        "path": {"type": "string"},
+        "read": {"enum": ["R1", "R2", "single"]},
+        "external": {"type": "boolean"},
+        "bytes": {"type": ["integer", "null"], "minimum": 0},
+        "sha256": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "sample": {
+      "type": "object",
+      "required": ["sample_id", "layout", "files"],
+      "properties": {
+        "sample_id": {"type": "string"},
+        "layout": {"enum": ["SE", "PE"]},
+        "files": {"type": "array", "items": {"$ref": "#/$defs/read_file"}},
+        "metadata": {"type": "object"}
+      },
+      "additionalProperties": true
+    }
+  }
+}

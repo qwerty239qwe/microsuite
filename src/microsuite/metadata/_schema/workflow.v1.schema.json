@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://microsuite.dev/schemas/workflow.v1.schema.json",
+  "title": "MicroSuite workflow.v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "workflow_id",
+    "workflow_version",
+    "workflow_hash",
+    "generated_at",
+    "producer",
+    "engine",
+    "nodes",
+    "edges",
+    "branches",
+    "methods",
+    "intermediate_files"
+  ],
+  "properties": {
+    "schema_version": {"const": "workflow.v1"},
+    "workflow_id": {"type": "string"},
+    "workflow_version": {"type": "string"},
+    "workflow_hash": {"type": "string"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "producer": {"$ref": "#/$defs/producer"},
+    "engine": {"$ref": "#/$defs/producer"},
+    "nodes": {"type": "array", "items": {"$ref": "#/$defs/node"}},
+    "edges": {"type": "array", "items": {"$ref": "#/$defs/edge"}},
+    "branches": {"type": "array", "items": {"$ref": "#/$defs/branch"}},
+    "methods": {"type": "array", "items": {"$ref": "#/$defs/method"}},
+    "intermediate_files": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/intermediate_file"}
+    },
+    "native_dag": {"type": ["object", "null"]}
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "producer": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"type": "string"},
+        "version": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "node": {
+      "type": "object",
+      "required": ["id", "stage_type", "process_name"],
+      "properties": {
+        "id": {"type": "string"},
+        "stage_type": {"type": "string"},
+        "process_name": {"type": "string"},
+        "method": {"type": ["string", "null"]},
+        "branch": {"type": ["string", "null"]},
+        "rank": {"type": ["string", "null"]},
+        "inputs": {"type": "array", "items": {"type": "string"}},
+        "outputs": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "edge": {
+      "type": "object",
+      "required": ["source", "target"],
+      "properties": {
+        "source": {"type": "string"},
+        "target": {"type": "string"},
+        "kind": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "branch": {
+      "type": "object",
+      "required": ["id", "enabled", "node_ids"],
+      "properties": {
+        "id": {"type": "string"},
+        "enabled": {"type": "boolean"},
+        "node_ids": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "method": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": {"type": "string"},
+        "name": {"type": "string"},
+        "version": {"type": ["string", "null"]},
+        "branch": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "intermediate_file": {
+      "type": "object",
+      "required": ["id", "label", "kind", "format"],
+      "properties": {
+        "id": {"type": "string"},
+        "label": {"type": "string"},
+        "kind": {"type": "string"},
+        "format": {"type": "string"},
+        "path": {"type": ["string", "null"]},
+        "producer_node": {"type": ["string", "null"]},
+        "consumer_nodes": {"type": "array", "items": {"type": "string"}},
+        "retained": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    }
+  }
+}

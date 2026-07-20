@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://microsuite.dev/schemas/run-manifest.v1.schema.json",
+  "title": "MicroSuite run-manifest.v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "dataset_id",
+    "analysis_id",
+    "status",
+    "created_at",
+    "updated_at",
+    "producer",
+    "workflow",
+    "resolved_config",
+    "progress",
+    "stages",
+    "artifacts",
+    "summary_metrics",
+    "provenance"
+  ],
+  "properties": {
+    "schema_version": {"const": "run-manifest.v1"},
+    "run_id": {"type": "string"},
+    "dataset_id": {"type": "string"},
+    "analysis_id": {"type": "string"},
+    "status": {"enum": ["initializing", "running", "completed", "failed", "cancelled", "timed_out"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "producer": {"$ref": "#/$defs/producer"},
+    "workflow": {"$ref": "#/$defs/document_ref"},
+    "resolved_config": {"$ref": "#/$defs/document_ref"},
+    "reads_manifest": {"anyOf": [{"$ref": "#/$defs/document_ref"}, {"type": "null"}]},
+    "progress": {"$ref": "#/$defs/progress"},
+    "stages": {"type": "array", "items": {"$ref": "#/$defs/stage"}},
+    "artifacts": {"type": "array", "items": {"$ref": "#/$defs/artifact"}},
+    "summary_metrics": {"type": "object"},
+    "provenance": {"type": "object"},
+    "error": {"type": ["object", "null"]}
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "producer": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"type": "string"},
+        "version": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "document_ref": {
+      "type": "object",
+      "required": ["path", "schema_version"],
+      "properties": {
+        "path": {"type": "string"},
+        "schema_version": {"type": "string"},
+        "sha256": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "progress": {
+      "type": "object",
+      "required": ["total", "completed", "failed", "running", "pending", "fraction"],
+      "properties": {
+        "total": {"type": "integer", "minimum": 0},
+        "completed": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0},
+        "running": {"type": "integer", "minimum": 0},
+        "pending": {"type": "integer", "minimum": 0},
+        "fraction": {"type": "number", "minimum": 0, "maximum": 1}
+      },
+      "additionalProperties": true
+    },
+    "stage": {
+      "type": "object",
+      "required": ["node_id", "status", "expected_tasks", "completed_tasks", "failed_tasks", "result_files"],
+      "properties": {
+        "node_id": {"type": "string"},
+        "status": {"enum": ["pending", "running", "completed", "failed", "timed_out", "cancelled", "skipped"]},
+        "expected_tasks": {"type": "integer", "minimum": 0},
+        "completed_tasks": {"type": "integer", "minimum": 0},
+        "failed_tasks": {"type": "integer", "minimum": 0},
+        "result_files": {"type": "array", "items": {"$ref": "#/$defs/document_ref"}}
+      },
+      "additionalProperties": true
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["label", "path"],
+      "properties": {
+        "label": {"type": "string"},
+        "path": {"type": "string"},
+        "format": {"type": ["string", "null"]},
+        "kind": {"type": ["string", "null"]},
+        "required": {"type": "boolean"},
+        "external": {"type": "boolean"},
+        "exists": {"type": "boolean"},
+        "bytes": {"type": ["integer", "null"], "minimum": 0}
+      },
+      "additionalProperties": true
+    }
+  }
+}

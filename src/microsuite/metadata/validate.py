@@ -11,9 +11,17 @@ from __future__ import annotations
 
 import math
 from datetime import datetime
+from pathlib import PurePosixPath
 from typing import Any
 
-from microsuite.metadata.schemas import SCHEMA_VERSION, SCHEMAS
+from microsuite.metadata.schemas import (
+    READS_MANIFEST_VERSION,
+    RESOLVED_CONFIG_VERSION,
+    RUN_MANIFEST_VERSION,
+    SCHEMA_VERSION,
+    SCHEMAS,
+    WORKFLOW_VERSION,
+)
 
 _FAILING_SUB = {"failed", "launch_failed", "timed_out"}
 
@@ -74,6 +82,8 @@ def _check(value: Any, spec: dict[str, Any], path: str) -> list[str]:
         errors.append(f"{path}: {value!r} not in {spec['enum']}")
     if "min" in spec and isinstance(value, (int, float)) and value < spec["min"]:
         errors.append(f"{path}: {value} < min {spec['min']}")
+    if "max" in spec and isinstance(value, (int, float)) and value > spec["max"]:
+        errors.append(f"{path}: {value} > max {spec['max']}")
     return errors
 
 
@@ -180,3 +190,132 @@ def validate_stage_result(payload: Any) -> list[str]:
     if errors:
         return errors
     return _invariants(payload)
+
+
+def _duplicate_values(values: list[Any]) -> set[Any]:
+    seen: set[Any] = set()
+    duplicates: set[Any] = set()
+    for value in values:
+        if value in seen:
+            duplicates.add(value)
+        seen.add(value)
+    return duplicates
+
+
+def _validate_bundle_path(value: str, path: str) -> list[str]:
+    if "\\" in value:
+        return [f"{path}: internal path must use '/' separators"]
+    candidate = PurePosixPath(value)
+    if candidate.is_absolute() or ".." in candidate.parts or value in ("", "."):
+        return [f"{path}: internal path must be a safe relative path"]
+    return []
+
+
+def validate_workflow(payload: Any) -> list[str]:
+    """Validate workflow structure and graph-reference invariants."""
+    errors = validate(payload, WORKFLOW_VERSION)
+    if errors:
+        return errors
+    node_ids = [node["id"] for node in payload["nodes"]]
+    node_set = set(node_ids)
+    for duplicate in sorted(_duplicate_values(node_ids)):
+        errors.append(f"nodes: duplicate id {duplicate!r}")
+    for i, edge in enumerate(payload["edges"]):
+        for endpoint in ("source", "target"):
+            if edge[endpoint] not in node_set:
+                errors.append(f"edges[{i}].{endpoint}: unknown node {edge[endpoint]!r}")
+    for i, branch in enumerate(payload["branches"]):
+        for node_id in branch["node_ids"]:
+            if node_id not in node_set:
+                errors.append(f"branches[{i}].node_ids: unknown node {node_id!r}")
+    for i, file_def in enumerate(payload["intermediate_files"]):
+        producer = file_def.get("producer_node")
+        if producer is not None and producer not in node_set:
+            errors.append(f"intermediate_files[{i}].producer_node: unknown node {producer!r}")
+        for consumer in file_def.get("consumer_nodes", []):
+            if consumer not in node_set:
+                errors.append(f"intermediate_files[{i}].consumer_nodes: unknown node {consumer!r}")
+    return errors
+
+
+def validate_reads_manifest(payload: Any) -> list[str]:
+    """Validate normalized sample/read layout invariants."""
+    errors = validate(payload, READS_MANIFEST_VERSION)
+    if errors:
+        return errors
+    sample_ids = [sample["sample_id"] for sample in payload["samples"]]
+    for duplicate in sorted(_duplicate_values(sample_ids)):
+        errors.append(f"samples: duplicate sample_id {duplicate!r}")
+    layouts: set[str] = set()
+    for i, sample in enumerate(payload["samples"]):
+        layout = sample["layout"]
+        layouts.add(layout)
+        reads = [item["read"] for item in sample["files"]]
+        if layout == "PE" and sorted(reads) != ["R1", "R2"]:
+            errors.append(f"samples[{i}]: PE layout requires exactly one R1 and one R2")
+        if layout == "SE" and len(reads) != 1:
+            errors.append(f"samples[{i}]: SE layout requires exactly one read file")
+        if layout == "SE" and reads and reads[0] not in ("R1", "single"):
+            errors.append(f"samples[{i}]: SE read must be labelled 'single' or 'R1'")
+    declared = payload["layout"]
+    expected = next(iter(layouts)) if len(layouts) == 1 else "mixed"
+    if layouts and declared != expected:
+        errors.append(f"layout: declared {declared!r}, expected {expected!r} from samples")
+    return errors
+
+
+def validate_run_manifest(payload: Any) -> list[str]:
+    """Validate run progress and internal reference invariants."""
+    errors = validate(payload, RUN_MANIFEST_VERSION)
+    if errors:
+        return errors
+    for name in ("workflow", "resolved_config", "reads_manifest"):
+        reference = payload.get(name)
+        if reference is not None:
+            errors.extend(_validate_bundle_path(reference["path"], f"{name}.path"))
+    stage_ids = [stage["node_id"] for stage in payload["stages"]]
+    for duplicate in sorted(_duplicate_values(stage_ids)):
+        errors.append(f"stages: duplicate node_id {duplicate!r}")
+    for i, stage in enumerate(payload["stages"]):
+        for j, reference in enumerate(stage["result_files"]):
+            errors.extend(
+                _validate_bundle_path(reference["path"], f"stages[{i}].result_files[{j}].path")
+            )
+    progress = payload["progress"]
+    accounted = sum(progress[key] for key in ("completed", "failed", "running", "pending"))
+    if accounted != progress["total"]:
+        errors.append(
+            f"progress: task counts sum to {accounted}, expected total {progress['total']}"
+        )
+    expected_fraction = (
+        1.0
+        if progress["total"] == 0 and payload["status"] == "completed"
+        else 0.0
+        if progress["total"] == 0
+        else (progress["completed"] + progress["failed"]) / progress["total"]
+    )
+    if not math.isclose(progress["fraction"], expected_fraction, rel_tol=0, abs_tol=1e-9):
+        errors.append(
+            f"progress.fraction: {progress['fraction']} does not match terminal/total "
+            f"fraction {expected_fraction}"
+        )
+    return errors
+
+
+def validate_metadata(payload: Any, schema_name: str | None = None) -> list[str]:
+    """Validate one supported metadata document, including cross-field rules."""
+    if schema_name is None:
+        if not isinstance(payload, dict):
+            return [f"payload: expected object, got {type(payload).__name__}"]
+        schema_name = payload.get("schema_version")
+    if schema_name == SCHEMA_VERSION:
+        return validate_stage_result(payload)
+    if schema_name == WORKFLOW_VERSION:
+        return validate_workflow(payload)
+    if schema_name == RUN_MANIFEST_VERSION:
+        return validate_run_manifest(payload)
+    if schema_name == READS_MANIFEST_VERSION:
+        return validate_reads_manifest(payload)
+    if schema_name == RESOLVED_CONFIG_VERSION:
+        return validate(payload, RESOLVED_CONFIG_VERSION)
+    return [f"unknown schema {schema_name!r}"]

@@ -16,6 +16,7 @@ from microsuite.cli import (
     ordination_cmd,
     qiime_cmd,
     refdb_cmd,
+    system_cmd,
     table_cmd,
     viz_cmd,
     workflow_cmd,
@@ -29,6 +30,16 @@ app = typer.Typer(
     help="Unified microbiome feature-table analysis CLI.",
     no_args_is_help=True,
 )
+
+_DEBUG_ENABLED = False
+
+
+@app.callback()
+def root(
+    debug: bool = typer.Option(False, "--debug", help="Show tracebacks for known errors."),
+) -> None:
+    global _DEBUG_ENABLED
+    _DEBUG_ENABLED = debug
 
 
 def _install_groups() -> None:
@@ -46,6 +57,9 @@ def _install_groups() -> None:
     app.add_typer(ml_cmd.app, name="ml")
     app.add_typer(table_cmd.app, name="table")
     app.add_typer(method_cmd.app)
+    app.command("version")(system_cmd.version_command)
+    app.command("capabilities")(system_cmd.capabilities_command)
+    app.command("doctor")(system_cmd.doctor_command)
 
 
 _install_groups()
@@ -55,8 +69,10 @@ def main() -> None:
     try:
         app()
     except MicrobiomeSuiteError as exc:
+        if _DEBUG_ENABLED:
+            raise
         console.print(f"[red]Error:[/red] {exc}")
-        raise typer.Exit(1) from exc
+        raise SystemExit(1) from None
 
 
 if __name__ == "__main__":

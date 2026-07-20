@@ -1,3 +1,5 @@
 """Unified microbiome analysis tools."""
 
-__version__ = "0.1.0"
+from microsuite.system.version import package_version
+
+__version__ = package_version()

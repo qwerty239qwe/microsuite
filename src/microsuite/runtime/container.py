@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -19,6 +20,31 @@ class Mount:
     host: Path
     container: str
     mode: str = "rw"
+
+
+@dataclass(frozen=True)
+class EngineProbe:
+    available: bool
+    responsive: bool
+    executable: str | None = None
+    version: str | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class ImageProbe:
+    available: bool
+    image: str
+    digest: str | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class BindMountProbe:
+    writable: bool
+    host_path: Path
+    image: str
+    error: str | None = None
 
 
 def build_container_command(
@@ -60,6 +86,102 @@ def require_engine(engine: str = "docker") -> str:
             "required backend package installed."
         )
     return resolved
+
+
+def probe_engine(engine: str = "docker", *, timeout: int = 10) -> EngineProbe:
+    """Probe an engine executable and daemon without raising user-facing errors."""
+    executable = shutil.which(engine)
+    if executable is None:
+        return EngineProbe(
+            available=False,
+            responsive=False,
+            error=f"'{engine}' was not found on PATH.",
+        )
+    try:
+        result = subprocess.run(
+            [executable, "info", "--format", "{{.ServerVersion}}"],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return EngineProbe(True, False, executable=executable, error=str(exc))
+    if result.returncode != 0:
+        error = result.stderr.strip() or result.stdout.strip() or "engine daemon did not respond"
+        return EngineProbe(True, False, executable=executable, error=error)
+    return EngineProbe(
+        True,
+        True,
+        executable=executable,
+        version=result.stdout.strip() or None,
+    )
+
+
+def probe_image(engine: str, image: str, *, timeout: int = 10) -> ImageProbe:
+    """Check whether an image is locally inspectable without pulling it."""
+    executable = shutil.which(engine)
+    if executable is None:
+        return ImageProbe(False, image, error=f"'{engine}' was not found on PATH.")
+    try:
+        result = subprocess.run(
+            [executable, "image", "inspect", "--format", "{{.Id}}", image],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return ImageProbe(False, image, error=str(exc))
+    if result.returncode != 0:
+        error = result.stderr.strip() or result.stdout.strip() or "image is unavailable"
+        return ImageProbe(False, image, error=error)
+    digest = result.stdout.strip() or None
+    return ImageProbe(True, image, digest=digest)
+
+
+def probe_bind_mount(
+    engine: str,
+    image: str,
+    host_dir: Path,
+    *,
+    timeout: int = 20,
+) -> BindMountProbe:
+    """Verify that a container can write through a temporary bind mount."""
+    executable = shutil.which(engine)
+    host_dir = Path(host_dir).resolve()
+    if executable is None:
+        return BindMountProbe(False, host_dir, image, f"'{engine}' was not found on PATH.")
+    try:
+        with tempfile.TemporaryDirectory(prefix=".microsuite-bind-", dir=host_dir) as probe_dir:
+            command = [executable, "run", "--rm"]
+            user = host_user_spec()
+            if user is not None:
+                command.extend(["--user", user])
+            command.extend(
+                [
+                    "-v",
+                    f"{probe_dir}:/microsuite-probe",
+                    image,
+                    "sh",
+                    "-c",
+                    "printf ok > /microsuite-probe/write-test",
+                ]
+            )
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+            marker = Path(probe_dir) / "write-test"
+            if result.returncode == 0 and marker.read_text(encoding="utf-8") == "ok":
+                return BindMountProbe(True, host_dir, image)
+            error = result.stderr.strip() or result.stdout.strip() or "bind-mount write failed"
+            return BindMountProbe(False, host_dir, image, error)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return BindMountProbe(False, host_dir, image, str(exc))
 
 
 def resolve_dada2_image(override: str | None) -> str:
