@@ -5,6 +5,7 @@ FROM debian:bookworm-slim
 # Biocontainers packages are installed into /usr/local. Copy that complete,
 # mutually compatible R environment into a base that can also provide the
 # process-inspection tools required by Nextflow.
+RUN rm -rf /usr/local/*
 COPY --from=dada2-runtime /usr/local/ /usr/local/
 
 LABEL org.opencontainers.image.title="microsuite-dada2"

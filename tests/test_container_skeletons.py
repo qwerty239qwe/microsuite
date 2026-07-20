@@ -58,6 +58,7 @@ def test_microsuite_dada2_uses_digest_pinned_prebuilt_package() -> None:
     assert "quay.io/biocontainers/bioconductor-dada2:1.34.0--r44he5774e6_2@sha256:" in text
     assert "AS dada2-runtime" in text
     assert "FROM debian:bookworm-slim" in text
+    assert "RUN rm -rf /usr/local/*" in text
     assert "COPY --from=dada2-runtime /usr/local/ /usr/local/" in text
     assert "packageVersion('dada2')) == '1.34.0'" in text
     assert "BiocManager::install" not in text
