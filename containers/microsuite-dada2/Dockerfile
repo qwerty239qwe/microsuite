@@ -25,10 +25,14 @@ RUN Rscript -e "library(dada2); stopifnot(as.character(packageVersion('dada2')) 
 # dada2_denoise.R that denoise_dada2_r invokes.
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates procps \
     && rm -rf /var/lib/apt/lists/*
+# Keep uv and its downloaded interpreter outside /root. Nextflow commonly runs
+# containers with the invoking host UID so files written to mounted outputs do
+# not become root-owned; the CLI virtualenv must remain executable in that mode.
+ENV UV_INSTALL_DIR=/usr/local/bin \
+    UV_PYTHON_INSTALL_DIR=/opt/uv/python
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.local/bin:${PATH}"
 WORKDIR /opt/microsuite
 COPY . /opt/microsuite
-RUN uv sync
+RUN uv sync && chmod -R a+rX /opt/microsuite /opt/uv
 
 ENTRYPOINT ["uv", "run", "microsuite"]

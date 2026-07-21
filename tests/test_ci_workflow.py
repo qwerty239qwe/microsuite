@@ -110,6 +110,8 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "Smoke test microsuite-dada2 image" in text
     assert "containers/microsuite-dada2/Dockerfile" in text
     assert "denoise --backend dada2-r" in text
+    assert "--user 10001:10001" in text
+    assert "--entrypoint /opt/microsuite/.venv/bin/microsuite" in text
     assert "test -s tmp/docker-dada2/out/rep-seqs.fasta" in text
     assert "--cluster_fast /input/tiny.fasta" in text
     assert "--minseqlength 1" in text
