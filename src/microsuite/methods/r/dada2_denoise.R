@@ -155,6 +155,38 @@ count_reads <- function(x) {
   vapply(x, getN, numeric(1))
 }
 
+filtered_sample_mask <- function(out, samples) {
+  retained <- !is.na(out[, "reads.out"]) & out[, "reads.out"] > 0
+  if (!any(retained)) {
+    stop("DADA2 filtering removed all reads from all samples.")
+  }
+  if (any(!retained)) {
+    warning(
+      sprintf(
+        "DADA2 filtering removed all reads for %d sample(s); retaining zero-count columns: %s",
+        sum(!retained),
+        paste(samples[!retained], collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
+  retained
+}
+
+expand_sample_table <- function(seqtab, samples) {
+  expanded <- matrix(
+    0,
+    nrow = length(samples),
+    ncol = ncol(seqtab),
+    dimnames = list(samples, colnames(seqtab))
+  )
+  present <- intersect(samples, rownames(seqtab))
+  if (length(present) > 0 && ncol(seqtab) > 0) {
+    expanded[present, ] <- seqtab[present, , drop = FALSE]
+  }
+  expanded
+}
+
 json_scalar <- function(v) {
   if (is.null(v) || (length(v) == 1 && is.na(v))) return("null")
   if (is.logical(v)) return(if (isTRUE(v)) "true" else "false")
@@ -191,23 +223,27 @@ if (paired) {
     rm.phix = rm_phix,
     multithread = threads
   )
-  errF <- learnErrors(filtFs, nbases = n_reads_learn, multithread = threads)
-  errR <- learnErrors(filtRs, nbases = n_reads_learn, multithread = threads)
+  keep <- filtered_sample_mask(out, sampleFs)
+  keptFiltFs <- filtFs[keep]
+  keptFiltRs <- filtRs[keep]
+  keptSamples <- sampleFs[keep]
+  errF <- learnErrors(keptFiltFs, nbases = n_reads_learn, multithread = threads)
+  errR <- learnErrors(keptFiltRs, nbases = n_reads_learn, multithread = threads)
   if (!is.null(output_plot_dir)) {
     write_error_plot(errF, file.path(output_plot_dir, "error_rates_forward.png"))
     write_error_plot(errR, file.path(output_plot_dir, "error_rates_reverse.png"))
   }
-  dadaFs <- dada_with_tuning(filtFs, errF)
-  dadaRs <- dada_with_tuning(filtRs, errR)
-  dadaFs <- as_sample_list(dadaFs, sampleFs)
-  dadaRs <- as_sample_list(dadaRs, sampleFs)
+  dadaFs <- dada_with_tuning(keptFiltFs, errF)
+  dadaRs <- dada_with_tuning(keptFiltRs, errR)
+  dadaFs <- as_sample_list(dadaFs, keptSamples)
+  dadaRs <- as_sample_list(dadaRs, keptSamples)
   mergers <- mergePairs(
-    dadaFs, filtFs, dadaRs, filtRs,
+    dadaFs, keptFiltFs, dadaRs, keptFiltRs,
     minOverlap = resolved_min_overlap,
     maxMismatch = resolved_max_merge_mismatch,
     trimOverhang = resolved_trim_overhang
   )
-  mergers <- as_sample_list(mergers, sampleFs)
+  mergers <- as_sample_list(mergers, keptSamples)
   seqtab <- makeSequenceTable(mergers)
   seqtab.nochim <- removeBimeraDenovo(
     seqtab,
@@ -216,15 +252,19 @@ if (paired) {
     allowOneOff = allow_one_off,
     multithread = threads
   )
+  seqtab.nochim <- expand_sample_table(seqtab.nochim, sampleFs)
   track <- data.frame(
     input = out[, "reads.in"],
     filtered = out[, "reads.out"],
-    denoised_f = count_reads(dadaFs),
-    denoised_r = count_reads(dadaRs),
-    merged = count_reads(mergers),
+    denoised_f = 0,
+    denoised_r = 0,
+    merged = 0,
     nonchim = rowSums(seqtab.nochim),
     row.names = sampleFs
   )
+  track[keptSamples, "denoised_f"] <- count_reads(dadaFs)
+  track[keptSamples, "denoised_r"] <- count_reads(dadaRs)
+  track[keptSamples, "merged"] <- count_reads(mergers)
 } else {
   samples <- tools::file_path_sans_ext(tools::file_path_sans_ext(basename(fastqs)))
   filt <- file.path(tempdir(), paste0(samples, ".filtered.fastq.gz"))
@@ -238,12 +278,15 @@ if (paired) {
     rm.phix = rm_phix,
     multithread = threads
   )
-  err <- learnErrors(filt, nbases = n_reads_learn, multithread = threads)
+  keep <- filtered_sample_mask(out, samples)
+  keptFilt <- filt[keep]
+  keptSamples <- samples[keep]
+  err <- learnErrors(keptFilt, nbases = n_reads_learn, multithread = threads)
   if (!is.null(output_plot_dir)) {
     write_error_plot(err, file.path(output_plot_dir, "error_rates.png"))
   }
-  dada_out <- dada_with_tuning(filt, err)
-  dada_out <- as_sample_list(dada_out, samples)
+  dada_out <- dada_with_tuning(keptFilt, err)
+  dada_out <- as_sample_list(dada_out, keptSamples)
   seqtab <- makeSequenceTable(dada_out)
   seqtab.nochim <- removeBimeraDenovo(
     seqtab,
@@ -252,13 +295,15 @@ if (paired) {
     allowOneOff = allow_one_off,
     multithread = threads
   )
+  seqtab.nochim <- expand_sample_table(seqtab.nochim, samples)
   track <- data.frame(
     input = out[, "reads.in"],
     filtered = out[, "reads.out"],
-    denoised = count_reads(dada_out),
+    denoised = 0,
     nonchim = rowSums(seqtab.nochim),
     row.names = samples
   )
+  track[keptSamples, "denoised"] <- count_reads(dada_out)
 }
 
 seqs <- colnames(seqtab.nochim)
