@@ -52,6 +52,7 @@ workflow shape:
 | Quality reports | `qc` | FastQC, MultiQC, QIIME 2 demux |
 | Quality filtering | `qc_filter`, `decontam` | QIIME 2 quality-control, decontam |
 | Read trimming | `trim` | fastp, Cutadapt, Trimmomatic, Trim Galore |
+| Primer preflight | `primer-check` | Native IUPAC-aware FASTQ inspection |
 | Denoise to ASVs | `denoise` | QIIME 2 DADA2, Deblur, R DADA2 |
 | Cluster to OTUs | `cluster` | VSEARCH, USEARCH, QIIME 2 VSEARCH |
 | Assemble / bin metagenomes | `assemble`, `bin` | MEGAHIT, metaSPAdes, MetaBAT2, MaxBin2, CONCOCT |
@@ -114,6 +115,12 @@ microsuite denoise \
   --demux demux.qza \
   --output-table table.qza --output-rep-seqs rep-seqs.qza --output-stats stats.qza \
   --trunc-len 150
+
+# Check a Cutadapt primer against a deterministic FASTQ sample
+microsuite primer-check \
+  --input sample_R1.fastq.gz \
+  --front '^TCAGNNNNNNNNNNGGATTAGATACCCTGGTAGT' \
+  --mode error -o qc/primer-check.json
 
 # Native table analysis (no external tools needed)
 microsuite import tsv table.tsv --metadata metadata.tsv --taxonomy taxonomy.tsv -o table.h5ad
