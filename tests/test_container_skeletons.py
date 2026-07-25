@@ -33,6 +33,7 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
         "kraken2": ["kraken2", "bracken"],
         "microsuite-picrust2": ["microsuite", "picrust2"],
         "microsuite-dada2": ["microsuite", "Rscript", "dada2"],
+        "mothur": ["mothur"],
     }
 
     for name, tokens in expected.items():
