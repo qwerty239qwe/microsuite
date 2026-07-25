@@ -33,7 +33,7 @@ Two backends plus one end-to-end workflow composed from them.
 | 2 | `cluster --backend mothur` | FASTA in, OTU table + representative FASTA out, via the clustering half of the MiSeq SOP. |
 | 3 | `tax_classify --backend mothur` | `classify.seqs` → `classify.otu` consensus taxonomy. |
 | 4 | `microsuite workflow mothur` | FASTQ directory → `make.contigs` → deliverable 2 → deliverable 3. |
-| 5 | `containers/mothur/Dockerfile` + CI smoke | bioconda mothur image, exercised end-to-end on a committed tiny fixture. |
+| 5 | `containers/mothur/Dockerfile` | bioconda mothur image. Enables a real run for capturing parser fixtures and for users without a local mothur. No CI job — see [Deferred](#deferred). |
 
 ### Out of scope
 
@@ -57,7 +57,7 @@ Each of these was an explicit fork, recorded so the plan does not relitigate the
 | Execution | One mothur process per SOP step | A single batch script is faster and shorter, but collapses ~10 steps into one opaque log entry, so a mid-SOP failure names no step. Per-step invocation is what buys per-step provenance. |
 | Filenames | Parse mothur's `Output File Names:` stdout block | Deriving names from mothur's tag rules (`.trim.contigs.good.unique...`) means re-encoding a convention that changes between mothur releases. Globbing a per-step dir is ambiguous when one command emits two files sharing an extension. |
 | Reference data | User-supplied paths | A `refdb` provider is better UX but is a second subsystem to build and pin against mothur.org URL churn. Matches the existing kraken2/metaphlan/tax4fun2 convention. |
-| Runtime | Container + CI smoke, external binary also supported | The stdout parser cannot be validated without real mothur output; a unit-tested wrapper alone would let format drift reach users. |
+| Runtime | Container image, external binary also supported. CI smoke deferred. | Shipping the image without a CI job is the cheap half: it still makes a real run reproducible, which is how the parser fixtures get captured. Automated drift detection is the part deliberately given up. |
 | `cluster` input | FASTA, like `vsearch`/`usearch` | A FASTQ directory is more faithful to the SOP but gives `cluster` a different input type than its two siblings. `make.contigs` lives in the workflow instead. |
 | Code structure | Thin primitive + straight-line SOP | A declarative step list turns per-step quirks into dataclass fields, so understanding one step means reading two places. One function per step yields ~10 permanently single-caller wrappers. |
 
@@ -150,10 +150,25 @@ the other `cluster` backends via the `_reject_options` pattern.
 `--list` from the cluster step is supplied. Without a list file, the per-sequence
 `.taxonomy` is the output.
 
-`--classifier` is not reused here: mothur needs *two* reference paths, so this
-backend takes `--taxonomy-reference` (FASTA) and `--taxonomy-map` (tax file).
-Passing `--classifier` to this backend is rejected explicitly, following the
-`_reject_options` pattern in `methods/trim.py:381`.
+`--classifier` is not reused here. mothur's classifier is not a prebuilt
+artifact but a *pair* of files — a reference FASTA and a matching tax file — so
+`tax_classify` gains two new options:
+
+| Option | Meaning | Backends that accept it |
+|---|---|---|
+| `--taxonomy-reference` | Reference sequence FASTA | `mothur` only |
+| `--taxonomy-map` | Reference taxonomy file (`id<TAB>lineage`) | `mothur` only |
+| `--classifier` | Prebuilt classifier artifact or DB directory | every backend **except** `mothur` |
+
+Both directions of mismatch **raise** `MicrobiomeSuiteError` via the
+`_reject_options` pattern in `methods/trim.py:381` — passing `--classifier` to
+`mothur`, or either new option to a non-mothur backend.
+
+Raising rather than warning-and-ignoring is deliberate. A silently ignored
+reference path does not fail; it classifies every sequence against whatever
+database the backend fell back to and returns a full, well-formed, *wrong*
+taxonomy table. That is indistinguishable from a correct result downstream, so
+it must be caught at the argument boundary.
 
 ### Component 4 — `microsuite workflow mothur`
 
@@ -195,16 +210,34 @@ model was chosen for.
 
 | Level | Coverage |
 |---|---|
-| Parser unit tests | Recorded real-mothur stdout: a normal block, exit-0-with-`[ERROR]`, an empty block, a missing extension. Samples are captured from the container, so they are real output rather than invented. |
+| Parser unit tests | Recorded real-mothur stdout: a normal block, exit-0-with-`[ERROR]`, an empty block, a missing extension. |
 | Command construction | Per step, with monkeypatched `subprocess.run`, mirroring `test_denoise_qiime2_deblur_builds_command` (`tests/test_denoise_cluster_methods.py:366`). |
+| Option rejection | `--classifier` against `mothur`, and each new taxonomy option against a non-mothur backend, both raise. |
 | Transpose unit test | `.shared` → feature-major TSV, including a sample with zero counts. |
-| CI smoke | `containers/mothur` runs the real SOP end-to-end on the tiny fixture and asserts a non-empty table of the expected shape. The only check that catches mothur changing its stdout format. |
 
-The smoke test requires a committed fixture: a few hundred reads plus a trimmed
-SILVA slice. The slice must be a genuine alignment — `align.seqs` rejects
-unaligned input — so it cannot be synthesised trivially. The alternative, gating
-the smoke test behind a runtime download, trades repository weight for CI
-flakiness; the trimmed slice is committed instead.
+The parser fixtures are **captured, not written**: run the SOP once inside
+`containers/mothur` and save the real stdout under `tests/fixtures/mothur/`. A
+hand-invented sample would test the parser against our assumption of mothur's
+format rather than the format itself, which is precisely the bug class the
+parser exists to survive.
+
+This suite runs entirely without mothur installed, so it belongs in the default
+`pytest` run. Validation level for `docs/methods.md` is therefore
+**unit-tested wrapper + user environment**, matching the usearch and picrust2
+rows — not the CI-smoke-tested rows.
+
+## Deferred
+
+**CI smoke test.** A real end-to-end SOP run in CI is the only check that
+catches mothur changing its stdout format between releases. It is deferred
+because it requires a committed fixture that cannot be synthesised: a few
+hundred reads plus a trimmed SILVA slice that is a *genuine* alignment, since
+`align.seqs` rejects unaligned input.
+
+Consequence accepted: format drift surfaces in user environments rather than in
+CI. Add it when either a mothur upgrade breaks the parser in the wild, or the
+mothur backends move from user-supplied references toward a `refdb` provider
+(which would supply the fixture problem's solution as a side effect).
 
 ## Documentation
 
