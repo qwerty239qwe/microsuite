@@ -23,12 +23,158 @@
 1. The spec names the primitive `_run_mothur`. It is called from `cluster.py`, `tax_classify.py`, and `workflows/mothur_sop.py`, so it is public: **`run_mothur`**.
 2. The spec says the parser returns outputs "keyed by extension". `make.contigs` emits **two** `.fasta` files (`.trim.contigs.fasta` and `.scrap.contigs.fasta`), so a dict silently drops one. The parser returns an **ordered list**, and `select_output()` picks by suffix, raising on 0 or >1 match.
 
+### Amendments (agreed at pre-flight, 2026-07-25)
+
+These override the task text below wherever they conflict.
+
+1. **Container and fixture capture run first, as Task 0.** The original plan built the parser against hand-written fixtures and replaced them with real captures in Task 7. Docker is available, so the capture is promoted to Task 0 and the parser is written against **real mothur 1.48.2 output** from the start. This removes both the rework risk and the "tests assert against invented data" review finding. Task 7 keeps documentation only.
+2. **`_reject_options` moves to `methods/_dispatch.py`.** Task 5's original text mandated copying it verbatim from `trim.py:382-389`. `methods/_dispatch.py` already exists as the shared home for cross-method dispatch helpers (it holds `require_backend`), so Task 5 lifts the function there and imports it in both `trim.py` and `tax_classify.py` instead of duplicating it.
+
+---
+
+### Task 0: mothur container and captured stdout fixtures
+
+Everything downstream trusts the parser, and the parser is only as good as the output it was written against. This task produces **ground truth**: real stdout from real mothur.
+
+**Files:**
+- Create: `containers/mothur/Dockerfile`
+- Modify: `.github/workflows/docker.yml` (build matrix)
+- Modify: `tests/test_container_skeletons.py:14-35`
+- Create: `tests/fixtures/mothur/unique_seqs.txt`
+- Create: `tests/fixtures/mothur/error_exit_zero.txt`
+- Create: `tests/fixtures/mothur/make_contigs.txt`
+
+**Interfaces:**
+- Produces: three fixture files containing **verbatim, unedited** mothur stdout, consumed by Task 1's parser tests.
+
+- [ ] **Step 1: Write the failing container test**
+
+In `tests/test_container_skeletons.py`, add to the `expected` dict (after the `microsuite-dada2` entry, line 34):
+
+```python
+        "mothur": ["mothur"],
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `uv run pytest tests/test_container_skeletons.py -v`
+Expected: FAIL — `AssertionError: mothur`
+
+- [ ] **Step 3: Write the Dockerfile**
+
+`containers/mothur/Dockerfile`:
+
+```dockerfile
+FROM condaforge/miniforge3:24.9.2-0
+
+LABEL org.opencontainers.image.title="mothur"
+LABEL org.opencontainers.image.description="mothur amplicon OTU clustering and classification backend"
+
+# Expected commands: mothur
+RUN conda install -y -c bioconda -c conda-forge mothur=1.48.2 && \
+    conda clean -afy
+
+ENTRYPOINT ["mothur"]
+```
+
+- [ ] **Step 4: Add to the docker build matrix**
+
+In `.github/workflows/docker.yml`, add after the `microsuite-dada2` entry (around line 119). Copy the exact key set used by the `vsearch` entry at lines 71-74:
+
+```yaml
+          - image: mothur
+            dockerfile: containers/mothur/Dockerfile
+            context: .
+```
+
+- [ ] **Step 5: Run to verify the container test passes**
+
+Run: `uv run pytest tests/test_container_skeletons.py -v`
+Expected: PASS
+
+- [ ] **Step 6: Build the image**
+
+```bash
+docker build -t microsuite/mothur:local containers/mothur
+docker run --rm microsuite/mothur:local "#help()" | head -20
+```
+
+Expected: mothur's version banner, reporting 1.48.2.
+
+- [ ] **Step 7: Capture `unique.seqs` output**
+
+Create a scratch input and run the command, saving stdout **verbatim**:
+
+```bash
+mkdir -p scratch
+printf '>a_sampleA\nACGTACGTACGT\n>b_sampleA\nACGTACGTACGT\n>c_sampleB\nTTTTACGTACGT\n' > scratch/test.fasta
+docker run --rm -v "$PWD/scratch:/data" microsuite/mothur:local \
+  "#set.dir(output=/data); unique.seqs(fasta=/data/test.fasta, format=count)" \
+  > tests/fixtures/mothur/unique_seqs.txt
+cat tests/fixtures/mothur/unique_seqs.txt
+```
+
+- [ ] **Step 8: Capture the exit-0 error case**
+
+This is the most important fixture: it proves mothur returns 0 on failure.
+
+```bash
+docker run --rm -v "$PWD/scratch:/data" microsuite/mothur:local \
+  "#set.dir(output=/data); align.seqs(fasta=/data/test.fasta, reference=/data/missing.fasta)" \
+  > tests/fixtures/mothur/error_exit_zero.txt
+echo "exit code: $?"
+grep -c '\[ERROR\]' tests/fixtures/mothur/error_exit_zero.txt
+```
+
+Expected: exit code `0`, at least one `[ERROR]` line. **If the exit code is non-zero**, mothur 1.48.2 has changed this behaviour — record that in the report, because it weakens the case for `check_mothur_errors` and Task 1 must be told.
+
+- [ ] **Step 9: Capture `make.contigs` output**
+
+This fixture proves the two-`.fasta` ambiguity that `select_output` exists to catch.
+
+```bash
+printf '@r1\nACGTACGTACGT\n+\nIIIIIIIIIIII\n' > scratch/sampleA_R1.fastq
+printf '@r1\nACGTACGTACGT\n+\nIIIIIIIIIIII\n' > scratch/sampleA_R2.fastq
+printf 'sampleA\t/data/sampleA_R1.fastq\t/data/sampleA_R2.fastq\n' > scratch/stability.files
+docker run --rm -v "$PWD/scratch:/data" microsuite/mothur:local \
+  "#set.dir(output=/data); make.contigs(file=/data/stability.files)" \
+  > tests/fixtures/mothur/make_contigs.txt
+grep -A6 'Output File Names' tests/fixtures/mothur/make_contigs.txt
+```
+
+Confirm the block lists both a `.trim.contigs.fasta` and a `.scrap.contigs.fasta`. If it lists only one, note it — Task 1's ambiguity test needs a different source.
+
+- [ ] **Step 10: Record the observed format**
+
+Write to the report file, verbatim from the captured files:
+- The exact `Output File Names:` header line, **including any trailing whitespace** (check with `grep -n 'Output File Names' -A1 tests/fixtures/mothur/*.txt | cat -A | head`).
+- What terminates the block: blank line, `mothur >`, EOF, or something else.
+- The exact `[ERROR]` line prefix.
+- mothur's exit code on the failure case.
+- Whether `make.contigs` produced two `.fasta` entries.
+
+Task 1 is written directly from these observations, so precision here is the whole point of the task.
+
+- [ ] **Step 11: Clean up and commit**
+
+```bash
+rm -rf scratch
+uv run pytest tests/test_container_skeletons.py -v
+git add containers/mothur .github/workflows/docker.yml tests/test_container_skeletons.py tests/fixtures/mothur
+git commit -m "feat(mothur): add container and capture real stdout fixtures"
+```
+
+Do **not** hand-edit the captured fixtures. They are evidence; edited evidence is worthless.
+
 ---
 
 ## File Structure
 
 | Path | Responsibility |
 |---|---|
+| `containers/mothur/Dockerfile` | **Create (Task 0).** bioconda mothur 1.48.2. Source of the captured fixtures. |
+| `tests/fixtures/mothur/*.txt` | **Create (Task 0).** Verbatim captured mothur stdout. Evidence — never hand-edited. |
+| `src/microsuite/methods/_dispatch.py` | **Modify.** Gains `reject_options`, lifted out of `trim.py`. |
 | `src/microsuite/methods/mothur.py` | **Create.** Binary discovery, `run_mothur`, stdout parsing, output selection, emptiness guard. The only module that knows mothur's CLI and output conventions. |
 | `src/microsuite/methods/cluster.py` | **Modify.** Add `cluster_mothur()`, extend `SUPPORTED_BACKENDS`, add the `.shared` transpose. |
 | `src/microsuite/methods/tax_classify.py` | **Modify.** Add `tax_classify_mothur()`, extend `SUPPORTED_METHODS`, add option rejection. |
@@ -37,10 +183,8 @@
 | `src/microsuite/workflows/mothur_sop.py` | **Create.** Stability file, `make.contigs`, orchestration. |
 | `src/microsuite/workflows/catalog.py` | **Modify.** `WorkflowSpec` entry. |
 | `src/microsuite/cli/workflow_cmd.py` | **Modify.** `microsuite workflow mothur` command. |
-| `containers/mothur/Dockerfile` | **Create.** bioconda mothur 1.48.x. |
-| `tests/test_mothur_parser.py` | **Create.** Parser and selector, on recorded stdout. |
+| `tests/test_mothur_parser.py` | **Create.** Parser and selector, on captured stdout. |
 | `tests/test_mothur_backends.py` | **Create.** Command construction, dispatch, option rejection, transpose. |
-| `tests/fixtures/mothur/*.txt` | **Create.** Recorded mothur stdout samples. |
 
 ---
 
@@ -51,57 +195,29 @@ Pure text handling. No subprocess, no mothur. This is the load-bearing component
 **Files:**
 - Create: `src/microsuite/methods/mothur.py`
 - Create: `tests/test_mothur_parser.py`
-- Create: `tests/fixtures/mothur/unique_seqs.txt`
-- Create: `tests/fixtures/mothur/error_exit_zero.txt`
-- Create: `tests/fixtures/mothur/make_contigs.txt`
+- Read only (do not edit): `tests/fixtures/mothur/*.txt` from Task 0
 
 **Interfaces:**
-- Consumes: `microsuite._errors.MicrobiomeSuiteError`
+- Consumes: `microsuite._errors.MicrobiomeSuiteError`; the three captured fixtures from Task 0
 - Produces:
   - `MOTHUR_ERROR_MARKER: str`
   - `parse_mothur_outputs(stdout: str) -> list[Path]`
   - `select_output(outputs: list[Path], suffix: str, *, step: str, exclude: tuple[str, ...] = ()) -> Path`
   - `check_mothur_errors(stdout: str, *, step: str) -> None`
 
-- [ ] **Step 1: Create the fixture files**
+- [ ] **Step 1: Read the captured fixtures and the Task 0 report**
 
-`tests/fixtures/mothur/unique_seqs.txt` — note the trailing space after the colon; mothur emits it and the parser must tolerate it:
+The fixtures already exist — Task 0 captured them from real mothur 1.48.2. Read all three plus Task 0's recorded observations before writing anything:
 
-```
-mothur > unique.seqs(fasta=stability.trim.contigs.good.fasta, format=count)
-242	116
-
-Output File Names: 
-stability.trim.contigs.good.count_table
-stability.trim.contigs.good.unique.fasta
-
-
-mothur > quit()
+```bash
+cat -A tests/fixtures/mothur/unique_seqs.txt | head -30
+cat tests/fixtures/mothur/error_exit_zero.txt
+cat tests/fixtures/mothur/make_contigs.txt
 ```
 
-`tests/fixtures/mothur/error_exit_zero.txt` — mothur returns exit code 0 for this:
+`cat -A` matters: the `Output File Names:` header may carry trailing whitespace, and the parser must tolerate whatever is actually there.
 
-```
-mothur > align.seqs(fasta=stability.trim.contigs.good.unique.fasta, reference=missing.fasta)
-[ERROR]: missing.fasta does not exist.
-[ERROR]: did not complete align.seqs.
-
-mothur > quit()
-```
-
-`tests/fixtures/mothur/make_contigs.txt` — two `.fasta` outputs, the reason `select_output` exists:
-
-```
-mothur > make.contigs(file=stability.files)
-
-Output File Names: 
-stability.trim.contigs.fasta
-stability.scrap.contigs.fasta
-stability.contigs.count_table
-
-
-mothur > quit()
-```
+**The fixtures are ground truth. Never edit them to suit the parser** — if a test fails, the parser is wrong. The test assertions below use placeholder filenames; replace them with the **actual** filenames in the captured output.
 
 - [ ] **Step 2: Write the failing tests**
 
@@ -311,11 +427,11 @@ Expected: no errors
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/microsuite/methods/mothur.py tests/test_mothur_parser.py tests/fixtures/mothur
+git add src/microsuite/methods/mothur.py tests/test_mothur_parser.py
 git commit -m "feat(mothur): parse Output File Names and detect exit-0 errors"
 ```
 
-> **Fixture provenance:** these three samples are hand-written to the format in mothur 1.48's documented output. Task 7 replaces them with stdout captured from a real container run. Until then they encode our *belief* about the format — which is exactly the assumption the parser exists to survive, so do not treat them as verified.
+> **Fixture provenance:** the three samples are verbatim stdout captured from mothur 1.48.2 in Task 0. They are evidence, not illustration. If a parser test fails, fix the parser — never the fixture.
 
 ---
 
@@ -1215,10 +1331,17 @@ Insert this immediately after `backend = require_backend(...)` on line 34, **bef
 
 Move the `resolve_classifier` block (lines 29-32) to **after** this check so a rejected `--classifier` fails before any refdb lookup.
 
-Add the shared helper to `src/microsuite/methods/tax_classify.py` (copied deliberately rather than imported from `trim.py`, which is a preprocessing module — a shared `_dispatch` home is a later refactor, not this task's job):
+**Amendment 2 applies here.** Do not copy `_reject_options`. Move it to the shared dispatch module.
+
+Cut the function from `src/microsuite/methods/trim.py:382-389` and add it to `src/microsuite/methods/_dispatch.py`, renamed to public since it now crosses modules:
 
 ```python
-def _reject_options(backend: str, options: dict[str, object | None]) -> None:
+def reject_options(backend: str, options: dict[str, object | None]) -> None:
+    """Raise if any option that the chosen backend does not support was supplied.
+
+    Silently ignoring an unsupported option is worse than failing: the command
+    succeeds and returns a result computed without it.
+    """
     rejected = [
         option
         for option, value in options.items()
@@ -1227,6 +1350,20 @@ def _reject_options(backend: str, options: dict[str, object | None]) -> None:
     if rejected:
         raise MicrobiomeSuiteError(f"{', '.join(rejected)} not supported by --backend {backend}.")
 ```
+
+In `trim.py`, delete the local definition and import it, keeping the existing call sites working by aliasing at the import:
+
+```python
+from microsuite.methods._dispatch import reject_options as _reject_options
+```
+
+In `tax_classify.py`, import it directly:
+
+```python
+from microsuite.methods._dispatch import reject_options, require_backend
+```
+
+Use `reject_options(...)` (not `_reject_options`) in the new `tax_classify` code below. Run `uv run pytest tests/test_methods.py -v` after the move to confirm the existing trim tests still pass.
 
 Add the dispatch branch inside the `stage_execution` block, alongside the others:
 
@@ -1614,84 +1751,15 @@ git commit -m "feat(workflow): add end-to-end mothur MiSeq SOP workflow"
 
 ---
 
-### Task 7: Container, recorded fixtures, and documentation
+### Task 7: Documentation
 
-The container is what makes the Task 1 fixtures real rather than assumed. Replacing them is the point of this task, not an afterthought.
+The container and fixtures landed in Task 0. This task is documentation only.
 
 **Files:**
-- Create: `containers/mothur/Dockerfile`
-- Modify: `.github/workflows/docker.yml:119` (matrix)
-- Modify: `tests/test_container_skeletons.py:14-35`
-- Modify: `tests/fixtures/mothur/*.txt`
 - Modify: `docs/methods.md`
 - Create: `docs/mothur.md`
 
-- [ ] **Step 1: Write the failing container test**
-
-In `tests/test_container_skeletons.py`, add to the `expected` dict (after line 34):
-
-```python
-        "mothur": ["mothur"],
-```
-
-- [ ] **Step 2: Run to verify it fails**
-
-Run: `uv run pytest tests/test_container_skeletons.py -v`
-Expected: FAIL — `AssertionError: mothur`
-
-- [ ] **Step 3: Write the Dockerfile**
-
-`containers/mothur/Dockerfile`:
-
-```dockerfile
-FROM condaforge/miniforge3:24.9.2-0
-
-LABEL org.opencontainers.image.title="mothur"
-LABEL org.opencontainers.image.description="mothur amplicon OTU clustering and classification backend"
-
-# Expected commands: mothur
-RUN conda install -y -c bioconda -c conda-forge mothur=1.48.2 && \
-    conda clean -afy
-
-ENTRYPOINT ["mothur"]
-```
-
-- [ ] **Step 4: Add to the docker build matrix**
-
-In `.github/workflows/docker.yml`, add after the `microsuite-dada2` entry (line 119):
-
-```yaml
-          - image: mothur
-            dockerfile: containers/mothur/Dockerfile
-            context: .
-```
-
-Match the exact key set used by the neighbouring entries — check lines 71-74 and copy that shape.
-
-- [ ] **Step 5: Run to verify it passes**
-
-Run: `uv run pytest tests/test_container_skeletons.py -v`
-Expected: PASS
-
-- [ ] **Step 6: Capture real fixtures**
-
-Build the image and run each SOP step once against a small input, saving real stdout:
-
-```bash
-docker build -t microsuite/mothur:local containers/mothur
-docker run --rm -v "$PWD/scratch:/data" microsuite/mothur:local \
-  "#set.dir(output=/data); unique.seqs(fasta=/data/test.fasta, format=count)" \
-  > tests/fixtures/mothur/unique_seqs.txt
-```
-
-Repeat for `make.contigs` and for a deliberately broken `align.seqs` (a missing reference) to capture the exit-0 error case. Replace all three fixture files with the captured output.
-
-- [ ] **Step 7: Re-run the parser tests against real output**
-
-Run: `uv run pytest tests/test_mothur_parser.py -v`
-Expected: PASS. **If any test fails here, the parser is wrong, not the fixture** — the recorded output is ground truth. Fix `parse_mothur_outputs` and note what differed from the assumed format.
-
-- [ ] **Step 8: Update the method reference**
+- [ ] **Step 1: Update the method reference**
 
 In `docs/methods.md`:
 
@@ -1719,7 +1787,7 @@ Add to the *Backend Validation Status* table (after line 32):
 | mothur | ready | Unit-tested wrapper + user environment | Command construction, stdout parsing, and option rejection are covered by Python tests; mothur itself and its reference data are user supplied. |
 ```
 
-- [ ] **Step 9: Write the reference-data guide**
+- [ ] **Step 2: Write the reference-data guide**
 
 `docs/mothur.md` must cover, with working commands:
 - Where to obtain the SILVA reference alignment for `--reference-alignment` (mothur.org's SILVA reference files) and how to trim it to a region with `pcr.seqs`.
@@ -1727,12 +1795,12 @@ Add to the *Backend Validation Status* table (after line 32):
 - A worked `microsuite workflow mothur` invocation with all five required paths.
 - A note that these are user-supplied by design, cross-referencing `docs/superpowers/specs/2026-07-25-mothur-workflow-design.md`.
 
-- [ ] **Step 10: Final verification and commit**
+- [ ] **Step 3: Final verification and commit**
 
 ```bash
 uv run ruff check . && uv run ruff format --check . && uv run ty check && uv run pytest -q
-git add containers/mothur .github/workflows/docker.yml tests/ docs/methods.md docs/mothur.md
-git commit -m "feat(mothur): add container, real stdout fixtures, and method docs"
+git add docs/methods.md docs/mothur.md
+git commit -m "docs(mothur): document backends, validation status, and reference data"
 ```
 
 ---
@@ -1747,7 +1815,7 @@ git commit -m "feat(mothur): add container, real stdout fixtures, and method doc
 | `cluster --backend mothur` | 4 |
 | `tax_classify --backend mothur` | 5 |
 | `microsuite workflow mothur` | 6 |
-| `containers/mothur/Dockerfile` | 7 |
+| `containers/mothur/Dockerfile` | 0 |
 | Error contract: exit-0 `[ERROR]` scan | 1 (`check_mothur_errors`), 2 (wired into `run_mothur`) |
 | Error contract: empty/absent output block | 1 (`select_output` raises "produced no output files") |
 | Error contract: missing extension | 1 (`select_output` lists what was produced) |
@@ -1760,8 +1828,8 @@ git commit -m "feat(mothur): add container, real stdout fixtures, and method doc
 | Docs: methods.md, api-cli.md, mothur.md | 7 |
 | CI smoke deferred | Not implemented — correct, per the spec's Deferred section |
 
-`docs/api-cli.md` is listed in the spec's Documentation section but has no explicit step. It is regenerated content; Task 7 Step 8 covers `docs/methods.md`, and the api-cli entry follows the same edit. **Add it to Task 7 Step 8 if `docs/api-cli.md` turns out to be hand-maintained** — check whether a generator exists before editing by hand.
+`docs/api-cli.md` is listed in the spec's Documentation section but has no explicit step. It is regenerated content; Task 7 Step 1 covers `docs/methods.md`, and the api-cli entry follows the same edit. **Add it to Task 7 Step 1 if `docs/api-cli.md` turns out to be hand-maintained** — check whether a generator exists before editing by hand.
 
-**Type consistency:** `run_mothur` returns `list[Path]` in Tasks 2, 4, 5, 6. `select_output(outputs, suffix, *, step, exclude)` keeps the same signature throughout. `write_otu_table_from_shared(shared, output)` matches between Tasks 3 and 4. `SUPPORTED_BACKENDS` (cluster) and `SUPPORTED_METHODS` (tax_classify) are the existing names, unchanged.
+**Type consistency:** `run_mothur` returns `list[Path]` in Tasks 2, 4, 5, 6. `select_output(outputs, suffix, *, step, exclude)` keeps the same signature throughout. `write_otu_table_from_shared(shared, output)` matches between Tasks 3 and 4. `SUPPORTED_BACKENDS` (cluster) and `SUPPORTED_METHODS` (tax_classify) are the existing names, unchanged. `reject_options` is the public name in `_dispatch.py`; `trim.py` aliases it to its existing private name at import.
 
-**Known risk, stated plainly:** the exact mothur parameter names in Task 4's pipeline table are written against mothur 1.48.2's documented interface but have **not** been executed. Task 7 Step 6-7 is the first point where real mothur runs. Expect to correct parameter names there; that is the designed-in checkpoint, not a failure.
+**Known risk, stated plainly:** the exact mothur parameter names in Task 4's pipeline table are written against mothur 1.48.2's documented interface but have **not** been executed. Task 0 verifies only `unique.seqs`, `align.seqs`, and `make.contigs`. The remaining eight SOP commands are first exercised for real by a user, not by this plan — the CI smoke test that would have caught parameter drift is deferred per the spec. Expect field reports.
