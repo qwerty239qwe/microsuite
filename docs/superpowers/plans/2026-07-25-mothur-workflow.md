@@ -27,7 +27,7 @@
 
 These override the task text below wherever they conflict.
 
-1. **Container and fixture capture run first, as Task 0.** The original plan built the parser against hand-written fixtures and replaced them with real captures in Task 7. Docker is available, so the capture is promoted to Task 0 and the parser is written against **real mothur 1.48.2 output** from the start. This removes both the rework risk and the "tests assert against invented data" review finding. Task 7 keeps documentation only.
+1. **Container and fixture capture run first, as Task 0.** The original plan built the parser against hand-written fixtures and replaced them with real captures in Task 7. Docker is available, so the capture is promoted to Task 0 and the parser is written against **real mothur 1.48.5 output** from the start. This removes both the rework risk and the "tests assert against invented data" review finding. Task 7 keeps documentation only.
 2. **`_reject_options` moves to `methods/_dispatch.py`.** Task 5's original text mandated copying it verbatim from `trim.py:382-389`. `methods/_dispatch.py` already exists as the shared home for cross-method dispatch helpers (it holds `require_backend`), so Task 5 lifts the function there and imports it in both `trim.py` and `tax_classify.py` instead of duplicating it.
 
 ---
@@ -71,7 +71,7 @@ LABEL org.opencontainers.image.title="mothur"
 LABEL org.opencontainers.image.description="mothur amplicon OTU clustering and classification backend"
 
 # Expected commands: mothur
-RUN conda install -y -c bioconda -c conda-forge mothur=1.48.2 && \
+RUN conda install -y -c bioconda -c conda-forge mothur=1.48.5 && \
     conda clean -afy
 
 ENTRYPOINT ["mothur"]
@@ -99,7 +99,7 @@ docker build -t microsuite/mothur:local containers/mothur
 docker run --rm microsuite/mothur:local "#help()" | head -20
 ```
 
-Expected: mothur's version banner, reporting 1.48.2.
+Expected: mothur's version banner, reporting 1.48.5.
 
 - [ ] **Step 7: Capture `unique.seqs` output**
 
@@ -126,7 +126,7 @@ echo "exit code: $?"
 grep -c '\[ERROR\]' tests/fixtures/mothur/error_exit_zero.txt
 ```
 
-Expected: exit code `0`, at least one `[ERROR]` line. **If the exit code is non-zero**, mothur 1.48.2 has changed this behaviour — record that in the report, because it weakens the case for `check_mothur_errors` and Task 1 must be told.
+Expected: exit code `0`, at least one `[ERROR]` line. **If the exit code is non-zero**, mothur 1.48.5 has changed this behaviour — record that in the report, because it weakens the case for `check_mothur_errors` and Task 1 must be told.
 
 - [ ] **Step 9: Capture `make.contigs` output**
 
@@ -172,7 +172,7 @@ Do **not** hand-edit the captured fixtures. They are evidence; edited evidence i
 
 | Path | Responsibility |
 |---|---|
-| `containers/mothur/Dockerfile` | **Create (Task 0).** bioconda mothur 1.48.2. Source of the captured fixtures. |
+| `containers/mothur/Dockerfile` | **Create (Task 0).** bioconda mothur 1.48.5. Source of the captured fixtures. |
 | `tests/fixtures/mothur/*.txt` | **Create (Task 0).** Verbatim captured mothur stdout. Evidence — never hand-edited. |
 | `src/microsuite/methods/_dispatch.py` | **Modify.** Gains `reject_options`, lifted out of `trim.py`. |
 | `src/microsuite/methods/mothur.py` | **Create.** Binary discovery, `run_mothur`, stdout parsing, output selection, emptiness guard. The only module that knows mothur's CLI and output conventions. |
@@ -207,7 +207,7 @@ Pure text handling. No subprocess, no mothur. This is the load-bearing component
 
 - [ ] **Step 1: Read the captured fixtures and the Task 0 report**
 
-The fixtures already exist — Task 0 captured them from real mothur 1.48.2. Read all three plus Task 0's recorded observations before writing anything:
+The fixtures already exist — Task 0 captured them from real mothur 1.48.5. Read all three plus Task 0's recorded observations before writing anything:
 
 ```bash
 cat -A tests/fixtures/mothur/unique_seqs.txt | head -30
@@ -431,7 +431,7 @@ git add src/microsuite/methods/mothur.py tests/test_mothur_parser.py
 git commit -m "feat(mothur): parse Output File Names and detect exit-0 errors"
 ```
 
-> **Fixture provenance:** the three samples are verbatim stdout captured from mothur 1.48.2 in Task 0. They are evidence, not illustration. If a parser test fails, fix the parser — never the fixture.
+> **Fixture provenance:** the three samples are verbatim stdout captured from mothur 1.48.5 in Task 0. They are evidence, not illustration. If a parser test fails, fix the parser — never the fixture.
 
 ---
 
@@ -1772,13 +1772,13 @@ Add to the *Feature Table Generation* table (after line 77):
 Add to *Denoising And Clustering Backends* (after line 89):
 
 ```markdown
-| `mothur` | mothur 1.48.2 | ready | `microsuite cluster --backend mothur --reference-alignment silva.v4.fasta` | `cluster(backend="mothur", rep_seqs=..., reference_alignment=...)` | [mothur](../containers/mothur/Dockerfile) or external `mothur` | Alignment-based OTU clustering with OptiClust; needs a user-supplied aligned reference and is slower than VSEARCH. | mothur MiSeq SOP OTU clustering. |
+| `mothur` | mothur 1.48.5 | ready | `microsuite cluster --backend mothur --reference-alignment silva.v4.fasta` | `cluster(backend="mothur", rep_seqs=..., reference_alignment=...)` | [mothur](../containers/mothur/Dockerfile) or external `mothur` | Alignment-based OTU clustering with OptiClust; needs a user-supplied aligned reference and is slower than VSEARCH. | mothur MiSeq SOP OTU clustering. |
 ```
 
 Add to *Taxonomy And Phylogeny* (after line 113):
 
 ```markdown
-| `mothur` | mothur 1.48.2 | ready | `microsuite tax_classify --backend mothur --taxonomy-reference trainset.fasta --taxonomy-map trainset.tax` | `tax_classify(backend="mothur", rep_seqs=..., taxonomy_reference=..., taxonomy_map=...)` | [mothur](../containers/mothur/Dockerfile) or external `mothur` | Naive Bayes classification with optional per-OTU consensus; takes a reference FASTA + taxonomy pair rather than `--classifier`. | mothur classify.seqs / classify.otu. |
+| `mothur` | mothur 1.48.5 | ready | `microsuite tax_classify --backend mothur --taxonomy-reference trainset.fasta --taxonomy-map trainset.tax` | `tax_classify(backend="mothur", rep_seqs=..., taxonomy_reference=..., taxonomy_map=...)` | [mothur](../containers/mothur/Dockerfile) or external `mothur` | Naive Bayes classification with optional per-OTU consensus; takes a reference FASTA + taxonomy pair rather than `--classifier`. | mothur classify.seqs / classify.otu. |
 ```
 
 Add to the *Backend Validation Status* table (after line 32):
@@ -1832,4 +1832,4 @@ git commit -m "docs(mothur): document backends, validation status, and reference
 
 **Type consistency:** `run_mothur` returns `list[Path]` in Tasks 2, 4, 5, 6. `select_output(outputs, suffix, *, step, exclude)` keeps the same signature throughout. `write_otu_table_from_shared(shared, output)` matches between Tasks 3 and 4. `SUPPORTED_BACKENDS` (cluster) and `SUPPORTED_METHODS` (tax_classify) are the existing names, unchanged. `reject_options` is the public name in `_dispatch.py`; `trim.py` aliases it to its existing private name at import.
 
-**Known risk, stated plainly:** the exact mothur parameter names in Task 4's pipeline table are written against mothur 1.48.2's documented interface but have **not** been executed. Task 0 verifies only `unique.seqs`, `align.seqs`, and `make.contigs`. The remaining eight SOP commands are first exercised for real by a user, not by this plan — the CI smoke test that would have caught parameter drift is deferred per the spec. Expect field reports.
+**Known risk, stated plainly:** the exact mothur parameter names in Task 4's pipeline table are written against mothur 1.48.5's documented interface but have **not** been executed. Task 0 verifies only `unique.seqs`, `align.seqs`, and `make.contigs`. The remaining eight SOP commands are first exercised for real by a user, not by this plan — the CI smoke test that would have caught parameter drift is deferred per the spec. Expect field reports.
