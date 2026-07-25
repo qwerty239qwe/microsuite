@@ -12,6 +12,8 @@ RUN apt-get update && \
 
 WORKDIR /opt/microsuite
 COPY . /opt/microsuite
-RUN uv sync
+# The command is also used by workflow engines that set an arbitrary host UID.
+# Packages are immutable at runtime, but must be readable and executable.
+RUN uv sync && chmod -R a+rX /opt/microsuite
 
 ENTRYPOINT ["uv", "run", "microsuite"]

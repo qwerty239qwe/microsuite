@@ -64,6 +64,14 @@ def test_microsuite_dada2_uses_digest_pinned_prebuilt_package() -> None:
     assert "BiocManager::install" not in text
 
 
+def test_microsuite_cli_images_support_arbitrary_runtime_users() -> None:
+    base = (CONTAINERS / "microsuite" / "Dockerfile").read_text(encoding="utf-8")
+    dada2 = (CONTAINERS / "microsuite-dada2" / "Dockerfile").read_text(encoding="utf-8")
+    assert "chmod -R a+rX /opt/microsuite" in base
+    assert "UV_PYTHON_INSTALL_DIR=/opt/uv/python" in dada2
+    assert "chmod -R a+rX /opt/microsuite /opt/uv" in dada2
+
+
 def test_nextflow_facing_images_install_process_metrics_tool() -> None:
     for image in ("cutadapt", "fastp", "microsuite", "microsuite-dada2", "multiqc"):
         text = (CONTAINERS / image / "Dockerfile").read_text(encoding="utf-8")

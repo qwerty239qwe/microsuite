@@ -43,6 +43,7 @@ from microsuite.methods.qiime2_wrappers import (
     tax_train,
 )
 from microsuite.methods.trim import trim
+from microsuite.primer import check_fastq_primers, primer_check_fails, validate_primer_check_config
 
 __all__ = [
     "DataAsset",
@@ -85,6 +86,9 @@ __all__ = [
     "tax_barplot",
     "tax_collapse",
     "trim",
+    "check_fastq_primers",
+    "primer_check_fails",
     "tax_train",
+    "validate_primer_check_config",
     "write_table",
 ]

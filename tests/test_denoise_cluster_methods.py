@@ -478,8 +478,11 @@ def test_dada2_r_script_writes_matching_asv_feature_ids() -> None:
     assert "read_suffix_pattern" in script
     assert "stem_without_fastq_suffix" in script
     assert "as_sample_list <- function(x, samples)" in script
-    assert "mergers <- as_sample_list(mergers, sampleFs)" in script
-    assert "dada_out <- as_sample_list(dada_out, samples)" in script
+    assert "filtered_sample_mask <- function(out, samples)" in script
+    assert "expand_sample_table <- function(seqtab, samples)" in script
+    assert "retaining zero-count columns" in script
+    assert "mergers <- as_sample_list(mergers, keptSamples)" in script
+    assert "dada_out <- as_sample_list(dada_out, keptSamples)" in script
 
 
 def test_dada2_r_script_wires_advanced_controls() -> None:

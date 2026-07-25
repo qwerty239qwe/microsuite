@@ -145,7 +145,11 @@ jobs:
 
       - name: Smoke test microsuite image
         if: ${{ matrix.image == 'microsuite' }}
-        run: docker run --rm microsuite/${{ matrix.image }}:ci --help
+        run: |
+          docker run --rm microsuite/${{ matrix.image }}:ci --help
+          docker run --rm --user 10001:10001 \
+            --entrypoint /opt/microsuite/.venv/bin/microsuite \
+            microsuite/${{ matrix.image }}:ci --help
 
       - name: Run FastQC tiny example
         if: ${{ matrix.image == 'fastqc' }}
@@ -303,6 +307,9 @@ jobs:
           # microsuite / r-dada2 images cannot do on their own).
           docker run --rm --entrypoint Rscript microsuite/${{ matrix.image }}:ci -e 'library(dada2)'
           docker run --rm microsuite/${{ matrix.image }}:ci denoise --help >/dev/null
+          docker run --rm --user 10001:10001 \
+            --entrypoint /opt/microsuite/.venv/bin/microsuite \
+            microsuite/${{ matrix.image }}:ci denoise --help >/dev/null
           # Generate a DADA2-learnable FASTQ: enough reads with position-dependent,
           # jittered quality (several Phred bins) and quality-correlated substitution
           # errors, so learnErrors can actually fit an error model. Uniform-quality

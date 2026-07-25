@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+from typing import Annotated
+
 import typer
 from rich.console import Console
 
@@ -21,6 +25,7 @@ from microsuite.cli import (
     viz_cmd,
     workflow_cmd,
 )
+from microsuite.primer import check_fastq_primers, primer_check_fails
 
 console = Console(stderr=True)
 
@@ -63,6 +68,74 @@ def _install_groups() -> None:
 
 
 _install_groups()
+
+
+@app.command("primer-check")
+def primer_check_command(
+    inputs: Annotated[
+        list[Path],
+        typer.Option("--input", help="FASTQ file to inspect. Repeat for multiple files."),
+    ],
+    inputs2: Annotated[
+        list[Path] | None,
+        typer.Option("--input2", help="R2 FASTQ file(s). Repeat to pair with --input."),
+    ] = None,
+    front: Annotated[
+        str | None, typer.Option("--front", help="Cutadapt 5' adapter for R1.")
+    ] = None,
+    adapter: Annotated[
+        str | None, typer.Option("--adapter", help="Cutadapt 3' adapter for R1.")
+    ] = None,
+    anywhere: Annotated[
+        str | None, typer.Option("--anywhere", help="Cutadapt anywhere adapter for R1.")
+    ] = None,
+    front2: Annotated[
+        str | None, typer.Option("--front2", help="Cutadapt 5' adapter for R2.")
+    ] = None,
+    adapter2: Annotated[
+        str | None, typer.Option("--adapter2", help="Cutadapt 3' adapter for R2.")
+    ] = None,
+    anywhere2: Annotated[
+        str | None, typer.Option("--anywhere2", help="Cutadapt anywhere adapter for R2.")
+    ] = None,
+    reads_per_file: Annotated[int, typer.Option("--reads-per-file", min=1)] = 1000,
+    max_files: Annotated[int, typer.Option("--max-files", min=0)] = 16,
+    max_mismatches: Annotated[int, typer.Option("--max-mismatches", min=0)] = 2,
+    min_match_rate: Annotated[float, typer.Option("--min-match-rate", min=0.0, max=1.0)] = 0.8,
+    mode: Annotated[str, typer.Option("--mode", help="warn or error.")] = "warn",
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+) -> None:
+    """Check Cutadapt primer patterns against a deterministic FASTQ sample."""
+
+    if inputs2 is not None and len(inputs2) != len(inputs):
+        raise typer.BadParameter("--input2 must contain the same number of files as --input")
+    files = [("R1", path) for path in inputs]
+    files.extend(("R2", path) for path in (inputs2 or []))
+    report = check_fastq_primers(
+        files,
+        cutadapt={
+            "front": front,
+            "adapter": adapter,
+            "anywhere": anywhere,
+            "front2": front2,
+            "adapter2": adapter2,
+            "anywhere2": anywhere2,
+        },
+        primer_check={
+            "mode": mode,
+            "reads_per_file": reads_per_file,
+            "max_files": max_files,
+            "max_mismatches": max_mismatches,
+            "min_match_rate": min_match_rate,
+        },
+    )
+    rendered = json.dumps(report, indent=2, sort_keys=True)
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(rendered + "\n", encoding="utf-8")
+    typer.echo(rendered)
+    if primer_check_fails(report, mode):
+        raise typer.Exit(1)
 
 
 def main() -> None:
