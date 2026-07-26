@@ -116,7 +116,7 @@ cat tests/fixtures/mothur/unique_seqs.txt
 
 - [ ] **Step 8: Capture the exit-0 error case**
 
-This is the most important fixture: it proves mothur returns 0 on failure.
+This is the most important fixture: it establishes what mothur actually does on failure.
 
 ```bash
 docker run --rm -v "$PWD/scratch:/data" microsuite/mothur:local \
@@ -126,7 +126,21 @@ echo "exit code: $?"
 grep -c '\[ERROR\]' tests/fixtures/mothur/error_on_failure.txt
 ```
 
-Expected: exit code `0`, at least one `[ERROR]` line. **If the exit code is non-zero**, mothur 1.48.5 has changed this behaviour — record that in the report, because it weakens the case for `check_mothur_errors` and Task 1 must be told.
+**Result, measured 2026-07-26: exit code `1`, and `grep -c '[ERROR]'` returns `2`.**
+
+This disproved the plan's original premise that mothur exits 0 on failure. Both
+numbers matter and neither is what was expected:
+
+- Exit `1` means `run_command` already raises, so `check_mothur_errors` is
+  defence in depth rather than the primary guard.
+- The count of `2` is mothur's summary banner (`Detected 1 [ERROR] messages,
+  please review.`) being matched alongside the real error, which is why the scan
+  anchors on `[ERROR]: ` with the colon and space.
+
+Exit code cannot be recorded inside a captured stdout stream, so it is written up
+in `tests/fixtures/mothur/README.md`. If a future mothur upgrade changes either
+number, update that file, this step, and the Error handling section of the spec
+together.
 
 - [ ] **Step 9: Capture `make.contigs` output**
 
