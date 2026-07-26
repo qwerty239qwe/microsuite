@@ -186,12 +186,30 @@ its own beyond `make.contigs`.
 
 ## Error handling
 
-**mothur exits 0 on failure.** It prints `[ERROR]: ...` to stdout and returns
-success. A wrapper trusting only the return code would sail past a broken step
-and hand the next step a stale file from an earlier run — producing a *silently
-wrong OTU table* rather than a crash. `_run_mothur` therefore scans stdout for
-`[ERROR]` and raises `MicrobiomeSuiteError` regardless of exit status. This check
-is mandatory and must not be relaxed for speed.
+**Corrected 2026-07-26 against real mothur 1.48.5.** This section originally
+asserted that mothur exits 0 on failure. That is **false** for 1.48.5: a failed
+`align.seqs` (missing reference) returns **exit code 1**, verified twice. The
+design premise was wrong and the consequences are recorded here rather than
+quietly patched.
+
+What follows from the measurement:
+
+- `run_command` already raises on non-zero exit, so the primary failure path is
+  the exit code — not a stdout scan.
+- `check_mothur_errors` is therefore **never reached** on an exit-1 failure. It
+  is retained as defence in depth, because exactly one failure mode was
+  sampled and mothur has historically been reported to continue past some
+  non-fatal command errors. It guards a hypothetical, and the spec should not
+  pretend otherwise.
+- The error scan must anchor on `"[ERROR]: "` (colon and space), **not** the
+  bare substring `[ERROR]`. mothur closes a failed run with a summary banner —
+  `Detected 1 [ERROR] messages, please review.` — which a bare-substring scan
+  double-counts, turning one failure into two reported errors.
+- Because `run_command` raises with the whole captured stream, an exit-1 mothur
+  failure would otherwise surface as ~60 lines of citation banner and startup
+  noise. `run_mothur` catches that failure and re-raises with only the anchored
+  `[ERROR]: ` lines, so the user sees `did not complete align.seqs.` rather
+  than mothur's front matter.
 
 The remaining four failure modes:
 

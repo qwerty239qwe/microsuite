@@ -41,7 +41,7 @@ Everything downstream trusts the parser, and the parser is only as good as the o
 - Modify: `.github/workflows/docker.yml` (build matrix)
 - Modify: `tests/test_container_skeletons.py:14-35`
 - Create: `tests/fixtures/mothur/unique_seqs.txt`
-- Create: `tests/fixtures/mothur/error_exit_zero.txt`
+- Create: `tests/fixtures/mothur/error_on_failure.txt`
 - Create: `tests/fixtures/mothur/make_contigs.txt`
 
 **Interfaces:**
@@ -121,9 +121,9 @@ This is the most important fixture: it proves mothur returns 0 on failure.
 ```bash
 docker run --rm -v "$PWD/scratch:/data" microsuite/mothur:local \
   "#set.dir(output=/data); align.seqs(fasta=/data/test.fasta, reference=/data/missing.fasta)" \
-  > tests/fixtures/mothur/error_exit_zero.txt
+  > tests/fixtures/mothur/error_on_failure.txt
 echo "exit code: $?"
-grep -c '\[ERROR\]' tests/fixtures/mothur/error_exit_zero.txt
+grep -c '\[ERROR\]' tests/fixtures/mothur/error_on_failure.txt
 ```
 
 Expected: exit code `0`, at least one `[ERROR]` line. **If the exit code is non-zero**, mothur 1.48.5 has changed this behaviour — record that in the report, because it weakens the case for `check_mothur_errors` and Task 1 must be told.
@@ -203,6 +203,7 @@ Pure text handling. No subprocess, no mothur. This is the load-bearing component
   - `MOTHUR_ERROR_MARKER: str`
   - `parse_mothur_outputs(stdout: str) -> list[Path]`
   - `select_output(outputs: list[Path], suffix: str, *, step: str, exclude: tuple[str, ...] = ()) -> Path`
+  - `mothur_error_lines(stdout: str) -> list[str]`
   - `check_mothur_errors(stdout: str, *, step: str) -> None`
 
 - [ ] **Step 1: Read the captured fixtures and the Task 0 report**
@@ -211,7 +212,7 @@ The fixtures already exist — Task 0 captured them from real mothur 1.48.5. Rea
 
 ```bash
 cat -A tests/fixtures/mothur/unique_seqs.txt | head -30
-cat tests/fixtures/mothur/error_exit_zero.txt
+cat tests/fixtures/mothur/error_on_failure.txt
 cat tests/fixtures/mothur/make_contigs.txt
 ```
 
@@ -299,10 +300,26 @@ def test_select_output_raises_when_no_outputs_at_all() -> None:
         select_output([], ".fasta", step="screen.seqs")
 
 
-def test_check_errors_raises_on_error_marker() -> None:
-    # mothur exits 0 here. Trusting the return code would sail straight past it.
-    with pytest.raises(MicrobiomeSuiteError, match="does not exist"):
-        check_mothur_errors(_fixture("error_exit_zero.txt"), step="align.seqs")
+def test_check_errors_raises_on_anchored_error_line() -> None:
+    with pytest.raises(MicrobiomeSuiteError, match="did not complete align.seqs"):
+        check_mothur_errors(_fixture("error_on_failure.txt"), step="align.seqs")
+
+
+def test_check_errors_ignores_the_summary_banner() -> None:
+    # mothur closes a failed run with "Detected 1 [ERROR] messages, please review."
+    # A bare '[ERROR]' substring scan matches that banner too and reports one
+    # failure twice. The anchor is "[ERROR]: " with the colon and space.
+    message = str(
+        pytest.raises(
+            MicrobiomeSuiteError,
+            check_mothur_errors,
+            _fixture("error_on_failure.txt"),
+            step="align.seqs",
+        ).value
+    )
+
+    assert "Detected" not in message
+    assert message.count("[ERROR]") == 1
 
 
 def test_check_errors_passes_clean_output() -> None:
@@ -337,7 +354,10 @@ from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 
-MOTHUR_ERROR_MARKER = "[ERROR]"
+# Anchored with the colon and space on purpose: mothur closes a failed run with
+# a summary banner ("Detected 1 [ERROR] messages, please review.") that a bare
+# "[ERROR]" substring also matches, reporting one failure as two.
+MOTHUR_ERROR_MARKER = "[ERROR]: "
 
 _OUTPUT_HEADER = "Output File Names:"
 
@@ -396,19 +416,25 @@ def select_output(
     return matches[0]
 
 
-def check_mothur_errors(stdout: str, *, step: str) -> None:
-    """Raise if mothur reported an error.
-
-    mothur returns exit code 0 even when a command fails, so the return code
-    cannot be trusted. Without this scan a failed step is silently skipped and
-    the next step consumes a stale file from an earlier run, producing a
-    well-formed but wrong result.
-    """
-    errors = [
+def mothur_error_lines(stdout: str) -> list[str]:
+    """Return mothur's anchored error lines, excluding its summary banner."""
+    return [
         line.strip()
         for line in stdout.splitlines()
         if line.strip().startswith(MOTHUR_ERROR_MARKER)
     ]
+
+
+def check_mothur_errors(stdout: str, *, step: str) -> None:
+    """Raise if mothur reported an error while still exiting successfully.
+
+    Measured against mothur 1.48.5: a failed command exits **1**, so
+    ``run_command`` raises first and this scan is never reached on that path.
+    It is kept as defence in depth — only one failure mode was sampled, and
+    mothur has historically continued past some non-fatal command errors. If a
+    future release reintroduces exit-0 failures, this is what catches them.
+    """
+    errors = mothur_error_lines(stdout)
     if errors:
         detail = " ".join(errors)
         raise MicrobiomeSuiteError(f"mothur step '{step}' failed: {detail}")
@@ -442,7 +468,7 @@ git commit -m "feat(mothur): parse Output File Names and detect exit-0 errors"
 - Create: `tests/test_mothur_backends.py`
 
 **Interfaces:**
-- Consumes: `parse_mothur_outputs`, `select_output`, `check_mothur_errors` (Task 1); `microsuite.runtime.runner.run_command`, `CommandLog`
+- Consumes: `parse_mothur_outputs`, `select_output`, `check_mothur_errors`, `mothur_error_lines` (Task 1); `microsuite.runtime.runner.run_command`, `CommandLog`
 - Produces:
   - `find_mothur() -> str`
   - `format_mothur_command(command: str, params: dict[str, str]) -> str`
@@ -525,6 +551,8 @@ def test_run_mothur_builds_command_with_set_dir(
 def test_run_mothur_raises_on_exit_zero_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # Defence in depth: mothur 1.48.5 exits 1 on failure, but this guards a
+    # release that continues past a non-fatal command error.
     monkeypatch.setattr("shutil.which", _fake_which)
 
     def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -534,6 +562,35 @@ def test_run_mothur_raises_on_exit_zero_error(
 
     with pytest.raises(MicrobiomeSuiteError, match="it broke"):
         run_mothur("align.seqs", {"fasta": "in.fasta"}, work_dir=tmp_path)
+
+
+def test_run_mothur_strips_banner_noise_from_exit_one_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The real failure path: exit 1, and run_command raises with the entire
+    # captured stream. The user must see the error line, not mothur's citation.
+    monkeypatch.setattr("shutil.which", _fake_which)
+    noisy = (
+        "Using ReadLine,Boost,HDF5,GSL\n"
+        "mothur v.1.48.5\n"
+        "Schloss, P.D., et al., Introducing mothur: ...\n"
+        "Unable to open /data/missing.fasta\n"
+        "[ERROR]: did not complete align.seqs.\n"
+        "Detected 1 [ERROR] messages, please review.\n"
+    )
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 1, noisy, "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    with pytest.raises(MicrobiomeSuiteError) as excinfo:
+        run_mothur("align.seqs", {"fasta": "in.fasta"}, work_dir=tmp_path)
+
+    message = str(excinfo.value)
+    assert "did not complete align.seqs" in message
+    assert "Schloss" not in message
+    assert "Detected" not in message
 
 
 def test_ensure_non_empty_fasta_raises_on_empty_file(tmp_path: Path) -> None:
@@ -602,13 +659,24 @@ def run_mothur(
     work_dir.mkdir(parents=True, exist_ok=True)
     script = f"#set.dir(output={work_dir}); {format_mothur_command(command, params)[1:]}"
 
-    result = run_command(
-        [mothur, script],
-        f"mothur step '{command}' failed.",
-        run_dir=run_dir,
-        timeout=timeout,
-        log=CommandLog(task="mothur", backend="mothur", params={"step": command, **params}),
-    )
+    try:
+        result = run_command(
+            [mothur, script],
+            f"mothur step '{command}' failed.",
+            run_dir=run_dir,
+            timeout=timeout,
+            log=CommandLog(task="mothur", backend="mothur", params={"step": command, **params}),
+        )
+    except MicrobiomeSuiteError as exc:
+        # run_command raises with the whole captured stream. mothur prefixes every
+        # run with ~30 lines of citation banner, so the useful line is buried.
+        errors = mothur_error_lines(str(exc))
+        if errors:
+            raise MicrobiomeSuiteError(
+                f"mothur step '{command}' failed: {' '.join(errors)}"
+            ) from exc
+        raise
+
     check_mothur_errors(result.stdout or "", step=command)
     return parse_mothur_outputs(result.stdout or "")
 
