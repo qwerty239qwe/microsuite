@@ -338,11 +338,31 @@ def write_otu_table_from_shared(shared: Path, output: Path) -> None:
         raise MicrobiomeSuiteError(f"mothur .shared file has no rows: {shared}")
 
     header, *records = rows
+    if len(header) < 3 or [col.lower() for col in header[:3]] != ["label", "group", "numotus"]:
+        raise MicrobiomeSuiteError(
+            "mothur .shared file has an unexpected header (expected columns starting "
+            f"with 'label', 'Group', 'numOtus'; found {header}): {shared}"
+        )
+
     otus = header[3:]
-    samples = [record[1] for record in records]
+    expected_columns = len(header)
+    for row_number, record in enumerate(records, start=1):
+        if len(record) != expected_columns:
+            descriptor = f"sample {record[1]!r}" if len(record) > 1 else f"row {row_number}"
+            raise MicrobiomeSuiteError(
+                f"mothur .shared file has a malformed row ({descriptor}): expected "
+                f"{expected_columns} columns, found {len(record)}: {shared}"
+            )
+
+    samples = sorted(record[1] for record in records)
+    record_by_sample = {record[1]: record for record in records}
+    otu_indices = {otu: index for index, otu in enumerate(otus)}
 
     with output.open("w", encoding="utf-8", newline="") as handle:
         handle.write("feature-id\t" + "\t".join(samples) + "\n")
-        for index, otu in enumerate(otus):
-            counts = [record[3 + index] for record in records]
+        # mothur zero-pads OTU labels to a fixed width within a file (Otu0001,
+        # Otu0002, ...), so lexical sort here equals numeric sort.
+        for otu in sorted(otus):
+            index = otu_indices[otu]
+            counts = [record_by_sample[sample][3 + index] for sample in samples]
             handle.write(otu + "\t" + "\t".join(counts) + "\n")

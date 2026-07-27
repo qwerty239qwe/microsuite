@@ -151,9 +151,11 @@ def test_ensure_non_empty_fasta_accepts_a_record(tmp_path: Path) -> None:
 
 
 def test_write_otu_table_from_shared_transposes_to_feature_major(tmp_path: Path) -> None:
+    # Columns and rows are deliberately out of alphabetical order in the source
+    # file so this test actually exercises the sort, not just file order.
     shared = tmp_path / "final.opti_mcc.shared"
     shared.write_text(
-        "label\tGroup\tnumOtus\tOtu0001\tOtu0002\n0.03\tsampleA\t2\t5\t3\n0.03\tsampleB\t2\t0\t7\n",
+        "label\tGroup\tnumOtus\tOtu0002\tOtu0001\n0.03\tsampleB\t2\t7\t0\n0.03\tsampleA\t2\t3\t5\n",
         encoding="utf-8",
     )
     output = tmp_path / "table.tsv"
@@ -167,17 +169,18 @@ def test_write_otu_table_from_shared_transposes_to_feature_major(tmp_path: Path)
 
 def test_write_otu_table_from_shared_keeps_all_zero_samples(tmp_path: Path) -> None:
     # A sample that survived filtering but shares no OTUs must stay as a column,
-    # or downstream sample counts silently disagree with the metadata.
+    # or downstream sample counts silently disagree with the metadata. Rows are
+    # out of alphabetical order to prove counts stay aligned after sorting.
     shared = tmp_path / "final.opti_mcc.shared"
     shared.write_text(
-        "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t9\n0.03\tsampleB\t1\t0\n",
+        "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleB\t1\t0\n0.03\tsampleA\t1\t9\n",
         encoding="utf-8",
     )
     output = tmp_path / "table.tsv"
 
     write_otu_table_from_shared(shared, output)
 
-    assert output.read_text(encoding="utf-8").splitlines()[0] == "feature-id\tsampleA\tsampleB"
+    assert output.read_text(encoding="utf-8") == "feature-id\tsampleA\tsampleB\nOtu0001\t9\t0\n"
 
 
 def test_write_otu_table_from_shared_rejects_empty_file(tmp_path: Path) -> None:
@@ -185,4 +188,27 @@ def test_write_otu_table_from_shared_rejects_empty_file(tmp_path: Path) -> None:
     shared.write_text("", encoding="utf-8")
 
     with pytest.raises(MicrobiomeSuiteError, match="no rows"):
+        write_otu_table_from_shared(shared, tmp_path / "table.tsv")
+
+
+def test_write_otu_table_from_shared_rejects_short_row(tmp_path: Path) -> None:
+    # A data row with fewer columns than the header is the signature of a
+    # truncated .shared file (e.g. mothur killed mid-write or out of disk).
+    shared = tmp_path / "truncated.opti_mcc.shared"
+    shared.write_text(
+        "label\tGroup\tnumOtus\tOtu0001\tOtu0002\n0.03\tsampleA\t2\t5\t3\n0.03\tsampleB\t2\t0\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(MicrobiomeSuiteError, match="sampleB"):
+        write_otu_table_from_shared(shared, tmp_path / "table.tsv")
+
+
+def test_write_otu_table_from_shared_rejects_malformed_header(tmp_path: Path) -> None:
+    # Fewer than 3 header columns would otherwise silently produce a
+    # well-formed, empty, wrong table (zero features, no error).
+    shared = tmp_path / "bad_header.opti_mcc.shared"
+    shared.write_text("label\tGroup\n0.03\tsampleA\n", encoding="utf-8")
+
+    with pytest.raises(MicrobiomeSuiteError, match="header"):
         write_otu_table_from_shared(shared, tmp_path / "table.tsv")
