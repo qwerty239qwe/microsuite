@@ -7,6 +7,7 @@ import typer
 
 from microsuite.data.moving_pictures import copy_small_fixture
 from microsuite.workflows.catalog import WORKFLOWS
+from microsuite.workflows.mothur_sop import run_mothur_sop
 from microsuite.workflows.moving_pictures_qiime2 import run_moving_pictures_qiime2
 from microsuite.workflows.table_summary import run_table_summary
 
@@ -100,4 +101,35 @@ def moving_pictures_qiime2(
         include_deblur=include_deblur,
         sampling_depth=sampling_depth,
         classifier_mode=classifier_mode,
+    )
+
+
+@app.command("mothur")
+def mothur_workflow(
+    output: Annotated[Path, typer.Option("--out", "-o", help="Output run directory.")],
+    reads_dir: Annotated[Path, typer.Option("--reads-dir", help="Paired FASTQ directory.")],
+    reference_alignment: Annotated[
+        Path, typer.Option("--reference-alignment", help="Aligned reference FASTA.")
+    ],
+    taxonomy_reference: Annotated[
+        Path, typer.Option("--taxonomy-reference", help="Trainset reference FASTA.")
+    ],
+    taxonomy_map: Annotated[Path, typer.Option("--taxonomy-map", help="Trainset taxonomy file.")],
+    identity: Annotated[
+        float, typer.Option("--identity", min=0.0, max=1.0, help="Clustering identity.")
+    ] = 0.97,
+    force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
+    timeout: Annotated[
+        float | None, typer.Option("--timeout", help="Per-step timeout in seconds.")
+    ] = None,
+) -> None:
+    run_mothur_sop(
+        reads_dir=reads_dir,
+        output_dir=output,
+        reference_alignment=reference_alignment,
+        taxonomy_reference=taxonomy_reference,
+        taxonomy_map=taxonomy_map,
+        identity=identity,
+        force=force,
+        timeout=timeout,
     )
