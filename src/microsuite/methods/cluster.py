@@ -209,7 +209,6 @@ def cluster_mothur(
             "list": str(otu_list),
             "count": str(count),
             "fasta": str(fasta),
-            "label": str(cutoff),
             "method": "abundance",
         },
     )

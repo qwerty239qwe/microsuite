@@ -86,6 +86,30 @@ def test_select_output_raises_when_no_outputs_at_all() -> None:
         select_output([], ".fasta", step="screen.seqs")
 
 
+def test_select_output_picks_taxonomy_not_tax_summary() -> None:
+    # classify.seqs emits both a .wang.taxonomy and a .wang.tax.summary file.
+    # The near-miss is the entire point of pinning this fixture: a caller
+    # asking for ".taxonomy" must not be handed the summary file instead.
+    outputs = parse_mothur_outputs(_fixture("classify_seqs.txt"))
+
+    chosen = select_output(outputs, ".taxonomy", step="classify.seqs")
+
+    assert chosen.name == "q.unique.ref.wang.taxonomy"
+    assert "tax.summary" not in chosen.name
+
+
+def test_select_output_picks_oturep_fasta_alongside_count_table() -> None:
+    # get.oturep (run without the invalid `label` param) emits a
+    # .rep.count_table and a .rep.fasta in the same block; select_output must
+    # resolve ".fasta" to the fasta file without the count table interfering.
+    outputs = parse_mothur_outputs(_fixture("get_oturep.txt"))
+
+    chosen = select_output(outputs, ".fasta", step="get.oturep")
+
+    assert chosen.name == "q.unique.opti_tptn.0.03.0.03.rep.fasta"
+    assert "q.unique.opti_tptn.0.03.0.03.rep.count_table" in [p.name for p in outputs]
+
+
 def test_check_errors_raises_on_anchored_error_line() -> None:
     with pytest.raises(MicrobiomeSuiteError, match="did not complete align.seqs"):
         check_mothur_errors(_fixture("error_on_failure.txt"), step="align.seqs")
