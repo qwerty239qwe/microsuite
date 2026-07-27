@@ -204,8 +204,11 @@ def cluster_mothur(
 
     out = step(
         "get.oturep",
+        # No `column` here: method=abundance picks the most abundant sequence per
+        # OTU and needs no distance matrix, so mothur warns and ignores it. Passing
+        # it would leave a permanent warning on this step, masking any later one
+        # that actually means something.
         {
-            "column": str(column),
             "list": str(otu_list),
             "count": str(count),
             "fasta": str(fasta),

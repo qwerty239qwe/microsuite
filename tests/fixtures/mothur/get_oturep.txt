@@ -32,8 +32,7 @@ mothur > set.dir(output=/data)
 Mothur's directories:
 outputDir=/data/
 
-mothur > get.oturep(column=/data/q.unique.dist, list=/data/q.unique.opti_tptn.0.03.list, count=/data/q.sparse.count_table, fasta=/data/q.unique.fasta, method=abundance)
-[WARNING]: A phylip or column file is not needed to use the abundance method, ignoring.
+mothur > get.oturep(list=/data/q.unique.opti_tptn.0.03.list, count=/data/q.sparse.count_table, fasta=/data/q.unique.fasta, method=abundance)
 You did not provide a label, using 0.03.
 0.03	1
 
@@ -47,14 +46,5 @@ mothur > quit()
 
 It took 0 seconds to run 3 commands from your script.
 
-Logfile : mothur.1785136900.logfile
+Logfile : mothur.1785137152.logfile
 
-
-
-<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<^>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<^>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<^>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-Detected 1 [WARNING] messages, please review.
-<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<^>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<^>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<^>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

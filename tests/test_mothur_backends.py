@@ -422,18 +422,22 @@ def test_cluster_mothur_threads_files_correctly_between_steps(
     assert f"list={otu_list}" in by_command["make.shared"]
     assert f"count={remove_count}" in by_command["make.shared"]
 
-    # 9. get.oturep consumes dist.seqs's .dist, cluster's .list, remove.seqs's
-    # .count_table, and chimera.vsearch's post-removal .fasta.
+    # 9. get.oturep consumes cluster's .list, remove.seqs's .count_table, and
+    # chimera.vsearch's post-removal .fasta.
     oturep_script = by_command["get.oturep"]
-    assert f"column={dist}" in oturep_script
     assert f"list={otu_list}" in oturep_script
     assert f"count={remove_count}" in oturep_script
     assert f"fasta={chimera_fasta}" in oturep_script
 
-    # get.oturep does not accept a `label` parameter; real mothur 1.48.5 warns
-    # "label is not a valid parameter, ignoring." and silently continues, so a
-    # regression here would otherwise be invisible.
+    # Two parameters mothur 1.48.5 accepts silently-wrong and only WARNS about,
+    # so check_mothur_errors (which matches "[ERROR]: ") cannot catch either:
+    #   label  -> "label is not a valid parameter, ignoring."
+    #   column -> "A phylip or column file is not needed to use the abundance
+    #             method, ignoring."
+    # Passing either leaves a permanent warning on this step, which trains a
+    # reader to skip warnings here and masks a later one that matters.
     assert "label=" not in oturep_script
+    assert "column=" not in oturep_script
 
 
 def test_cluster_mothur_converts_identity_to_distance_cutoff(
