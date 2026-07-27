@@ -13,6 +13,7 @@ from microsuite.methods.mothur import (
     format_mothur_command,
     parse_mothur_outputs,
     run_mothur,
+    select_output,
 )
 from microsuite.methods.tax_classify import SUPPORTED_METHODS, tax_classify
 
@@ -595,3 +596,248 @@ def test_non_mothur_backend_rejects_taxonomy_reference(tmp_path: Path) -> None:
             classifier=tmp_path / "db",
             taxonomy_reference=tmp_path / "ref.fasta",
         )
+
+
+def test_tax_classify_mothur_rejects_non_default_input_type(tmp_path: Path) -> None:
+    # input_type defaults to "fastq", not None, so `reject_options` must be
+    # given the value only when it differs from that default -- otherwise a
+    # non-default value like "sam" is silently ignored instead of rejected.
+    seqs = tmp_path / "seqs.fasta"
+    seqs.write_text(">a\nACGT\n", encoding="utf-8")
+
+    with pytest.raises(MicrobiomeSuiteError, match="--input-type"):
+        tax_classify(
+            backend="mothur",
+            rep_seqs=seqs,
+            output=tmp_path / "taxonomy.tsv",
+            input_type="sam",
+            taxonomy_reference=tmp_path / "ref.fasta",
+            taxonomy_map=tmp_path / "ref.tax",
+        )
+
+
+def test_tax_classify_mothur_default_input_type_does_not_raise(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The default "fastq" must NOT be rejected -- mothur classifies FASTA and
+    # every caller goes through this default unless they explicitly override
+    # --input-type, so rejecting it would break every mothur invocation.
+    seqs = tmp_path / "seqs.fasta"
+    seqs.write_text(">a\nACGT\n", encoding="utf-8")
+    ref = tmp_path / "trainset.fasta"
+    ref.write_text(">r\nACGT\n", encoding="utf-8")
+    tax = tmp_path / "trainset.tax"
+    tax.write_text("r\tBacteria;Firmicutes;\n", encoding="utf-8")
+    monkeypatch.setattr("shutil.which", _fake_which)
+
+    produced = tmp_path / "seqs.wang.taxonomy"
+    produced.write_text("a\tBacteria(100);\n", encoding="utf-8")
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 0, _mothur_stdout(str(produced)), "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    output = tmp_path / "taxonomy.tsv"
+    tax_classify(
+        backend="mothur",
+        rep_seqs=seqs,
+        output=output,
+        input_type="fastq",
+        taxonomy_reference=ref,
+        taxonomy_map=tax,
+    )
+
+    assert output.exists()
+
+
+def test_tax_classify_mothur_with_otu_list_runs_classify_otu_after_classify_seqs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # No prior test ever passed otu_list, so the classify.otu step -- a stated
+    # deliverable -- had zero coverage.
+    seqs = tmp_path / "seqs.fasta"
+    seqs.write_text(">a\nACGT\n", encoding="utf-8")
+    ref = tmp_path / "trainset.fasta"
+    ref.write_text(">r\nACGT\n", encoding="utf-8")
+    tax = tmp_path / "trainset.tax"
+    tax.write_text("r\tBacteria;Firmicutes;\n", encoding="utf-8")
+    otu_list = tmp_path / "final.opti_tptn.0.03.list"
+    otu_list.write_text("unique\t1\ta_1\n", encoding="utf-8")
+    monkeypatch.setattr("shutil.which", _fake_which)
+
+    seqs_taxonomy = tmp_path / "seqs.wang.taxonomy"
+    seqs_taxonomy.write_text("a\tBacteria(100);\n", encoding="utf-8")
+    otu_taxonomy = tmp_path / "final.opti_tptn.0.03.cons.taxonomy"
+    otu_taxonomy.write_text("Otu0001\t1\tBacteria(100);\n", encoding="utf-8")
+    otu_summary = tmp_path / "final.opti_tptn.0.03.cons.tax.summary"
+    otu_summary.write_text("dummy\n", encoding="utf-8")
+
+    scripts: list[str] = []
+    stdouts = iter(
+        [
+            _mothur_stdout(str(seqs_taxonomy)),
+            _mothur_stdout(str(otu_taxonomy), str(otu_summary)),
+        ]
+    )
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        scripts.append(command[1])
+        return subprocess.CompletedProcess(command, 0, next(stdouts), "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    tax_classify(
+        backend="mothur",
+        rep_seqs=seqs,
+        output=tmp_path / "taxonomy.tsv",
+        taxonomy_reference=ref,
+        taxonomy_map=tax,
+        otu_list=otu_list,
+    )
+
+    invoked = [script.split("; ", 1)[1].split("(", 1)[0] for script in scripts]
+    assert invoked == ["classify.seqs", "classify.otu"]
+
+
+def test_tax_classify_mothur_threads_files_between_classify_seqs_and_otu(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # test_tax_classify_mothur_with_otu_list_runs_classify_otu_after_classify_seqs
+    # only checks the SEQUENCE of command names -- the mocked subprocess.run
+    # below returns canned stdouts no matter what parameters a step was
+    # actually called with, so a scrambled data flow (e.g. classify.otu
+    # reading a stale taxonomy file, or the wrong step's output landing at
+    # --output) would sail straight through that test unnoticed, exactly like
+    # the stale-file bug Task 4 shipped with every test passing. This test
+    # captures every full script string instead and pins which file each step
+    # actually consumes, plus which step's output is copied to --output.
+    seqs = tmp_path / "seqs.fasta"
+    seqs.write_text(">a\nACGT\n", encoding="utf-8")
+    ref = tmp_path / "trainset.fasta"
+    ref.write_text(">r\nACGT\n", encoding="utf-8")
+    tax = tmp_path / "trainset.tax"
+    tax.write_text("r\tBacteria;Firmicutes;\n", encoding="utf-8")
+    otu_list = tmp_path / "final.opti_tptn.0.03.list"
+    otu_list.write_text("unique\t1\ta_1\n", encoding="utf-8")
+    count_table = tmp_path / "seqs.count_table"
+    count_table.write_text("Representative_Sequence\ttotal\na\t1\n", encoding="utf-8")
+    monkeypatch.setattr("shutil.which", _fake_which)
+
+    seqs_taxonomy = tmp_path / "seqs.wang.taxonomy"
+    seqs_taxonomy.write_text("a\tBacteria(100);\n", encoding="utf-8")
+    otu_taxonomy = tmp_path / "final.opti_tptn.0.03.cons.taxonomy"
+    otu_taxonomy.write_text("Otu0001\t1\tBacteria(100);\n", encoding="utf-8")
+    otu_summary = tmp_path / "final.opti_tptn.0.03.cons.tax.summary"
+    otu_summary.write_text("dummy\n", encoding="utf-8")
+
+    scripts: list[str] = []
+    stdouts = iter(
+        [
+            _mothur_stdout(str(seqs_taxonomy)),
+            _mothur_stdout(str(otu_taxonomy), str(otu_summary)),
+        ]
+    )
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        scripts.append(command[1])
+        return subprocess.CompletedProcess(command, 0, next(stdouts), "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    output = tmp_path / "taxonomy.tsv"
+    tax_classify(
+        backend="mothur",
+        rep_seqs=seqs,
+        output=output,
+        taxonomy_reference=ref,
+        taxonomy_map=tax,
+        otu_list=otu_list,
+        count_table=count_table,
+    )
+
+    classify_seqs_script, classify_otu_script = scripts
+
+    # 1. classify.seqs receives the count table.
+    assert f"count={count_table}" in classify_seqs_script
+
+    # 2. classify.otu receives the EXACT .taxonomy file classify.seqs
+    # produced, paired with the "taxonomy=" key -- a bare filename substring
+    # would also match e.g. a `reference=` parameter and pass vacuously.
+    assert f"taxonomy={seqs_taxonomy}" in classify_otu_script
+    assert f"list={otu_list}" in classify_otu_script
+
+    # 3. classify.otu also receives the count table.
+    assert f"count={count_table}" in classify_otu_script
+
+    # 4. The file copied to --output is classify.otu's .cons.taxonomy, NOT
+    # classify.seqs's per-sequence .taxonomy. Getting this backwards would
+    # return per-sequence assignments where per-OTU consensus was asked for --
+    # plausible-looking and wrong.
+    assert output.read_text(encoding="utf-8") == otu_taxonomy.read_text(encoding="utf-8")
+    assert output.read_text(encoding="utf-8") != seqs_taxonomy.read_text(encoding="utf-8")
+
+
+def test_tax_classify_mothur_otu_list_without_count_table_is_legitimate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Verified against real mothur 1.48.5: classify.otu(list=..., taxonomy=...)
+    # WITHOUT a count parameter runs cleanly (exit 0, no warnings). This must
+    # keep working -- do not add validation that requires count_table whenever
+    # otu_list is supplied.
+    seqs = tmp_path / "seqs.fasta"
+    seqs.write_text(">a\nACGT\n", encoding="utf-8")
+    ref = tmp_path / "trainset.fasta"
+    ref.write_text(">r\nACGT\n", encoding="utf-8")
+    tax = tmp_path / "trainset.tax"
+    tax.write_text("r\tBacteria;Firmicutes;\n", encoding="utf-8")
+    otu_list = tmp_path / "final.opti_tptn.0.03.list"
+    otu_list.write_text("unique\t1\ta_1\n", encoding="utf-8")
+    monkeypatch.setattr("shutil.which", _fake_which)
+
+    seqs_taxonomy = tmp_path / "seqs.wang.taxonomy"
+    seqs_taxonomy.write_text("a\tBacteria(100);\n", encoding="utf-8")
+    otu_taxonomy = tmp_path / "final.opti_tptn.0.03.cons.taxonomy"
+    otu_taxonomy.write_text("Otu0001\t1\tBacteria(100);\n", encoding="utf-8")
+    otu_summary = tmp_path / "final.opti_tptn.0.03.cons.tax.summary"
+    otu_summary.write_text("dummy\n", encoding="utf-8")
+
+    scripts: list[str] = []
+    stdouts = iter(
+        [
+            _mothur_stdout(str(seqs_taxonomy)),
+            _mothur_stdout(str(otu_taxonomy), str(otu_summary)),
+        ]
+    )
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        scripts.append(command[1])
+        return subprocess.CompletedProcess(command, 0, next(stdouts), "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    output = tmp_path / "taxonomy.tsv"
+    tax_classify(
+        backend="mothur",
+        rep_seqs=seqs,
+        output=output,
+        taxonomy_reference=ref,
+        taxonomy_map=tax,
+        otu_list=otu_list,
+    )
+
+    assert "count=" not in scripts[1]
+    assert output.read_text(encoding="utf-8") == otu_taxonomy.read_text(encoding="utf-8")
+
+
+def test_select_output_classify_otu_picks_cons_taxonomy_not_summary() -> None:
+    # classify.otu emits both a .cons.taxonomy and a .cons.tax.summary file in
+    # the same block. The .cons.tax.summary near-miss is the entire reason
+    # this fixture exists: select_output must not hand the OTU-consensus
+    # caller the summary file instead.
+    outputs = parse_mothur_outputs((FIXTURES / "classify_otu.txt").read_text(encoding="utf-8"))
+
+    chosen = select_output(outputs, ".cons.taxonomy", step="classify.otu")
+
+    assert chosen.name == "q.unique.opti_tptn.0.03.0.03.cons.taxonomy"
+    assert "tax.summary" not in chosen.name

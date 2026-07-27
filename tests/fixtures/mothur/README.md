@@ -6,9 +6,9 @@ Verbatim stdout captured from **mothur 1.48.5** running in
 format. **Never hand-edit them.** If a parser test fails, the parser is wrong.
 
 Captured 2026-07-26 on `condaforge/miniforge3:24.9.2-0` + `mothur=1.48.5`
-(bioconda build `h11ba690_0`). `classify_seqs.txt` and `get_oturep.txt` were
-captured 2026-07-27 against the built `microsuite/mothur:local` image (same
-mothur 1.48.5).
+(bioconda build `h11ba690_0`). `classify_seqs.txt`, `get_oturep.txt`, and
+`classify_otu.txt` were captured 2026-07-27 against the built
+`microsuite/mothur:local` image (same mothur 1.48.5).
 
 | File | Command | Purpose |
 |---|---|---|
@@ -19,6 +19,7 @@ mothur 1.48.5).
 | `chimera_vsearch.txt` | `chimera.vsearch(fasta=…, count=…, dereplicate=t)` | Two `Output File Names:` blocks from a *single* command: an internal `remove.seqs` block naming `test.unique.pick.fasta` (never written to disk under that name), followed by the real final block (`.chimeras`, `.accnos`, `.fasta`). No `.count_table` is produced. |
 | `classify_seqs.txt` | `classify.seqs(fasta=…, count=…, reference=…, taxonomy=…)` | Emits `.wang.taxonomy` and `.wang.tax.summary` together — pins that `select_output(..., ".taxonomy")` picks the taxonomy file and not the near-miss summary file. |
 | `get_oturep.txt` | `get.oturep(column=…, list=…, count=…, fasta=…, method=abundance)` — **no `label`** | Confirms `label` is not a valid `get.oturep` parameter: passing it only prints `[WARNING]: label is not a valid parameter, ignoring.`, which `check_mothur_errors` does not catch. This fixture is captured WITHOUT `label` and contains no such warning. Emits `.rep.count_table` and `.rep.fasta` together. |
+| `classify_otu.txt` | `classify.otu(list=…, count=…, taxonomy=…, label=0.03)` | Emits `.cons.taxonomy` and `.cons.tax.summary` together — pins that `select_output(..., ".cons.taxonomy")` picks the consensus taxonomy file and not the near-miss summary file. Also confirms `classify.otu` runs cleanly (exit 0, no warnings) WITH a `count` parameter supplied. |
 
 ## Observed format
 

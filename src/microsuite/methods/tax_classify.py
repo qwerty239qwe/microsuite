@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-from typing import cast
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
@@ -37,7 +36,13 @@ def tax_classify(
     if backend == "mothur":
         reject_options(
             "mothur",
-            {"--classifier": classifier, "--input-type": None},
+            {
+                "--classifier": classifier,
+                # input_type defaults to "fastq" rather than None, so only a value the
+                # user actually chose can be rejected here. mothur classifies FASTA and
+                # has no input-type switch, so anything non-default is meaningless to it.
+                "--input-type": None if input_type == "fastq" else input_type,
+            },
         )
         if taxonomy_reference is None or taxonomy_map is None:
             raise MicrobiomeSuiteError(
@@ -127,14 +132,18 @@ def tax_classify(
             return
         if backend == "mothur":
             # taxonomy_reference/taxonomy_map are validated non-None above, in
-            # the `backend == "mothur"` branch before `stage_execution`; the
-            # cast just tells the type checker what that runtime check already
-            # guarantees by the time execution reaches here.
+            # the `backend == "mothur"` branch before `stage_execution`. The
+            # asserts restate that runtime guarantee for the type checker here
+            # and, unlike a cast, fail loudly at this exact spot if a future
+            # refactor ever breaks the dominance between validation and
+            # dispatch, instead of passing None into ensure_input() silently.
+            assert taxonomy_reference is not None
+            assert taxonomy_map is not None
             tax_classify_mothur(
                 rep_seqs=rep_seqs,
                 output=output,
-                taxonomy_reference=cast(Path, taxonomy_reference),
-                taxonomy_map=cast(Path, taxonomy_map),
+                taxonomy_reference=taxonomy_reference,
+                taxonomy_map=taxonomy_map,
                 otu_list=otu_list,
                 count_table=count_table,
                 force=force,
