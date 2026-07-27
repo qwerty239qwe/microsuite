@@ -28,6 +28,8 @@ def cluster(
     maxambig: int = 0,
     maxhomop: int = 8,
     pre_cluster_diffs: int = 2,
+    output_otu_list: Path | None = None,
+    output_count_table: Path | None = None,
     force: bool = False,
     run_dir: Path | None = None,
     timeout: float | None = None,
@@ -45,6 +47,8 @@ def cluster(
             maxambig=maxambig,
             maxhomop=maxhomop,
             pre_cluster_diffs=pre_cluster_diffs,
+            output_otu_list=output_otu_list,
+            output_count_table=output_count_table,
             force=force,
             run_dir=run_dir,
             timeout=timeout,
@@ -105,6 +109,8 @@ def cluster_mothur(
     maxambig: int,
     maxhomop: int,
     pre_cluster_diffs: int,
+    output_otu_list: Path | None,
+    output_count_table: Path | None,
     force: bool,
     run_dir: Path | None,
     timeout: float | None,
@@ -119,6 +125,10 @@ def cluster_mothur(
     prepare_output(output_rep_seqs, force=force)
     shared_sidecar = output_table.with_suffix(".shared")
     prepare_output(shared_sidecar, force=force)
+    if output_otu_list is not None:
+        prepare_output(output_otu_list, force=force)
+    if output_count_table is not None:
+        prepare_output(output_count_table, force=force)
 
     cutoff = round(1.0 - identity, 4)
     work_dir = output_table.parent / f"{output_table.stem}.mothur"
@@ -220,6 +230,10 @@ def cluster_mothur(
     write_otu_table_from_shared(shared, output_table)
     shutil.copyfile(shared, shared_sidecar)
     shutil.copyfile(representatives, output_rep_seqs)
+    if output_otu_list is not None:
+        shutil.copyfile(otu_list, output_otu_list)
+    if output_count_table is not None:
+        shutil.copyfile(count, output_count_table)
 
 
 def cluster_qiime2_vsearch(

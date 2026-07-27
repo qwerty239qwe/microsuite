@@ -392,6 +392,17 @@ def register(app: typer.Typer) -> None:
             int,
             typer.Option("--pre-cluster-diffs", min=0, help="mothur pre.cluster diffs."),
         ] = 2,
+        output_otu_list: Annotated[
+            Path | None,
+            typer.Option("--output-otu-list", help="Optional mothur .list OTU membership sidecar."),
+        ] = None,
+        output_count_table: Annotated[
+            Path | None,
+            typer.Option(
+                "--output-count-table",
+                help="Optional mothur post-chimera .count_table sidecar.",
+            ),
+        ] = None,
         force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
         run_dir: Annotated[
             Path | None, typer.Option("--run-dir", help="Write runtime logs here.")
@@ -415,6 +426,8 @@ def register(app: typer.Typer) -> None:
             maxambig=maxambig,
             maxhomop=maxhomop,
             pre_cluster_diffs=pre_cluster_diffs,
+            output_otu_list=output_otu_list,
+            output_count_table=output_count_table,
             force=force,
             run_dir=run_dir,
             timeout=timeout,

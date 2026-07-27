@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
+from microsuite._paths import prepare_output
 from microsuite.methods.cluster import cluster
 from microsuite.methods.mothur import run_mothur, select_output
 from microsuite.methods.tax_classify import tax_classify
@@ -90,6 +91,14 @@ def run_mothur_sop(
     work_dir = output_dir / "contigs"
     stability = write_stability_file(reads_dir, work_dir / "stability.files")
 
+    # mothur derives output names from the stability file's stem ("stability"),
+    # so the assembled-contigs path is deterministic before make.contigs runs.
+    # Guarding it here -- like cluster() and tax_classify() guard their own
+    # deliverables -- makes a rerun without --force fail before overwriting the
+    # prior contigs, instead of after.
+    contigs_fasta = work_dir / "stability.trim.contigs.fasta"
+    prepare_output(contigs_fasta, force=force)
+
     outputs = run_mothur(
         "make.contigs",
         {"file": str(stability)},
@@ -103,6 +112,8 @@ def run_mothur_sop(
 
     output_table = output_dir / "table.tsv"
     output_rep_seqs = output_dir / "rep-seqs.fasta"
+    output_otu_list = output_dir / "otu.list"
+    output_count_table = output_dir / "table.count_table"
     cluster(
         backend="mothur",
         rep_seqs=contigs,
@@ -110,6 +121,8 @@ def run_mothur_sop(
         output_rep_seqs=output_rep_seqs,
         reference_alignment=reference_alignment,
         identity=identity,
+        output_otu_list=output_otu_list,
+        output_count_table=output_count_table,
         force=force,
         run_dir=run_dir / "cluster",
         timeout=timeout,
@@ -121,6 +134,8 @@ def run_mothur_sop(
         output=output_dir / "taxonomy.tsv",
         taxonomy_reference=taxonomy_reference,
         taxonomy_map=taxonomy_map,
+        otu_list=output_otu_list,
+        count_table=output_count_table,
         force=force,
         run_dir=run_dir / "taxonomy",
         timeout=timeout,

@@ -6,7 +6,7 @@ import pytest
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite.workflows.catalog import WORKFLOWS
-from microsuite.workflows.mothur_sop import write_stability_file
+from microsuite.workflows.mothur_sop import run_mothur_sop, write_stability_file
 
 
 def test_mothur_workflow_is_in_the_catalog() -> None:
@@ -135,3 +135,73 @@ def test_write_stability_file_rejects_unmatched_fastq_file(tmp_path: Path) -> No
 
     with pytest.raises(MicrobiomeSuiteError, match="weirdfile.fastq.gz"):
         write_stability_file(reads, tmp_path / "stability.files")
+
+
+def test_run_mothur_sop_threads_files_correctly_between_steps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Every existing test targets write_stability_file or catalog membership;
+    # nothing pinned the hand-offs between make.contigs -> cluster ->
+    # tax_classify. An earlier task in this feature shipped a mis-threaded
+    # file with a fully green suite. This monkeypatches run_mothur, cluster,
+    # and tax_classify at the module boundary and asserts the exact paths
+    # crossing each hand-off.
+    reads = tmp_path / "reads"
+    reads.mkdir()
+    (reads / "sampleA_R1.fastq.gz").write_text("", encoding="utf-8")
+    (reads / "sampleA_R2.fastq.gz").write_text("", encoding="utf-8")
+
+    output_dir = tmp_path / "out"
+    reference_alignment = tmp_path / "silva.align"
+    reference_alignment.write_text(">ref\nAC-GT\n", encoding="utf-8")
+    taxonomy_reference = tmp_path / "trainset.fasta"
+    taxonomy_reference.write_text(">r\nACGT\n", encoding="utf-8")
+    taxonomy_map = tmp_path / "trainset.tax"
+    taxonomy_map.write_text("r\tBacteria;\n", encoding="utf-8")
+
+    contigs_fasta = output_dir / "contigs" / "stability.trim.contigs.fasta"
+    scrap_fasta = output_dir / "contigs" / "stability.scrap.contigs.fasta"
+
+    run_mothur_calls: list[dict[str, object]] = []
+    cluster_calls: list[dict[str, object]] = []
+    tax_classify_calls: list[dict[str, object]] = []
+
+    def fake_run_mothur(command: str, params: dict[str, str], **kwargs: object) -> list[Path]:
+        run_mothur_calls.append({"command": command, "params": params, **kwargs})
+        # make.contigs emits both the assembled and scrap FASTA in one block.
+        return [contigs_fasta, scrap_fasta]
+
+    def fake_cluster(**kwargs: object) -> None:
+        cluster_calls.append(kwargs)
+
+    def fake_tax_classify(**kwargs: object) -> None:
+        tax_classify_calls.append(kwargs)
+
+    monkeypatch.setattr("microsuite.workflows.mothur_sop.run_mothur", fake_run_mothur)
+    monkeypatch.setattr("microsuite.workflows.mothur_sop.cluster", fake_cluster)
+    monkeypatch.setattr("microsuite.workflows.mothur_sop.tax_classify", fake_tax_classify)
+
+    run_mothur_sop(
+        reads_dir=reads,
+        output_dir=output_dir,
+        reference_alignment=reference_alignment,
+        taxonomy_reference=taxonomy_reference,
+        taxonomy_map=taxonomy_map,
+    )
+
+    assert len(cluster_calls) == 1
+    assert len(tax_classify_calls) == 1
+
+    # 1. The contigs FASTA from make.contigs (NOT the scrap FASTA) reaches
+    # cluster(rep_seqs=...).
+    assert cluster_calls[0]["rep_seqs"] == contigs_fasta
+
+    # 2. cluster's output_rep_seqs becomes tax_classify's rep_seqs.
+    assert tax_classify_calls[0]["rep_seqs"] == cluster_calls[0]["output_rep_seqs"]
+
+    # 3. cluster's output_otu_list/output_count_table become tax_classify's
+    # otu_list/count_table -- the Finding 1 per-OTU consensus wiring.
+    assert tax_classify_calls[0]["otu_list"] == cluster_calls[0]["output_otu_list"]
+    assert tax_classify_calls[0]["count_table"] == cluster_calls[0]["output_count_table"]
+    assert cluster_calls[0]["output_otu_list"] is not None
+    assert cluster_calls[0]["output_count_table"] is not None

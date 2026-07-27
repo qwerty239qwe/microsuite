@@ -478,6 +478,67 @@ def test_cluster_mothur_converts_identity_to_distance_cutoff(
     assert "cutoff=0.03" in dist_script
 
 
+def test_cluster_mothur_copies_otu_list_and_count_table_when_requested(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Finding 1: cluster_mothur produced the cluster step's .list and the
+    # post-chimera (remove.seqs) .count_table inside its private work_dir but
+    # never surfaced their paths, so tax_classify(backend="mothur") could
+    # only ever run classify.seqs (per-sequence taxonomy) -- never
+    # classify.otu (per-OTU consensus), the spec's stated deliverable.
+    # output_otu_list/output_count_table are output_uc-style optional
+    # sidecars that fix that.
+    seqs = tmp_path / "seqs.fasta"
+    seqs.write_text(">a_1\nACGT\n", encoding="utf-8")
+    reference = tmp_path / "silva.align"
+    reference.write_text(">ref\nAC-GT\n", encoding="utf-8")
+    monkeypatch.setattr("shutil.which", _fake_which)
+
+    stdouts = iter(_sop_stdouts(tmp_path))
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 0, next(stdouts), "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    (tmp_path / "seqs.opti_tptn.shared").write_text(
+        "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t4\n", encoding="utf-8"
+    )
+    (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
+    # The step="cluster" .list and the post-chimera (remove.seqs) .count_table
+    # -- the two files output_otu_list/output_count_table must surface.
+    (tmp_path / "seqs.opti_tptn.list").write_text("0.03\t1\ta_1\n", encoding="utf-8")
+    (tmp_path / "seqs.pick.count_table").write_text(
+        "Representative_Sequence\ttotal\na_1\t1\n", encoding="utf-8"
+    )
+    for name in ("seqs.unique.fasta", "seqs.good.fasta", "seqs.denovo.vsearch.fasta"):
+        (tmp_path / name).write_text(">a_1\nACGT\n", encoding="utf-8")
+
+    output_otu_list = tmp_path / "otu.list"
+    output_count_table = tmp_path / "table.count_table"
+
+    cluster(
+        backend="mothur",
+        rep_seqs=seqs,
+        output_table=tmp_path / "table.tsv",
+        output_rep_seqs=tmp_path / "rep.fasta",
+        reference_alignment=reference,
+        identity=0.97,
+        output_otu_list=output_otu_list,
+        output_count_table=output_count_table,
+    )
+
+    assert output_otu_list.read_text(encoding="utf-8") == (
+        tmp_path / "seqs.opti_tptn.list"
+    ).read_text(encoding="utf-8")
+    # NOT the pre-chimera (pre.cluster) count table -- that still contains
+    # chimeric abundances.
+    assert output_count_table.read_text(encoding="utf-8") == (
+        tmp_path / "seqs.pick.count_table"
+    ).read_text(encoding="utf-8")
+    assert "precluster" not in output_count_table.read_text(encoding="utf-8")
+
+
 def test_cluster_mothur_requires_reference_alignment(tmp_path: Path) -> None:
     seqs = tmp_path / "seqs.fasta"
     seqs.write_text(">a_1\nACGT\n", encoding="utf-8")
