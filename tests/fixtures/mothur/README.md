@@ -14,6 +14,7 @@ Captured 2026-07-26 on `condaforge/miniforge3:24.9.2-0` + `mothur=1.48.5`
 | `make_contigs.txt` | `make.contigs(file=…)` | Two `.fasta` outputs — the ambiguity `select_output` must reject. |
 | `error_on_failure.txt` | `align.seqs(fasta=…, reference=<missing>)` | Failure output. |
 | `multi_block.txt` | `unique.seqs(fasta=…, format=count)` then `summary.seqs(fasta=current, count=current)` | Two `Output File Names:` blocks in one run — pins that the parser takes the LAST block. |
+| `chimera_vsearch.txt` | `chimera.vsearch(fasta=…, count=…, dereplicate=t)` | Two `Output File Names:` blocks from a *single* command: an internal `remove.seqs` block naming `test.unique.pick.fasta` (never written to disk under that name), followed by the real final block (`.chimeras`, `.accnos`, `.fasta`). No `.count_table` is produced. |
 
 ## Observed format
 

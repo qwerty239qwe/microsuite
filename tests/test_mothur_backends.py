@@ -11,8 +11,11 @@ from microsuite.methods.mothur import (
     ensure_non_empty_fasta,
     find_mothur,
     format_mothur_command,
+    parse_mothur_outputs,
     run_mothur,
 )
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures" / "mothur"
 
 CLEAN_STDOUT = """mothur > unique.seqs(fasta=in.fasta, format=count)
 
@@ -229,7 +232,12 @@ def _sop_stdouts(tmp_path: Path) -> list[str]:
         _mothur_stdout(f"{base}.filter.fasta"),
         _mothur_stdout(f"{base}.filter.unique.fasta", f"{base}.filter.count_table"),
         _mothur_stdout(f"{base}.precluster.fasta", f"{base}.precluster.count_table"),
-        _mothur_stdout(f"{base}.pick.fasta", f"{base}.pick.count_table"),
+        _mothur_stdout(
+            f"{base}.denovo.vsearch.chimeras",
+            f"{base}.denovo.vsearch.accnos",
+            f"{base}.denovo.vsearch.fasta",
+        ),
+        _mothur_stdout(f"{base}.pick.count_table"),
         _mothur_stdout(f"{base}.dist"),
         _mothur_stdout(f"{base}.opti_mcc.list"),
         _mothur_stdout(f"{base}.opti_mcc.shared"),
@@ -239,6 +247,24 @@ def _sop_stdouts(tmp_path: Path) -> list[str]:
 
 def test_mothur_is_a_supported_cluster_backend() -> None:
     assert "mothur" in SUPPORTED_BACKENDS
+
+
+def test_chimera_vsearch_fixture_reports_only_the_final_block() -> None:
+    # chimera.vsearch runs remove.seqs internally and prints ITS "Output File
+    # Names:" block (test.unique.pick.fasta) before printing its own final block
+    # (the three test.unique.denovo.vsearch.* files). test.unique.pick.fasta
+    # never lands on disk under that name — the result is the denovo.vsearch
+    # fasta. If parse_mothur_outputs took the first block instead of the last,
+    # callers would be handed a path that does not exist.
+    outputs = parse_mothur_outputs((FIXTURES / "chimera_vsearch.txt").read_text(encoding="utf-8"))
+
+    names = [p.name for p in outputs]
+    assert names == [
+        "test.unique.denovo.vsearch.chimeras",
+        "test.unique.denovo.vsearch.accnos",
+        "test.unique.denovo.vsearch.fasta",
+    ]
+    assert "test.unique.pick.fasta" not in names
 
 
 def test_cluster_mothur_runs_the_sop_in_order(
@@ -264,7 +290,7 @@ def test_cluster_mothur_runs_the_sop_in_order(
         "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t4\n", encoding="utf-8"
     )
     (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
-    for name in ("seqs.unique.fasta", "seqs.good.fasta", "seqs.pick.fasta"):
+    for name in ("seqs.unique.fasta", "seqs.good.fasta", "seqs.denovo.vsearch.fasta"):
         (tmp_path / name).write_text(">a_1\nACGT\n", encoding="utf-8")
 
     cluster(
@@ -285,6 +311,7 @@ def test_cluster_mothur_runs_the_sop_in_order(
         "unique.seqs",
         "pre.cluster",
         "chimera.vsearch",
+        "remove.seqs",
         "dist.seqs",
         "cluster",
         "make.shared",
@@ -313,7 +340,7 @@ def test_cluster_mothur_converts_identity_to_distance_cutoff(
         "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t4\n", encoding="utf-8"
     )
     (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
-    for name in ("seqs.unique.fasta", "seqs.good.fasta", "seqs.pick.fasta"):
+    for name in ("seqs.unique.fasta", "seqs.good.fasta", "seqs.denovo.vsearch.fasta"):
         (tmp_path / name).write_text(">a_1\nACGT\n", encoding="utf-8")
 
     cluster(

@@ -174,7 +174,13 @@ def cluster_mothur(
     fasta = ensure_non_empty_fasta(
         select_output(out, ".fasta", step="chimera.vsearch"), step="chimera.vsearch"
     )
-    count = select_output(out, ".count_table", step="chimera.vsearch")
+    accnos = select_output(out, ".accnos", step="chimera.vsearch")
+
+    # chimera.vsearch never emits a .count_table: the chimeric sequence is gone
+    # from the fasta but still counted in `count`. Strip it explicitly, or every
+    # downstream table keeps chimeric abundances with no error.
+    out = step("remove.seqs", {"accnos": str(accnos), "count": str(count)})
+    count = select_output(out, ".count_table", step="remove.seqs")
 
     out = step("dist.seqs", {"fasta": str(fasta), "cutoff": str(cutoff)})
     column = select_output(out, ".dist", step="dist.seqs")
