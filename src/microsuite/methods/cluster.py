@@ -322,3 +322,27 @@ def _sample_from_label(label: str, *, sample_delimiter: str, sample_field: int) 
     if sample_field >= len(fields):
         return label
     return fields[sample_field]
+
+
+def write_otu_table_from_shared(shared: Path, output: Path) -> None:
+    """Convert mothur's sample-major .shared into microsuite's feature-major TSV.
+
+    .shared columns are: label, Group, numOtus, then one column per OTU.
+    """
+    rows = [
+        line.rstrip("\n").split("\t")
+        for line in shared.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    if len(rows) < 2:
+        raise MicrobiomeSuiteError(f"mothur .shared file has no rows: {shared}")
+
+    header, *records = rows
+    otus = header[3:]
+    samples = [record[1] for record in records]
+
+    with output.open("w", encoding="utf-8", newline="") as handle:
+        handle.write("feature-id\t" + "\t".join(samples) + "\n")
+        for index, otu in enumerate(otus):
+            counts = [record[3 + index] for record in records]
+            handle.write(otu + "\t" + "\t".join(counts) + "\n")

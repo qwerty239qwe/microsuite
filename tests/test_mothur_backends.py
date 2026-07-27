@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from microsuite._errors import MicrobiomeSuiteError
+from microsuite.methods.cluster import write_otu_table_from_shared
 from microsuite.methods.mothur import (
     ensure_non_empty_fasta,
     find_mothur,
@@ -147,3 +148,41 @@ def test_ensure_non_empty_fasta_accepts_a_record(tmp_path: Path) -> None:
     populated.write_text(">seq1\nACGT\n", encoding="utf-8")
 
     assert ensure_non_empty_fasta(populated, step="screen.seqs") == populated
+
+
+def test_write_otu_table_from_shared_transposes_to_feature_major(tmp_path: Path) -> None:
+    shared = tmp_path / "final.opti_mcc.shared"
+    shared.write_text(
+        "label\tGroup\tnumOtus\tOtu0001\tOtu0002\n0.03\tsampleA\t2\t5\t3\n0.03\tsampleB\t2\t0\t7\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "table.tsv"
+
+    write_otu_table_from_shared(shared, output)
+
+    assert output.read_text(encoding="utf-8") == (
+        "feature-id\tsampleA\tsampleB\nOtu0001\t5\t0\nOtu0002\t3\t7\n"
+    )
+
+
+def test_write_otu_table_from_shared_keeps_all_zero_samples(tmp_path: Path) -> None:
+    # A sample that survived filtering but shares no OTUs must stay as a column,
+    # or downstream sample counts silently disagree with the metadata.
+    shared = tmp_path / "final.opti_mcc.shared"
+    shared.write_text(
+        "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t9\n0.03\tsampleB\t1\t0\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "table.tsv"
+
+    write_otu_table_from_shared(shared, output)
+
+    assert output.read_text(encoding="utf-8").splitlines()[0] == "feature-id\tsampleA\tsampleB"
+
+
+def test_write_otu_table_from_shared_rejects_empty_file(tmp_path: Path) -> None:
+    shared = tmp_path / "empty.shared"
+    shared.write_text("", encoding="utf-8")
+
+    with pytest.raises(MicrobiomeSuiteError, match="no rows"):
+        write_otu_table_from_shared(shared, tmp_path / "table.tsv")
