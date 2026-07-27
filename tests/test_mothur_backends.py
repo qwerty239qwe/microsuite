@@ -319,6 +319,117 @@ def test_cluster_mothur_runs_the_sop_in_order(
     ]
 
 
+def test_cluster_mothur_threads_files_correctly_between_steps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # test_cluster_mothur_runs_the_sop_in_order only checks the SEQUENCE of
+    # command names -- the mocked subprocess.run below returns canned stdouts
+    # no matter what parameters a step was actually called with, so a
+    # scrambled data flow (e.g. remove.seqs stripping the wrong count table,
+    # dist.seqs running on the pre-chimera fasta, get.oturep reading a stale
+    # fasta) would sail straight through that test unnoticed. This test
+    # captures every full script string instead and pins which file each step
+    # actually consumes from which prior step's output.
+    seqs = tmp_path / "seqs.fasta"
+    seqs.write_text(">a_1\nACGT\n", encoding="utf-8")
+    reference = tmp_path / "silva.align"
+    reference.write_text(">ref\nAC-GT\n", encoding="utf-8")
+    monkeypatch.setattr("shutil.which", _fake_which)
+
+    scripts: list[str] = []
+    stdouts = iter(_sop_stdouts(tmp_path))
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        scripts.append(command[1])
+        return subprocess.CompletedProcess(command, 0, next(stdouts), "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    # get.oturep and make.shared outputs are read back, so create them.
+    (tmp_path / "seqs.opti_mcc.shared").write_text(
+        "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t4\n", encoding="utf-8"
+    )
+    (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
+    for name in ("seqs.unique.fasta", "seqs.good.fasta", "seqs.denovo.vsearch.fasta"):
+        (tmp_path / name).write_text(">a_1\nACGT\n", encoding="utf-8")
+
+    cluster(
+        backend="mothur",
+        rep_seqs=seqs,
+        output_table=tmp_path / "table.tsv",
+        output_rep_seqs=tmp_path / "rep.fasta",
+        reference_alignment=reference,
+        identity=0.97,
+    )
+
+    # Map each command name to its full script. unique.seqs runs twice; every
+    # other command below runs exactly once, and unique.seqs's own script
+    # content is not needed by the assertions here.
+    by_command = {script.split("; ", 1)[1].split("(", 1)[0]: script for script in scripts}
+
+    base = str(tmp_path / "seqs")
+    unique1_fasta = f"{base}.unique.fasta"
+    unique1_count = f"{base}.count_table"
+    aligned = f"{base}.unique.align"
+    unique2_fasta = f"{base}.filter.unique.fasta"
+    unique2_count = f"{base}.filter.count_table"
+    precluster_fasta = f"{base}.precluster.fasta"
+    precluster_count = f"{base}.precluster.count_table"
+    chimera_fasta = f"{base}.denovo.vsearch.fasta"
+    chimera_accnos = f"{base}.denovo.vsearch.accnos"
+    remove_count = f"{base}.pick.count_table"
+    dist = f"{base}.dist"
+    otu_list = f"{base}.opti_mcc.list"
+
+    # 1. align.seqs consumes the .fasta the first unique.seqs produced.
+    assert f"fasta={unique1_fasta}" in by_command["align.seqs"]
+
+    # 2. screen.seqs consumes the .align align.seqs produced.
+    assert f"fasta={aligned}" in by_command["screen.seqs"]
+    assert f"count={unique1_count}" in by_command["screen.seqs"]
+
+    # 3. pre.cluster consumes the .fasta and .count_table from the SECOND
+    # unique.seqs (the one after filter.seqs), not the first.
+    assert f"fasta={unique2_fasta}" in by_command["pre.cluster"]
+    assert f"count={unique2_count}" in by_command["pre.cluster"]
+
+    # 4. chimera.vsearch consumes the .fasta and .count_table pre.cluster produced.
+    assert f"fasta={precluster_fasta}" in by_command["chimera.vsearch"]
+    assert f"count={precluster_count}" in by_command["chimera.vsearch"]
+
+    # 5. remove.seqs consumes chimera.vsearch's .accnos AND the count table
+    # from pre.cluster -- the PRE-chimera count, not any later count.
+    # chimera.vsearch never emits its own count table (the chimeric read is
+    # gone from the fasta but still tallied in pre.cluster's count table), so
+    # remove.seqs is the step that actually strips it. Feeding remove.seqs any
+    # other count here reproduces the original bug where chimeric abundances
+    # survived into the final OTU table.
+    assert f"accnos={chimera_accnos}" in by_command["remove.seqs"]
+    assert f"count={precluster_count}" in by_command["remove.seqs"]
+
+    # 6. dist.seqs consumes chimera.vsearch's post-chimera-removal .fasta, NOT
+    # the pre-chimera fasta pre.cluster produced.
+    assert f"fasta={chimera_fasta}" in by_command["dist.seqs"]
+    assert f"fasta={precluster_fasta}" not in by_command["dist.seqs"]
+
+    # 7. cluster consumes dist.seqs's .dist and remove.seqs's (post-chimera)
+    # .count_table.
+    assert f"column={dist}" in by_command["cluster"]
+    assert f"count={remove_count}" in by_command["cluster"]
+
+    # 8. make.shared consumes cluster's .list and remove.seqs's .count_table.
+    assert f"list={otu_list}" in by_command["make.shared"]
+    assert f"count={remove_count}" in by_command["make.shared"]
+
+    # 9. get.oturep consumes dist.seqs's .dist, cluster's .list, remove.seqs's
+    # .count_table, and chimera.vsearch's post-removal .fasta.
+    oturep_script = by_command["get.oturep"]
+    assert f"column={dist}" in oturep_script
+    assert f"list={otu_list}" in oturep_script
+    assert f"count={remove_count}" in oturep_script
+    assert f"fasta={chimera_fasta}" in oturep_script
+
+
 def test_cluster_mothur_converts_identity_to_distance_cutoff(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
