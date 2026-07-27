@@ -14,6 +14,7 @@ from microsuite.methods.mothur import (
     parse_mothur_outputs,
     run_mothur,
 )
+from microsuite.methods.tax_classify import SUPPORTED_METHODS, tax_classify
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "mothur"
 
@@ -502,4 +503,86 @@ def test_cluster_mothur_validates_reference_before_running_mothur(
             output_rep_seqs=tmp_path / "rep.fasta",
             reference_alignment=tmp_path / "absent.align",
             identity=0.97,
+        )
+
+
+def test_mothur_is_a_supported_taxonomy_backend() -> None:
+    assert "mothur" in SUPPORTED_METHODS
+
+
+def test_tax_classify_mothur_builds_classify_seqs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seqs = tmp_path / "seqs.fasta"
+    seqs.write_text(">a\nACGT\n", encoding="utf-8")
+    ref = tmp_path / "trainset.fasta"
+    ref.write_text(">r\nACGT\n", encoding="utf-8")
+    tax = tmp_path / "trainset.tax"
+    tax.write_text("r\tBacteria;Firmicutes;\n", encoding="utf-8")
+    monkeypatch.setattr("shutil.which", _fake_which)
+
+    scripts: list[str] = []
+    produced = tmp_path / "seqs.wang.taxonomy"
+    produced.write_text("a\tBacteria(100);\n", encoding="utf-8")
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        scripts.append(command[1])
+        return subprocess.CompletedProcess(command, 0, _mothur_stdout(str(produced)), "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    tax_classify(
+        backend="mothur",
+        rep_seqs=seqs,
+        output=tmp_path / "taxonomy.tsv",
+        taxonomy_reference=ref,
+        taxonomy_map=tax,
+    )
+
+    assert "classify.seqs(" in scripts[0]
+    assert f"reference={ref}" in scripts[0]
+    assert f"taxonomy={tax}" in scripts[0]
+
+
+def test_tax_classify_mothur_rejects_classifier(tmp_path: Path) -> None:
+    seqs = tmp_path / "seqs.fasta"
+    seqs.write_text(">a\nACGT\n", encoding="utf-8")
+
+    with pytest.raises(MicrobiomeSuiteError, match="--classifier"):
+        tax_classify(
+            backend="mothur",
+            rep_seqs=seqs,
+            output=tmp_path / "taxonomy.tsv",
+            classifier=tmp_path / "classifier.qza",
+            taxonomy_reference=tmp_path / "ref.fasta",
+            taxonomy_map=tmp_path / "ref.tax",
+        )
+
+
+def test_tax_classify_mothur_requires_both_reference_files(tmp_path: Path) -> None:
+    seqs = tmp_path / "seqs.fasta"
+    seqs.write_text(">a\nACGT\n", encoding="utf-8")
+
+    with pytest.raises(MicrobiomeSuiteError, match="--taxonomy-map"):
+        tax_classify(
+            backend="mothur",
+            rep_seqs=seqs,
+            output=tmp_path / "taxonomy.tsv",
+            taxonomy_reference=tmp_path / "ref.fasta",
+        )
+
+
+def test_non_mothur_backend_rejects_taxonomy_reference(tmp_path: Path) -> None:
+    # Silently ignoring this would classify against the wrong database and
+    # return a well-formed, wrong taxonomy table.
+    seqs = tmp_path / "seqs.qza"
+    seqs.write_text("", encoding="utf-8")
+
+    with pytest.raises(MicrobiomeSuiteError, match="--taxonomy-reference"):
+        tax_classify(
+            backend="kraken2",
+            rep_seqs=seqs,
+            output=tmp_path / "report.txt",
+            classifier=tmp_path / "db",
+            taxonomy_reference=tmp_path / "ref.fasta",
         )
