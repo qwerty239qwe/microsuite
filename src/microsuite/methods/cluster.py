@@ -6,9 +6,10 @@ from pathlib import Path
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
 from microsuite.methods._dispatch import require_backend
+from microsuite.methods.mothur import ensure_non_empty_fasta, run_mothur, select_output
 from microsuite.runtime.runner import CommandLog, run_command
 
-SUPPORTED_BACKENDS = ("vsearch", "usearch", "qiime2-vsearch")
+SUPPORTED_BACKENDS = ("vsearch", "usearch", "qiime2-vsearch", "mothur")
 
 
 def cluster(
@@ -23,11 +24,32 @@ def cluster(
     output_uc: Path | None = None,
     sample_delimiter: str = "_",
     sample_field: int = 0,
+    reference_alignment: Path | None = None,
+    maxambig: int = 0,
+    maxhomop: int = 8,
+    pre_cluster_diffs: int = 2,
     force: bool = False,
     run_dir: Path | None = None,
     timeout: float | None = None,
 ) -> None:
     backend = require_backend(backend, SUPPORTED_BACKENDS, "cluster")
+    if backend == "mothur":
+        if reference_alignment is None:
+            raise MicrobiomeSuiteError("--reference-alignment is required for --backend mothur.")
+        cluster_mothur(
+            rep_seqs=rep_seqs,
+            output_table=output_table,
+            output_rep_seqs=output_rep_seqs,
+            reference_alignment=reference_alignment,
+            identity=identity,
+            maxambig=maxambig,
+            maxhomop=maxhomop,
+            pre_cluster_diffs=pre_cluster_diffs,
+            force=force,
+            run_dir=run_dir,
+            timeout=timeout,
+        )
+        return
     if backend == "qiime2-vsearch":
         if table is None:
             raise MicrobiomeSuiteError("--table is required for --backend qiime2-vsearch.")
@@ -71,6 +93,125 @@ def cluster(
             timeout=timeout,
         )
         return
+
+
+def cluster_mothur(
+    *,
+    rep_seqs: Path,
+    output_table: Path,
+    output_rep_seqs: Path,
+    reference_alignment: Path,
+    identity: float,
+    maxambig: int,
+    maxhomop: int,
+    pre_cluster_diffs: int,
+    force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
+) -> None:
+    """Run the clustering half of mothur's MiSeq SOP over a FASTA."""
+    if not 0 < identity <= 1:
+        raise MicrobiomeSuiteError("--identity must be greater than 0 and less than or equal to 1.")
+
+    ensure_input(rep_seqs)
+    ensure_input(reference_alignment)
+    prepare_output(output_table, force=force)
+    prepare_output(output_rep_seqs, force=force)
+    shared_sidecar = output_table.with_suffix(".shared")
+    prepare_output(shared_sidecar, force=force)
+
+    cutoff = round(1.0 - identity, 4)
+    work_dir = output_table.parent / f"{output_table.stem}.mothur"
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    def step(name: str, params: dict[str, str]) -> list[Path]:
+        step_run_dir = None if run_dir is None else run_dir / name.replace(".", "_")
+        return run_mothur(name, params, work_dir=work_dir, run_dir=step_run_dir, timeout=timeout)
+
+    out = step("unique.seqs", {"fasta": str(rep_seqs), "format": "count"})
+    fasta = ensure_non_empty_fasta(
+        select_output(out, ".fasta", step="unique.seqs"), step="unique.seqs"
+    )
+    count = select_output(out, ".count_table", step="unique.seqs")
+
+    out = step("align.seqs", {"fasta": str(fasta), "reference": str(reference_alignment)})
+    aligned = select_output(out, ".align", step="align.seqs")
+
+    out = step(
+        "screen.seqs",
+        {
+            "fasta": str(aligned),
+            "count": str(count),
+            "optimize": "start-end",
+            "criteria": "90",
+            "maxambig": str(maxambig),
+            "maxhomop": str(maxhomop),
+        },
+    )
+    fasta = ensure_non_empty_fasta(
+        select_output(out, ".fasta", step="screen.seqs"), step="screen.seqs"
+    )
+    count = select_output(out, ".count_table", step="screen.seqs")
+
+    out = step("filter.seqs", {"fasta": str(fasta), "vertical": "T", "trump": "."})
+    fasta = select_output(out, ".fasta", step="filter.seqs")
+
+    out = step("unique.seqs", {"fasta": str(fasta), "count": str(count)})
+    fasta = select_output(out, ".fasta", step="unique.seqs")
+    count = select_output(out, ".count_table", step="unique.seqs")
+
+    out = step(
+        "pre.cluster",
+        {"fasta": str(fasta), "count": str(count), "diffs": str(pre_cluster_diffs)},
+    )
+    fasta = select_output(out, ".fasta", step="pre.cluster")
+    count = select_output(out, ".count_table", step="pre.cluster")
+
+    out = step(
+        "chimera.vsearch",
+        {"fasta": str(fasta), "count": str(count), "dereplicate": "t"},
+    )
+    fasta = ensure_non_empty_fasta(
+        select_output(out, ".fasta", step="chimera.vsearch"), step="chimera.vsearch"
+    )
+    count = select_output(out, ".count_table", step="chimera.vsearch")
+
+    out = step("dist.seqs", {"fasta": str(fasta), "cutoff": str(cutoff)})
+    column = select_output(out, ".dist", step="dist.seqs")
+
+    out = step(
+        "cluster",
+        {
+            "column": str(column),
+            "count": str(count),
+            "method": "opti",
+            "cutoff": str(cutoff),
+        },
+    )
+    otu_list = select_output(out, ".list", step="cluster")
+
+    out = step(
+        "make.shared",
+        {"list": str(otu_list), "count": str(count), "label": str(cutoff)},
+    )
+    shared = select_output(out, ".shared", step="make.shared")
+
+    out = step(
+        "get.oturep",
+        {
+            "column": str(column),
+            "list": str(otu_list),
+            "count": str(count),
+            "fasta": str(fasta),
+            "label": str(cutoff),
+            "method": "abundance",
+        },
+    )
+    representatives = select_output(out, ".fasta", step="get.oturep")
+
+    write_otu_table_from_shared(shared, output_table)
+    shutil.copyfile(shared, shared_sidecar)
+    shutil.copyfile(representatives, output_rep_seqs)
 
 
 def cluster_qiime2_vsearch(

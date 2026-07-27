@@ -373,6 +373,25 @@ def register(app: typer.Typer) -> None:
             int,
             typer.Option("--sample-field", min=0, help="Zero-based sample ID field in labels."),
         ] = 0,
+        reference_alignment: Annotated[
+            Path | None,
+            typer.Option(
+                "--reference-alignment",
+                help="Aligned reference FASTA (mothur backend). Required for --backend mothur.",
+            ),
+        ] = None,
+        maxambig: Annotated[
+            int,
+            typer.Option("--maxambig", min=0, help="Max ambiguous bases (mothur screen.seqs)."),
+        ] = 0,
+        maxhomop: Annotated[
+            int,
+            typer.Option("--maxhomop", min=1, help="Max homopolymer length (mothur screen.seqs)."),
+        ] = 8,
+        pre_cluster_diffs: Annotated[
+            int,
+            typer.Option("--pre-cluster-diffs", min=0, help="mothur pre.cluster diffs."),
+        ] = 2,
         force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
         run_dir: Annotated[
             Path | None, typer.Option("--run-dir", help="Write runtime logs here.")
@@ -392,6 +411,10 @@ def register(app: typer.Typer) -> None:
             output_uc=output_uc,
             sample_delimiter=sample_delimiter,
             sample_field=sample_field,
+            reference_alignment=reference_alignment,
+            maxambig=maxambig,
+            maxhomop=maxhomop,
+            pre_cluster_diffs=pre_cluster_diffs,
             force=force,
             run_dir=run_dir,
             timeout=timeout,

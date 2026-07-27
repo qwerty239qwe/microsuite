@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from microsuite._errors import MicrobiomeSuiteError
-from microsuite.methods.cluster import write_otu_table_from_shared
+from microsuite.methods.cluster import SUPPORTED_BACKENDS, cluster, write_otu_table_from_shared
 from microsuite.methods.mothur import (
     ensure_non_empty_fasta,
     find_mothur,
@@ -212,3 +212,156 @@ def test_write_otu_table_from_shared_rejects_malformed_header(tmp_path: Path) ->
 
     with pytest.raises(MicrobiomeSuiteError, match="header"):
         write_otu_table_from_shared(shared, tmp_path / "table.tsv")
+
+
+def _mothur_stdout(*names: str) -> str:
+    listed = "\n".join(names)
+    return f"mothur > step\n\nOutput File Names: \n{listed}\n\n"
+
+
+def _sop_stdouts(tmp_path: Path) -> list[str]:
+    """One canned stdout per SOP step, in order."""
+    base = str(tmp_path / "seqs")
+    return [
+        _mothur_stdout(f"{base}.unique.fasta", f"{base}.count_table"),
+        _mothur_stdout(f"{base}.unique.align"),
+        _mothur_stdout(f"{base}.good.fasta", f"{base}.good.count_table"),
+        _mothur_stdout(f"{base}.filter.fasta"),
+        _mothur_stdout(f"{base}.filter.unique.fasta", f"{base}.filter.count_table"),
+        _mothur_stdout(f"{base}.precluster.fasta", f"{base}.precluster.count_table"),
+        _mothur_stdout(f"{base}.pick.fasta", f"{base}.pick.count_table"),
+        _mothur_stdout(f"{base}.dist"),
+        _mothur_stdout(f"{base}.opti_mcc.list"),
+        _mothur_stdout(f"{base}.opti_mcc.shared"),
+        _mothur_stdout(f"{base}.rep.fasta"),
+    ]
+
+
+def test_mothur_is_a_supported_cluster_backend() -> None:
+    assert "mothur" in SUPPORTED_BACKENDS
+
+
+def test_cluster_mothur_runs_the_sop_in_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seqs = tmp_path / "seqs.fasta"
+    seqs.write_text(">a_1\nACGT\n", encoding="utf-8")
+    reference = tmp_path / "silva.align"
+    reference.write_text(">ref\nAC-GT\n", encoding="utf-8")
+    monkeypatch.setattr("shutil.which", _fake_which)
+
+    scripts: list[str] = []
+    stdouts = iter(_sop_stdouts(tmp_path))
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        scripts.append(command[1])
+        return subprocess.CompletedProcess(command, 0, next(stdouts), "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    # get.oturep and make.shared outputs are read back, so create them.
+    (tmp_path / "seqs.opti_mcc.shared").write_text(
+        "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t4\n", encoding="utf-8"
+    )
+    (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
+    for name in ("seqs.unique.fasta", "seqs.good.fasta", "seqs.pick.fasta"):
+        (tmp_path / name).write_text(">a_1\nACGT\n", encoding="utf-8")
+
+    cluster(
+        backend="mothur",
+        rep_seqs=seqs,
+        output_table=tmp_path / "table.tsv",
+        output_rep_seqs=tmp_path / "rep.fasta",
+        reference_alignment=reference,
+        identity=0.97,
+    )
+
+    invoked = [script.split("; ", 1)[1].split("(", 1)[0] for script in scripts]
+    assert invoked == [
+        "unique.seqs",
+        "align.seqs",
+        "screen.seqs",
+        "filter.seqs",
+        "unique.seqs",
+        "pre.cluster",
+        "chimera.vsearch",
+        "dist.seqs",
+        "cluster",
+        "make.shared",
+        "get.oturep",
+    ]
+
+
+def test_cluster_mothur_converts_identity_to_distance_cutoff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seqs = tmp_path / "seqs.fasta"
+    seqs.write_text(">a_1\nACGT\n", encoding="utf-8")
+    reference = tmp_path / "silva.align"
+    reference.write_text(">ref\nAC-GT\n", encoding="utf-8")
+    monkeypatch.setattr("shutil.which", _fake_which)
+
+    scripts: list[str] = []
+    stdouts = iter(_sop_stdouts(tmp_path))
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        scripts.append(command[1])
+        return subprocess.CompletedProcess(command, 0, next(stdouts), "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+    (tmp_path / "seqs.opti_mcc.shared").write_text(
+        "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t4\n", encoding="utf-8"
+    )
+    (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
+    for name in ("seqs.unique.fasta", "seqs.good.fasta", "seqs.pick.fasta"):
+        (tmp_path / name).write_text(">a_1\nACGT\n", encoding="utf-8")
+
+    cluster(
+        backend="mothur",
+        rep_seqs=seqs,
+        output_table=tmp_path / "table.tsv",
+        output_rep_seqs=tmp_path / "rep.fasta",
+        reference_alignment=reference,
+        identity=0.97,
+    )
+
+    dist_script = next(s for s in scripts if "dist.seqs(" in s)
+    assert "cutoff=0.03" in dist_script
+
+
+def test_cluster_mothur_requires_reference_alignment(tmp_path: Path) -> None:
+    seqs = tmp_path / "seqs.fasta"
+    seqs.write_text(">a_1\nACGT\n", encoding="utf-8")
+
+    with pytest.raises(MicrobiomeSuiteError, match="--reference-alignment"):
+        cluster(
+            backend="mothur",
+            rep_seqs=seqs,
+            output_table=tmp_path / "table.tsv",
+            output_rep_seqs=tmp_path / "rep.fasta",
+            identity=0.97,
+        )
+
+
+def test_cluster_mothur_validates_reference_before_running_mothur(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A bad reference path must fail immediately, not six steps in.
+    seqs = tmp_path / "seqs.fasta"
+    seqs.write_text(">a_1\nACGT\n", encoding="utf-8")
+    monkeypatch.setattr("shutil.which", _fake_which)
+
+    def explode(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("mothur must not run when the reference is missing")
+
+    monkeypatch.setattr("subprocess.run", explode)
+
+    with pytest.raises(MicrobiomeSuiteError, match="does not exist"):
+        cluster(
+            backend="mothur",
+            rep_seqs=seqs,
+            output_table=tmp_path / "table.tsv",
+            output_rep_seqs=tmp_path / "rep.fasta",
+            reference_alignment=tmp_path / "absent.align",
+            identity=0.97,
+        )
