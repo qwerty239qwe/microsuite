@@ -115,6 +115,27 @@ def format_mothur_command(command: str, params: dict[str, str]) -> str:
     return f"#{command}({rendered})"
 
 
+_UNSAFE_MOTHUR_CHARS = "(),;"
+
+
+def _check_mothur_safe(value: str, *, label: str) -> None:
+    """Raise if ``value`` contains a character mothur's command syntax can't carry.
+
+    mothur's inline script syntax is ``#cmd(key=value, key=value); cmd2(...)``.
+    Any of ``( ) , ;`` inside a value breaks that parse, and mothur has no
+    documented escaping mechanism for them. Rejecting the value here, with a
+    message that names the offending value, is more honest than emitting a
+    command mothur will silently misparse.
+    """
+    found = sorted(set(value) & set(_UNSAFE_MOTHUR_CHARS))
+    if found:
+        raise MicrobiomeSuiteError(
+            f"{label} {value!r} contains {''.join(found)!r}, which mothur's "
+            "command syntax ('#cmd(key=value, ...); cmd2(...)') cannot represent. "
+            "Move it somewhere without these characters and rerun."
+        )
+
+
 def run_mothur(
     command: str,
     params: dict[str, str],
@@ -129,6 +150,10 @@ def run_mothur(
     intermediates and its ``mothur.<timestamp>.logfile`` into the process
     working directory.
     """
+    _check_mothur_safe(str(work_dir), label="work_dir")
+    for key, value in params.items():
+        _check_mothur_safe(str(value), label=f"param '{key}'")
+
     mothur = find_mothur()
     work_dir.mkdir(parents=True, exist_ok=True)
     script = f"#set.dir(output={work_dir}); {format_mothur_command(command, params)[1:]}"
@@ -156,15 +181,19 @@ def run_mothur(
 
 
 def ensure_non_empty_fasta(path: Path, *, step: str) -> Path:
-    """Raise if a FASTA has no records.
+    """Raise if a FASTA is missing or has no records.
 
     mothur writes an empty FASTA and continues when a filter removes every
     sequence, so the failure would otherwise surface as an empty feature table
-    many steps later.
+    many steps later. A missing file is a different bug (an upstream step
+    never ran, or wrote somewhere unexpected), so it gets its own message
+    rather than being folded into the "removed every sequence" case.
     """
-    if not path.exists() or not any(
-        line.startswith(">") for line in path.read_text(encoding="utf-8").splitlines()
-    ):
+    if not path.exists():
+        raise MicrobiomeSuiteError(
+            f"mothur step '{step}' expected output file {path} does not exist."
+        )
+    if not any(line.startswith(">") for line in path.read_text(encoding="utf-8").splitlines()):
         raise MicrobiomeSuiteError(
             f"mothur step '{step}' removed every sequence. "
             "Relax the screening parameters and rerun."

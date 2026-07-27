@@ -15,7 +15,7 @@ from microsuite.methods.mothur import (
 
 CLEAN_STDOUT = """mothur > unique.seqs(fasta=in.fasta, format=count)
 
-Output File Names:
+Output File Names: 
 out.count_table
 out.unique.fasta
 
@@ -111,8 +111,35 @@ def test_ensure_non_empty_fasta_raises_on_empty_file(tmp_path: Path) -> None:
     empty = tmp_path / "empty.fasta"
     empty.write_text("", encoding="utf-8")
 
-    with pytest.raises(MicrobiomeSuiteError, match="screen.seqs"):
+    with pytest.raises(MicrobiomeSuiteError, match="removed every sequence"):
         ensure_non_empty_fasta(empty, step="screen.seqs")
+
+
+def test_ensure_non_empty_fasta_raises_on_missing_file(tmp_path: Path) -> None:
+    missing = tmp_path / "missing.fasta"
+
+    with pytest.raises(MicrobiomeSuiteError, match="does not exist"):
+        ensure_non_empty_fasta(missing, step="screen.seqs")
+
+
+def test_run_mothur_rejects_work_dir_with_parentheses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("shutil.which", _fake_which)
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, CLEAN_STDOUT, "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    work_dir = tmp_path / "Program Files (x86)"
+
+    with pytest.raises(MicrobiomeSuiteError, match=r"\("):
+        run_mothur("unique.seqs", {"fasta": "in.fasta"}, work_dir=work_dir)
+
+    assert calls == []
 
 
 def test_ensure_non_empty_fasta_accepts_a_record(tmp_path: Path) -> None:
