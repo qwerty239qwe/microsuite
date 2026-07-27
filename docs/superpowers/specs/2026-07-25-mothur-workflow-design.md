@@ -114,17 +114,35 @@ seqs.fasta
   → filter.seqs        → .fasta
   → unique.seqs        → .fasta + .count_table
   → pre.cluster        → .fasta + .count_table   (diffs)
-  → chimera.vsearch    → .accnos                 (dereplicate=t)
-  → remove.seqs        → .fasta + .count_table
+  → chimera.vsearch    → .fasta + .accnos        (dereplicate=t; NO count_table)
+  → remove.seqs        → .count_table            (accnos + pre-chimera count)
   → dist.seqs          → .dist                   (cutoff)
   → cluster            → .list                   (method=opti)
   → make.shared        → .shared
   → get.oturep         → .fasta                  (representative sequences)
 ```
 
+Twelve mothur processes. Two details in that chain were established by
+measurement against mothur 1.48.5, not from documentation, and both are traps:
+
+**`chimera.vsearch` emits no updated count table.** It removes the chimeric
+sequence from the FASTA but leaves it in the count table, and returns only
+`.chimeras`, `.accnos`, and `.fasta`. Reusing the pre-chimera count table
+downstream would carry chimeric abundances into every table with no error
+raised — a wrong scientific result that looks entirely normal. The `remove.seqs`
+hop consumes chimera.vsearch's `.accnos` plus the pre-chimera count table to
+produce the corrected one. It is not bookkeeping; without it the numbers are
+wrong. Evidence: `tests/fixtures/mothur/chimera_vsearch.txt`.
+
+**`chimera.vsearch` prints two `Output File Names:` blocks**, because it invokes
+`remove.seqs` internally to clean the FASTA. The first block names a
+`.pick.fasta` that never lands on disk under that name. The parser's
+last-block-wins rule is what stops this resolving to a phantom path.
+
 `.shared` is sample-major (rows = samples); microsuite's table contract is
 feature-major (`feature-id<TAB>sample…`, see
-`methods/cluster.py:264 write_otu_table_from_uc`). The final step transposes it.
+`methods/cluster.py:264 write_otu_table_from_uc`). The final step transposes it,
+writing samples and OTUs in sorted order to match the `.uc` sibling.
 
 **Outputs** match the existing `cluster` contract: table TSV at `--output-table`,
 representative FASTA at `--output-rep-seqs`, and the raw `.shared` written beside
