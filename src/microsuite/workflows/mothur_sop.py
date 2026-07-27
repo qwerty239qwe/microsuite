@@ -10,7 +10,19 @@ from microsuite.methods.cluster import cluster
 from microsuite.methods.mothur import run_mothur, select_output
 from microsuite.methods.tax_classify import tax_classify
 
-_MATE = re.compile(r"^(?P<sample>.+?)_(?:R)?(?P<mate>[12])(?:_001)?\.f(?:ast)?q(?:\.gz)?$")
+# Matches common FASTQ mate-pair naming schemes, case-insensitively:
+#   sampleA_R1.fastq.gz
+#   sampleA_S1_L001_R1_001.fastq.gz   (bcl2fastq default output; _S<n>/_L<lane>
+#                                      are stripped from the sample name)
+#   sampleA_r1.fastq.gz               (lowercase mate marker)
+#   sampleA.R1.fastq.gz               (dot separator)
+_MATE = re.compile(
+    r"^(?P<sample>.+?)(?:_S\d+)?(?:_L\d{3})?[._](?:R)?(?P<mate>[12])(?:_001)?"
+    r"\.f(?:ast)?q(?:\.gz)?$",
+    re.IGNORECASE,
+)
+# Any file that "looks like" a FASTQ file, regardless of whether _MATE can parse it.
+_FASTQ_SUFFIX = re.compile(r"\.f(?:ast)?q(?:\.gz)?$", re.IGNORECASE)
 
 
 def write_stability_file(reads_dir: Path, output: Path) -> Path:
@@ -19,8 +31,26 @@ def write_stability_file(reads_dir: Path, output: Path) -> Path:
     for path in sorted(reads_dir.iterdir()):
         match = _MATE.match(path.name)
         if match is None:
+            if _FASTQ_SUFFIX.search(path.name):
+                raise MicrobiomeSuiteError(
+                    f"Cannot determine sample/mate for FASTQ file '{path.name}'. "
+                    "Expected a name like 'sampleA_R1.fastq.gz' (or "
+                    "'sampleA_S1_L001_R1_001.fastq.gz' for Illumina bcl2fastq output)."
+                )
             continue
-        pairs.setdefault(match.group("sample"), {})[match.group("mate")] = path
+        sample = match.group("sample")
+        mate = match.group("mate")
+        existing = pairs.setdefault(sample, {}).get(mate)
+        if existing is not None:
+            raise MicrobiomeSuiteError(
+                f"Multiple files map to sample '{sample}' mate {mate}: "
+                f"'{existing.name}' and '{path.name}'. mothur's stability file "
+                "needs exactly one R1 and one R2 per sample; this usually means "
+                "reads from more than one sequencing lane were not concatenated "
+                "first. Concatenate each sample's lanes into a single R1/R2 pair "
+                "before running this workflow."
+            )
+        pairs[sample][mate] = path
 
     if not pairs:
         raise MicrobiomeSuiteError(f"No paired FASTQ files found in {reads_dir}.")
