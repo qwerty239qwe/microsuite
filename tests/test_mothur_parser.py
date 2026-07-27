@@ -31,6 +31,19 @@ def test_parse_returns_empty_when_block_absent() -> None:
     assert parse_mothur_outputs("mothur > quit()\n") == []
 
 
+def test_parse_takes_last_block_when_script_runs_multiple_commands() -> None:
+    # multi_block.txt captures `unique.seqs` followed by `summary.seqs` in one
+    # script. unique.seqs emits its own "Output File Names:" block (test.unique.fasta,
+    # test.count_table) before summary.seqs runs and emits a second one
+    # (test.unique.summary). If parse_mothur_outputs stopped at the first block, the
+    # caller asking for summary.seqs's output would silently get unique.seqs's files
+    # instead — the preamble command's outputs must not shadow the command the
+    # caller actually asked for. Last-block-wins is what makes that safe.
+    outputs = parse_mothur_outputs(_fixture("multi_block.txt"))
+
+    assert [p.name for p in outputs] == ["test.unique.summary"]
+
+
 def test_select_output_matches_by_suffix() -> None:
     outputs = parse_mothur_outputs(_fixture("unique_seqs.txt"))
 

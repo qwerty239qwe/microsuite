@@ -13,6 +13,7 @@ Captured 2026-07-26 on `condaforge/miniforge3:24.9.2-0` + `mothur=1.48.5`
 | `unique_seqs.txt` | `unique.seqs(fasta=…, format=count)` | Normal `Output File Names:` block. |
 | `make_contigs.txt` | `make.contigs(file=…)` | Two `.fasta` outputs — the ambiguity `select_output` must reject. |
 | `error_on_failure.txt` | `align.seqs(fasta=…, reference=<missing>)` | Failure output. |
+| `multi_block.txt` | `unique.seqs(fasta=…, format=count)` then `summary.seqs(fasta=current, count=current)` | Two `Output File Names:` blocks in one run — pins that the parser takes the LAST block. |
 
 ## Observed format
 
