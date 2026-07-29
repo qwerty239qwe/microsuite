@@ -158,7 +158,7 @@ def test_ensure_non_empty_fasta_accepts_a_record(tmp_path: Path) -> None:
 def test_write_otu_table_from_shared_transposes_to_feature_major(tmp_path: Path) -> None:
     # Columns and rows are deliberately out of alphabetical order in the source
     # file so this test actually exercises the sort, not just file order.
-    shared = tmp_path / "final.opti_tptn.shared"
+    shared = tmp_path / "final.opti_mcc.shared"
     shared.write_text(
         "label\tGroup\tnumOtus\tOtu0002\tOtu0001\n0.03\tsampleB\t2\t7\t0\n0.03\tsampleA\t2\t3\t5\n",
         encoding="utf-8",
@@ -176,7 +176,7 @@ def test_write_otu_table_from_shared_keeps_all_zero_samples(tmp_path: Path) -> N
     # A sample that survived filtering but shares no OTUs must stay as a column,
     # or downstream sample counts silently disagree with the metadata. Rows are
     # out of alphabetical order to prove counts stay aligned after sorting.
-    shared = tmp_path / "final.opti_tptn.shared"
+    shared = tmp_path / "final.opti_mcc.shared"
     shared.write_text(
         "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleB\t1\t0\n0.03\tsampleA\t1\t9\n",
         encoding="utf-8",
@@ -199,7 +199,7 @@ def test_write_otu_table_from_shared_rejects_empty_file(tmp_path: Path) -> None:
 def test_write_otu_table_from_shared_rejects_short_row(tmp_path: Path) -> None:
     # A data row with fewer columns than the header is the signature of a
     # truncated .shared file (e.g. mothur killed mid-write or out of disk).
-    shared = tmp_path / "truncated.opti_tptn.shared"
+    shared = tmp_path / "truncated.opti_mcc.shared"
     shared.write_text(
         "label\tGroup\tnumOtus\tOtu0001\tOtu0002\n0.03\tsampleA\t2\t5\t3\n0.03\tsampleB\t2\t0\n",
         encoding="utf-8",
@@ -212,7 +212,7 @@ def test_write_otu_table_from_shared_rejects_short_row(tmp_path: Path) -> None:
 def test_write_otu_table_from_shared_rejects_malformed_header(tmp_path: Path) -> None:
     # Fewer than 3 header columns would otherwise silently produce a
     # well-formed, empty, wrong table (zero features, no error).
-    shared = tmp_path / "bad_header.opti_tptn.shared"
+    shared = tmp_path / "bad_header.opti_mcc.shared"
     shared.write_text("label\tGroup\n0.03\tsampleA\n", encoding="utf-8")
 
     with pytest.raises(MicrobiomeSuiteError, match="header"):
@@ -224,25 +224,48 @@ def _mothur_stdout(*names: str) -> str:
     return f"mothur > step\n\nOutput File Names: \n{listed}\n\n"
 
 
-def _sop_stdouts(tmp_path: Path) -> list[str]:
-    """One canned stdout per SOP step, in order."""
+def _sop_stdouts(tmp_path: Path, *, screen_removed: bool = False) -> list[str]:
+    """One canned stdout per SOP step, in order.
+
+    Filenames here are derived from the captured pipeline-configuration
+    fixtures in tests/fixtures/mothur/ (make_contigs_paired.txt,
+    screen_seqs_aligned.txt, screen_seqs_removed.txt,
+    chimera_vsearch_grouped.txt, cluster_opti.txt) -- a real 2-sample
+    paired-end run through mothur 1.48.5. An earlier version of this helper
+    invented plausible-looking names instead (e.g. "seqs.good.fasta" for
+    screen.seqs, "opti_tptn" for cluster), and that invented naming is what
+    let a Critical defect (screen.seqs actually emits .good.align, not
+    .good.fasta; chimera.vsearch on a grouped count table emits no .fasta at
+    all) sail through a fully green test suite. Keep these in sync with the
+    fixtures, not with what seems plausible.
+
+    screen_removed selects between the two screen.seqs fixtures: False
+    (default) mirrors screen_seqs_aligned.txt (nothing removed, no
+    .count_table emitted); True mirrors screen_seqs_removed.txt (a sequence
+    removed, .good.count_table emitted alongside .good.align).
+    """
     base = str(tmp_path / "seqs")
+    screen_seqs_stdout = (
+        _mothur_stdout(f"{base}.good.align", f"{base}.good.count_table")
+        if screen_removed
+        else _mothur_stdout(f"{base}.good.align")
+    )
     return [
         _mothur_stdout(f"{base}.unique.fasta", f"{base}.count_table"),
         _mothur_stdout(f"{base}.unique.align"),
-        _mothur_stdout(f"{base}.good.fasta", f"{base}.good.count_table"),
+        screen_seqs_stdout,
         _mothur_stdout(f"{base}.filter.fasta"),
         _mothur_stdout(f"{base}.filter.unique.fasta", f"{base}.filter.count_table"),
         _mothur_stdout(f"{base}.precluster.fasta", f"{base}.precluster.count_table"),
         _mothur_stdout(
-            f"{base}.denovo.vsearch.chimeras",
+            f"{base}.denovo.vsearch.count_table",
             f"{base}.denovo.vsearch.accnos",
-            f"{base}.denovo.vsearch.fasta",
+            f"{base}.denovo.vsearch.chimeras",
         ),
-        _mothur_stdout(f"{base}.pick.count_table"),
+        _mothur_stdout(f"{base}.pick.fasta"),
         _mothur_stdout(f"{base}.dist"),
-        _mothur_stdout(f"{base}.opti_tptn.list"),
-        _mothur_stdout(f"{base}.opti_tptn.shared"),
+        _mothur_stdout(f"{base}.opti_mcc.list"),
+        _mothur_stdout(f"{base}.opti_mcc.shared"),
         _mothur_stdout(f"{base}.rep.fasta"),
     ]
 
@@ -288,11 +311,11 @@ def test_cluster_mothur_runs_the_sop_in_order(
     monkeypatch.setattr("subprocess.run", fake_run)
 
     # get.oturep and make.shared outputs are read back, so create them.
-    (tmp_path / "seqs.opti_tptn.shared").write_text(
+    (tmp_path / "seqs.opti_mcc.shared").write_text(
         "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t4\n", encoding="utf-8"
     )
     (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
-    for name in ("seqs.unique.fasta", "seqs.good.fasta", "seqs.denovo.vsearch.fasta"):
+    for name in ("seqs.unique.fasta", "seqs.good.align", "seqs.pick.fasta"):
         (tmp_path / name).write_text(">a_1\nACGT\n", encoding="utf-8")
 
     cluster(
@@ -336,6 +359,10 @@ def test_cluster_mothur_threads_files_correctly_between_steps(
     seqs.write_text(">a_1\nACGT\n", encoding="utf-8")
     reference = tmp_path / "silva.align"
     reference.write_text(">ref\nAC-GT\n", encoding="utf-8")
+    count_table = tmp_path / "contigs.count_table"
+    count_table.write_text(
+        "Representative_Sequence\tsampleA\tsampleB\na_1\t1\t0\n", encoding="utf-8"
+    )
     monkeypatch.setattr("shutil.which", _fake_which)
 
     scripts: list[str] = []
@@ -348,11 +375,11 @@ def test_cluster_mothur_threads_files_correctly_between_steps(
     monkeypatch.setattr("subprocess.run", fake_run)
 
     # get.oturep and make.shared outputs are read back, so create them.
-    (tmp_path / "seqs.opti_tptn.shared").write_text(
+    (tmp_path / "seqs.opti_mcc.shared").write_text(
         "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t4\n", encoding="utf-8"
     )
     (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
-    for name in ("seqs.unique.fasta", "seqs.good.fasta", "seqs.denovo.vsearch.fasta"):
+    for name in ("seqs.unique.fasta", "seqs.good.align", "seqs.pick.fasta"):
         (tmp_path / name).write_text(">a_1\nACGT\n", encoding="utf-8")
 
     cluster(
@@ -362,11 +389,13 @@ def test_cluster_mothur_threads_files_correctly_between_steps(
         output_rep_seqs=tmp_path / "rep.fasta",
         reference_alignment=reference,
         identity=0.97,
+        count_table=count_table,
     )
 
-    # Map each command name to its full script. unique.seqs runs twice; every
-    # other command below runs exactly once, and unique.seqs's own script
-    # content is not needed by the assertions here.
+    # Map each command name to its full script. unique.seqs runs twice, so
+    # by_command["unique.seqs"] below reflects the SECOND call; the first
+    # call's own script is checked directly via scripts[0] (it is always
+    # first: cluster_mothur's very first step).
     by_command = {script.split("; ", 1)[1].split("(", 1)[0]: script for script in scripts}
 
     base = str(tmp_path / "seqs")
@@ -377,11 +406,18 @@ def test_cluster_mothur_threads_files_correctly_between_steps(
     unique2_count = f"{base}.filter.count_table"
     precluster_fasta = f"{base}.precluster.fasta"
     precluster_count = f"{base}.precluster.count_table"
-    chimera_fasta = f"{base}.denovo.vsearch.fasta"
+    chimera_count = f"{base}.denovo.vsearch.count_table"
     chimera_accnos = f"{base}.denovo.vsearch.accnos"
-    remove_count = f"{base}.pick.count_table"
+    remove_fasta = f"{base}.pick.fasta"
     dist = f"{base}.dist"
-    otu_list = f"{base}.opti_tptn.list"
+    otu_list = f"{base}.opti_mcc.list"
+
+    # 0. The FIRST unique.seqs dereplicates against the supplied count_table
+    # (make.contigs's, carrying sample groups) instead of format=count, which
+    # would collapse every sample into a single "total" column.
+    assert "unique.seqs(" in scripts[0]
+    assert f"count={count_table}" in scripts[0]
+    assert "format=count" not in scripts[0]
 
     # 1. align.seqs consumes the .fasta the first unique.seqs produced.
     assert f"fasta={unique1_fasta}" in by_command["align.seqs"]
@@ -399,36 +435,36 @@ def test_cluster_mothur_threads_files_correctly_between_steps(
     assert f"fasta={precluster_fasta}" in by_command["chimera.vsearch"]
     assert f"count={precluster_count}" in by_command["chimera.vsearch"]
 
-    # 5. remove.seqs consumes chimera.vsearch's .accnos AND the count table
-    # from pre.cluster -- the PRE-chimera count, not any later count.
-    # chimera.vsearch never emits its own count table (the chimeric read is
-    # gone from the fasta but still tallied in pre.cluster's count table), so
-    # remove.seqs is the step that actually strips it. Feeding remove.seqs any
-    # other count here reproduces the original bug where chimeric abundances
-    # survived into the final OTU table.
+    # 5. remove.seqs consumes chimera.vsearch's .accnos AND the PRE-chimera
+    # fasta pre.cluster produced -- NOT a count table. With a grouped count
+    # table, chimera.vsearch itself emits the post-chimera .count_table (it
+    # never emits a .fasta), so remove.seqs's only job here is to rebuild the
+    # chimera-free FASTA. Feeding remove.seqs the count table instead of the
+    # fasta reproduces the original (inverted) bug.
     assert f"accnos={chimera_accnos}" in by_command["remove.seqs"]
-    assert f"count={precluster_count}" in by_command["remove.seqs"]
+    assert f"fasta={precluster_fasta}" in by_command["remove.seqs"]
+    assert "count=" not in by_command["remove.seqs"]
 
-    # 6. dist.seqs consumes chimera.vsearch's post-chimera-removal .fasta, NOT
-    # the pre-chimera fasta pre.cluster produced.
-    assert f"fasta={chimera_fasta}" in by_command["dist.seqs"]
+    # 6. dist.seqs consumes remove.seqs's post-chimera-removal .pick.fasta,
+    # NOT the pre-chimera fasta pre.cluster produced.
+    assert f"fasta={remove_fasta}" in by_command["dist.seqs"]
     assert f"fasta={precluster_fasta}" not in by_command["dist.seqs"]
 
-    # 7. cluster consumes dist.seqs's .dist and remove.seqs's (post-chimera)
+    # 7. cluster consumes dist.seqs's .dist and chimera.vsearch's (post-chimera)
     # .count_table.
     assert f"column={dist}" in by_command["cluster"]
-    assert f"count={remove_count}" in by_command["cluster"]
+    assert f"count={chimera_count}" in by_command["cluster"]
 
-    # 8. make.shared consumes cluster's .list and remove.seqs's .count_table.
+    # 8. make.shared consumes cluster's .list and chimera.vsearch's .count_table.
     assert f"list={otu_list}" in by_command["make.shared"]
-    assert f"count={remove_count}" in by_command["make.shared"]
+    assert f"count={chimera_count}" in by_command["make.shared"]
 
-    # 9. get.oturep consumes cluster's .list, remove.seqs's .count_table, and
-    # chimera.vsearch's post-removal .fasta.
+    # 9. get.oturep consumes cluster's .list, chimera.vsearch's .count_table,
+    # and remove.seqs's post-removal .pick.fasta.
     oturep_script = by_command["get.oturep"]
     assert f"list={otu_list}" in oturep_script
-    assert f"count={remove_count}" in oturep_script
-    assert f"fasta={chimera_fasta}" in oturep_script
+    assert f"count={chimera_count}" in oturep_script
+    assert f"fasta={remove_fasta}" in oturep_script
 
     # Two parameters mothur 1.48.5 accepts silently-wrong and only WARNS about,
     # so check_mothur_errors (which matches "[ERROR]: ") cannot catch either:
@@ -439,6 +475,92 @@ def test_cluster_mothur_threads_files_correctly_between_steps(
     # reader to skip warnings here and masks a later one that matters.
     assert "label=" not in oturep_script
     assert "column=" not in oturep_script
+
+
+def test_cluster_mothur_screen_seqs_count_table_used_when_present(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # screen_seqs_removed.txt: when screen.seqs actually removes a sequence,
+    # it emits a fresh .good.count_table alongside .good.align. That new
+    # count table -- not the one the prior unique.seqs produced -- must reach
+    # the next step that consumes `count` (the second unique.seqs).
+    seqs = tmp_path / "seqs.fasta"
+    seqs.write_text(">a_1\nACGT\n", encoding="utf-8")
+    reference = tmp_path / "silva.align"
+    reference.write_text(">ref\nAC-GT\n", encoding="utf-8")
+    monkeypatch.setattr("shutil.which", _fake_which)
+
+    scripts: list[str] = []
+    stdouts = iter(_sop_stdouts(tmp_path, screen_removed=True))
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        scripts.append(command[1])
+        return subprocess.CompletedProcess(command, 0, next(stdouts), "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    (tmp_path / "seqs.opti_mcc.shared").write_text(
+        "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t4\n", encoding="utf-8"
+    )
+    (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
+    for name in ("seqs.unique.fasta", "seqs.good.align", "seqs.pick.fasta"):
+        (tmp_path / name).write_text(">a_1\nACGT\n", encoding="utf-8")
+
+    cluster(
+        backend="mothur",
+        rep_seqs=seqs,
+        output_table=tmp_path / "table.tsv",
+        output_rep_seqs=tmp_path / "rep.fasta",
+        reference_alignment=reference,
+        identity=0.97,
+    )
+
+    by_command = {script.split("; ", 1)[1].split("(", 1)[0]: script for script in scripts}
+    base = str(tmp_path / "seqs")
+    assert f"count={base}.good.count_table" in by_command["unique.seqs"]
+
+
+def test_cluster_mothur_screen_seqs_count_table_absent_carries_prior_forward(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # screen_seqs_aligned.txt: when nothing is removed, screen.seqs emits
+    # ONLY .good.align -- no .count_table at all. The count table from the
+    # prior unique.seqs must still reach the next step that consumes `count`
+    # (the second unique.seqs), or it is silently dropped.
+    seqs = tmp_path / "seqs.fasta"
+    seqs.write_text(">a_1\nACGT\n", encoding="utf-8")
+    reference = tmp_path / "silva.align"
+    reference.write_text(">ref\nAC-GT\n", encoding="utf-8")
+    monkeypatch.setattr("shutil.which", _fake_which)
+
+    scripts: list[str] = []
+    stdouts = iter(_sop_stdouts(tmp_path, screen_removed=False))
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        scripts.append(command[1])
+        return subprocess.CompletedProcess(command, 0, next(stdouts), "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    (tmp_path / "seqs.opti_mcc.shared").write_text(
+        "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t4\n", encoding="utf-8"
+    )
+    (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
+    for name in ("seqs.unique.fasta", "seqs.good.align", "seqs.pick.fasta"):
+        (tmp_path / name).write_text(">a_1\nACGT\n", encoding="utf-8")
+
+    cluster(
+        backend="mothur",
+        rep_seqs=seqs,
+        output_table=tmp_path / "table.tsv",
+        output_rep_seqs=tmp_path / "rep.fasta",
+        reference_alignment=reference,
+        identity=0.97,
+    )
+
+    by_command = {script.split("; ", 1)[1].split("(", 1)[0]: script for script in scripts}
+    base = str(tmp_path / "seqs")
+    assert f"count={base}.count_table" in by_command["unique.seqs"]
 
 
 def test_cluster_mothur_converts_identity_to_distance_cutoff(
@@ -458,11 +580,11 @@ def test_cluster_mothur_converts_identity_to_distance_cutoff(
         return subprocess.CompletedProcess(command, 0, next(stdouts), "")
 
     monkeypatch.setattr("subprocess.run", fake_run)
-    (tmp_path / "seqs.opti_tptn.shared").write_text(
+    (tmp_path / "seqs.opti_mcc.shared").write_text(
         "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t4\n", encoding="utf-8"
     )
     (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
-    for name in ("seqs.unique.fasta", "seqs.good.fasta", "seqs.denovo.vsearch.fasta"):
+    for name in ("seqs.unique.fasta", "seqs.good.align", "seqs.pick.fasta"):
         (tmp_path / name).write_text(">a_1\nACGT\n", encoding="utf-8")
 
     cluster(
@@ -481,9 +603,9 @@ def test_cluster_mothur_converts_identity_to_distance_cutoff(
 def test_cluster_mothur_copies_otu_list_and_count_table_when_requested(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Finding 1: cluster_mothur produced the cluster step's .list and the
-    # post-chimera (remove.seqs) .count_table inside its private work_dir but
-    # never surfaced their paths, so tax_classify(backend="mothur") could
+    # Finding 1: cluster_mothur produced the cluster step's .list and
+    # chimera.vsearch's post-chimera .count_table inside its private work_dir
+    # but never surfaced their paths, so tax_classify(backend="mothur") could
     # only ever run classify.seqs (per-sequence taxonomy) -- never
     # classify.otu (per-OTU consensus), the spec's stated deliverable.
     # output_otu_list/output_count_table are output_uc-style optional
@@ -501,17 +623,18 @@ def test_cluster_mothur_copies_otu_list_and_count_table_when_requested(
 
     monkeypatch.setattr("subprocess.run", fake_run)
 
-    (tmp_path / "seqs.opti_tptn.shared").write_text(
+    (tmp_path / "seqs.opti_mcc.shared").write_text(
         "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t4\n", encoding="utf-8"
     )
     (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
-    # The step="cluster" .list and the post-chimera (remove.seqs) .count_table
-    # -- the two files output_otu_list/output_count_table must surface.
-    (tmp_path / "seqs.opti_tptn.list").write_text("0.03\t1\ta_1\n", encoding="utf-8")
-    (tmp_path / "seqs.pick.count_table").write_text(
+    # The step="cluster" .list and chimera.vsearch's own post-chimera
+    # .count_table -- the two files output_otu_list/output_count_table must
+    # surface.
+    (tmp_path / "seqs.opti_mcc.list").write_text("0.03\t1\ta_1\n", encoding="utf-8")
+    (tmp_path / "seqs.denovo.vsearch.count_table").write_text(
         "Representative_Sequence\ttotal\na_1\t1\n", encoding="utf-8"
     )
-    for name in ("seqs.unique.fasta", "seqs.good.fasta", "seqs.denovo.vsearch.fasta"):
+    for name in ("seqs.unique.fasta", "seqs.good.align", "seqs.pick.fasta"):
         (tmp_path / name).write_text(">a_1\nACGT\n", encoding="utf-8")
 
     output_otu_list = tmp_path / "otu.list"
@@ -529,12 +652,12 @@ def test_cluster_mothur_copies_otu_list_and_count_table_when_requested(
     )
 
     assert output_otu_list.read_text(encoding="utf-8") == (
-        tmp_path / "seqs.opti_tptn.list"
+        tmp_path / "seqs.opti_mcc.list"
     ).read_text(encoding="utf-8")
     # NOT the pre-chimera (pre.cluster) count table -- that still contains
     # chimeric abundances.
     assert output_count_table.read_text(encoding="utf-8") == (
-        tmp_path / "seqs.pick.count_table"
+        tmp_path / "seqs.denovo.vsearch.count_table"
     ).read_text(encoding="utf-8")
     assert "precluster" not in output_count_table.read_text(encoding="utf-8")
 
@@ -723,15 +846,15 @@ def test_tax_classify_mothur_with_otu_list_runs_classify_otu_after_classify_seqs
     ref.write_text(">r\nACGT\n", encoding="utf-8")
     tax = tmp_path / "trainset.tax"
     tax.write_text("r\tBacteria;Firmicutes;\n", encoding="utf-8")
-    otu_list = tmp_path / "final.opti_tptn.0.03.list"
+    otu_list = tmp_path / "final.opti_mcc.0.03.list"
     otu_list.write_text("unique\t1\ta_1\n", encoding="utf-8")
     monkeypatch.setattr("shutil.which", _fake_which)
 
     seqs_taxonomy = tmp_path / "seqs.wang.taxonomy"
     seqs_taxonomy.write_text("a\tBacteria(100);\n", encoding="utf-8")
-    otu_taxonomy = tmp_path / "final.opti_tptn.0.03.cons.taxonomy"
+    otu_taxonomy = tmp_path / "final.opti_mcc.0.03.cons.taxonomy"
     otu_taxonomy.write_text("Otu0001\t1\tBacteria(100);\n", encoding="utf-8")
-    otu_summary = tmp_path / "final.opti_tptn.0.03.cons.tax.summary"
+    otu_summary = tmp_path / "final.opti_mcc.0.03.cons.tax.summary"
     otu_summary.write_text("dummy\n", encoding="utf-8")
 
     scripts: list[str] = []
@@ -779,7 +902,7 @@ def test_tax_classify_mothur_threads_files_between_classify_seqs_and_otu(
     ref.write_text(">r\nACGT\n", encoding="utf-8")
     tax = tmp_path / "trainset.tax"
     tax.write_text("r\tBacteria;Firmicutes;\n", encoding="utf-8")
-    otu_list = tmp_path / "final.opti_tptn.0.03.list"
+    otu_list = tmp_path / "final.opti_mcc.0.03.list"
     otu_list.write_text("unique\t1\ta_1\n", encoding="utf-8")
     count_table = tmp_path / "seqs.count_table"
     count_table.write_text("Representative_Sequence\ttotal\na\t1\n", encoding="utf-8")
@@ -787,9 +910,9 @@ def test_tax_classify_mothur_threads_files_between_classify_seqs_and_otu(
 
     seqs_taxonomy = tmp_path / "seqs.wang.taxonomy"
     seqs_taxonomy.write_text("a\tBacteria(100);\n", encoding="utf-8")
-    otu_taxonomy = tmp_path / "final.opti_tptn.0.03.cons.taxonomy"
+    otu_taxonomy = tmp_path / "final.opti_mcc.0.03.cons.taxonomy"
     otu_taxonomy.write_text("Otu0001\t1\tBacteria(100);\n", encoding="utf-8")
-    otu_summary = tmp_path / "final.opti_tptn.0.03.cons.tax.summary"
+    otu_summary = tmp_path / "final.opti_mcc.0.03.cons.tax.summary"
     otu_summary.write_text("dummy\n", encoding="utf-8")
 
     scripts: list[str] = []
@@ -852,15 +975,15 @@ def test_tax_classify_mothur_otu_list_without_count_table_is_legitimate(
     ref.write_text(">r\nACGT\n", encoding="utf-8")
     tax = tmp_path / "trainset.tax"
     tax.write_text("r\tBacteria;Firmicutes;\n", encoding="utf-8")
-    otu_list = tmp_path / "final.opti_tptn.0.03.list"
+    otu_list = tmp_path / "final.opti_mcc.0.03.list"
     otu_list.write_text("unique\t1\ta_1\n", encoding="utf-8")
     monkeypatch.setattr("shutil.which", _fake_which)
 
     seqs_taxonomy = tmp_path / "seqs.wang.taxonomy"
     seqs_taxonomy.write_text("a\tBacteria(100);\n", encoding="utf-8")
-    otu_taxonomy = tmp_path / "final.opti_tptn.0.03.cons.taxonomy"
+    otu_taxonomy = tmp_path / "final.opti_mcc.0.03.cons.taxonomy"
     otu_taxonomy.write_text("Otu0001\t1\tBacteria(100);\n", encoding="utf-8")
-    otu_summary = tmp_path / "final.opti_tptn.0.03.cons.tax.summary"
+    otu_summary = tmp_path / "final.opti_mcc.0.03.cons.tax.summary"
     otu_summary.write_text("dummy\n", encoding="utf-8")
 
     scripts: list[str] = []

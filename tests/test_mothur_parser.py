@@ -110,6 +110,85 @@ def test_select_output_picks_oturep_fasta_alongside_count_table() -> None:
     assert "q.unique.opti_tptn.0.03.0.03.rep.count_table" in [p.name for p in outputs]
 
 
+# Pipeline-configuration fixtures (captured 2026-07-28): a real 2-sample
+# paired-end run through mothur 1.48.5, aligned and with a count table
+# carrying sample groups. See tests/fixtures/mothur/README.md -- four mothur
+# commands behave differently here than on the unaligned, group-less toy
+# input the fixtures above were captured on.
+
+
+def test_select_output_picks_make_contigs_count_table_alongside_scrap_fasta() -> None:
+    # make.contigs's .count_table carries group columns and is the ONLY
+    # carrier of read->sample identity; make.contigs does not rename reads.
+    outputs = parse_mothur_outputs(_fixture("make_contigs_paired.txt"))
+
+    fasta = select_output(outputs, ".fasta", step="make.contigs", exclude=("scrap",))
+    count_table = select_output(outputs, ".count_table", step="make.contigs")
+
+    assert fasta.name == "stability.trim.contigs.fasta"
+    assert count_table.name == "stability.contigs.count_table"
+
+
+def test_select_output_picks_screen_seqs_align_when_nothing_removed() -> None:
+    # Input here is align.seqs's .align, so screen.seqs's output is
+    # .good.align, never .good.fasta. Nothing was screened out, so no
+    # .count_table is emitted at all.
+    outputs = parse_mothur_outputs(_fixture("screen_seqs_aligned.txt"))
+
+    chosen = select_output(outputs, ".align", step="screen.seqs")
+
+    assert chosen.name == "stability.trim.contigs.unique.good.align"
+    assert not any(path.name.endswith(".count_table") for path in outputs)
+
+
+def test_select_output_picks_screen_seqs_count_table_when_removed() -> None:
+    # When sequences ARE removed, screen.seqs emits .good.align, .bad.accnos,
+    # AND .good.count_table. Two "Output File Names:" blocks appear (an
+    # internal remove.seqs runs first) -- last-block-wins keeps this
+    # unambiguous.
+    outputs = parse_mothur_outputs(_fixture("screen_seqs_removed.txt"))
+
+    aligned = select_output(outputs, ".align", step="screen.seqs")
+    count_table = select_output(outputs, ".count_table", step="screen.seqs")
+    accnos = select_output(outputs, ".accnos", step="screen.seqs")
+
+    assert aligned.name == "q.unique.good.align"
+    assert count_table.name == "q.good.count_table"
+    assert accnos.name == "q.unique.bad.accnos"
+    assert "q.pick.count_table" not in [p.name for p in outputs]
+
+
+def test_select_output_chimera_vsearch_grouped_has_no_fasta() -> None:
+    # With a GROUPED count table, chimera.vsearch emits .count_table +
+    # .accnos + .chimeras and NO .fasta -- the inverse of chimera_vsearch.txt
+    # (group-less input), which emits .fasta and no .count_table. Feeding a
+    # caller the wrong one of these is exactly the D3 defect.
+    outputs = parse_mothur_outputs(_fixture("chimera_vsearch_grouped.txt"))
+
+    count_table = select_output(outputs, ".count_table", step="chimera.vsearch")
+    accnos = select_output(outputs, ".accnos", step="chimera.vsearch")
+
+    assert count_table.name == (
+        "stability.trim.contigs.unique.good.filter.unique.precluster.denovo.vsearch.count_table"
+    )
+    assert accnos.name == (
+        "stability.trim.contigs.unique.good.filter.unique.precluster.denovo.vsearch.accnos"
+    )
+    with pytest.raises(MicrobiomeSuiteError, match="no '.fasta' output"):
+        select_output(outputs, ".fasta", step="chimera.vsearch")
+
+
+def test_select_output_cluster_picks_opti_mcc_list() -> None:
+    # Real cluster output is named opti_mcc, not opti_tptn -- opti_tptn only
+    # appears when the distance file is blank and cluster aborts.
+    outputs = parse_mothur_outputs(_fixture("cluster_opti.txt"))
+
+    chosen = select_output(outputs, ".list", step="cluster")
+
+    assert "opti_mcc" in chosen.name
+    assert "opti_tptn" not in chosen.name
+
+
 def test_check_errors_raises_on_anchored_error_line() -> None:
     with pytest.raises(MicrobiomeSuiteError, match="did not complete align.seqs"):
         check_mothur_errors(_fixture("error_on_failure.txt"), step="align.seqs")

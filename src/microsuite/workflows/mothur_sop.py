@@ -109,6 +109,11 @@ def run_mothur_sop(
     # make.contigs emits both .trim.contigs.fasta and .scrap.contigs.fasta;
     # the scrap file holds the reads that failed assembly.
     contigs = select_output(outputs, ".fasta", step="make.contigs", exclude=("scrap",))
+    # make.contigs's count table is the ONLY carrier of read->sample identity --
+    # mothur does not rename reads to encode a sample. Without it, cluster()
+    # falls back to a group-less dereplication and every downstream table ends
+    # up with a single sample column regardless of how many samples were fed in.
+    contigs_count_table = select_output(outputs, ".count_table", step="make.contigs")
 
     output_table = output_dir / "table.tsv"
     output_rep_seqs = output_dir / "rep-seqs.fasta"
@@ -120,6 +125,7 @@ def run_mothur_sop(
         output_table=output_table,
         output_rep_seqs=output_rep_seqs,
         reference_alignment=reference_alignment,
+        count_table=contigs_count_table,
         identity=identity,
         output_otu_list=output_otu_list,
         output_count_table=output_count_table,

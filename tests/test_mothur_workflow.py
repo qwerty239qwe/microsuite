@@ -161,6 +161,7 @@ def test_run_mothur_sop_threads_files_correctly_between_steps(
 
     contigs_fasta = output_dir / "contigs" / "stability.trim.contigs.fasta"
     scrap_fasta = output_dir / "contigs" / "stability.scrap.contigs.fasta"
+    contigs_count_table = output_dir / "contigs" / "stability.contigs.count_table"
 
     run_mothur_calls: list[dict[str, object]] = []
     cluster_calls: list[dict[str, object]] = []
@@ -168,8 +169,9 @@ def test_run_mothur_sop_threads_files_correctly_between_steps(
 
     def fake_run_mothur(command: str, params: dict[str, str], **kwargs: object) -> list[Path]:
         run_mothur_calls.append({"command": command, "params": params, **kwargs})
-        # make.contigs emits both the assembled and scrap FASTA in one block.
-        return [contigs_fasta, scrap_fasta]
+        # make.contigs emits the assembled FASTA, the scrap FASTA, and the
+        # count table (the ONLY carrier of read->sample identity) in one block.
+        return [contigs_fasta, scrap_fasta, contigs_count_table]
 
     def fake_cluster(**kwargs: object) -> None:
         cluster_calls.append(kwargs)
@@ -205,3 +207,10 @@ def test_run_mothur_sop_threads_files_correctly_between_steps(
     assert tax_classify_calls[0]["count_table"] == cluster_calls[0]["output_count_table"]
     assert cluster_calls[0]["output_otu_list"] is not None
     assert cluster_calls[0]["output_count_table"] is not None
+
+    # 4. make.contigs's .count_table (NOT the trim or scrap FASTA) reaches
+    # cluster(count_table=...). It is the ONLY carrier of read->sample
+    # identity in the whole pipeline -- mothur never renames reads to encode
+    # a sample, so dropping this makes every downstream table single-sample
+    # regardless of how many samples were fed in.
+    assert cluster_calls[0]["count_table"] == contigs_count_table

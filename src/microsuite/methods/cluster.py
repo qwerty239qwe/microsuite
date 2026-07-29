@@ -25,6 +25,7 @@ def cluster(
     sample_delimiter: str = "_",
     sample_field: int = 0,
     reference_alignment: Path | None = None,
+    count_table: Path | None = None,
     maxambig: int = 0,
     maxhomop: int = 8,
     pre_cluster_diffs: int = 2,
@@ -43,6 +44,7 @@ def cluster(
             output_table=output_table,
             output_rep_seqs=output_rep_seqs,
             reference_alignment=reference_alignment,
+            count_table=count_table,
             identity=identity,
             maxambig=maxambig,
             maxhomop=maxhomop,
@@ -105,6 +107,7 @@ def cluster_mothur(
     output_table: Path,
     output_rep_seqs: Path,
     reference_alignment: Path,
+    count_table: Path | None,
     identity: float,
     maxambig: int,
     maxhomop: int,
@@ -121,6 +124,8 @@ def cluster_mothur(
 
     ensure_input(rep_seqs)
     ensure_input(reference_alignment)
+    if count_table is not None:
+        ensure_input(count_table)
     prepare_output(output_table, force=force)
     prepare_output(output_rep_seqs, force=force)
     shared_sidecar = output_table.with_suffix(".shared")
@@ -138,7 +143,15 @@ def cluster_mothur(
         step_run_dir = None if run_dir is None else run_dir / name.replace(".", "_")
         return run_mothur(name, params, work_dir=work_dir, run_dir=step_run_dir, timeout=timeout)
 
-    out = step("unique.seqs", {"fasta": str(rep_seqs), "format": "count"})
+    # make.contigs's count table is the only carrier of read->sample identity
+    # (mothur does not rename reads to encode a sample). When the caller
+    # supplies one, dereplicate against it so every downstream count table
+    # keeps its group columns; format=count with no count table collapses
+    # every sample into a single "total" column.
+    if count_table is not None:
+        out = step("unique.seqs", {"fasta": str(rep_seqs), "count": str(count_table)})
+    else:
+        out = step("unique.seqs", {"fasta": str(rep_seqs), "format": "count"})
     fasta = ensure_non_empty_fasta(
         select_output(out, ".fasta", step="unique.seqs"), step="unique.seqs"
     )
@@ -158,10 +171,15 @@ def cluster_mothur(
             "maxhomop": str(maxhomop),
         },
     )
+    # screen.seqs's input here is align.seqs's .align, so its output is
+    # .good.align, not .good.fasta. Its .count_table is conditional: mothur
+    # only emits one when sequences were actually removed. Absent one, the
+    # count table from the prior unique.seqs step is still current.
     fasta = ensure_non_empty_fasta(
-        select_output(out, ".fasta", step="screen.seqs"), step="screen.seqs"
+        select_output(out, ".align", step="screen.seqs"), step="screen.seqs"
     )
-    count = select_output(out, ".count_table", step="screen.seqs")
+    if any(path.name.endswith(".count_table") for path in out):
+        count = select_output(out, ".count_table", step="screen.seqs")
 
     out = step("filter.seqs", {"fasta": str(fasta), "vertical": "T", "trump": "."})
     fasta = select_output(out, ".fasta", step="filter.seqs")
@@ -181,16 +199,18 @@ def cluster_mothur(
         "chimera.vsearch",
         {"fasta": str(fasta), "count": str(count), "dereplicate": "t"},
     )
-    fasta = ensure_non_empty_fasta(
-        select_output(out, ".fasta", step="chimera.vsearch"), step="chimera.vsearch"
-    )
+    # With a GROUPED count table (the case here, since pre.cluster's count
+    # table carries sample groups), chimera.vsearch emits the post-chimera
+    # .count_table and the chimeric sequences' .accnos, but NO .fasta. The
+    # chimera-free FASTA must be built explicitly from the pre-chimera fasta
+    # (pre.cluster's, still held in `fasta`) via remove.seqs.
+    count = select_output(out, ".count_table", step="chimera.vsearch")
     accnos = select_output(out, ".accnos", step="chimera.vsearch")
 
-    # chimera.vsearch never emits a .count_table: the chimeric sequence is gone
-    # from the fasta but still counted in `count`. Strip it explicitly, or every
-    # downstream table keeps chimeric abundances with no error.
-    out = step("remove.seqs", {"accnos": str(accnos), "count": str(count)})
-    count = select_output(out, ".count_table", step="remove.seqs")
+    out = step("remove.seqs", {"accnos": str(accnos), "fasta": str(fasta)})
+    fasta = ensure_non_empty_fasta(
+        select_output(out, ".fasta", step="remove.seqs"), step="remove.seqs"
+    )
 
     out = step("dist.seqs", {"fasta": str(fasta), "cutoff": str(cutoff)})
     column = select_output(out, ".dist", step="dist.seqs")

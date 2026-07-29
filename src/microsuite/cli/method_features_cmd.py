@@ -380,6 +380,14 @@ def register(app: typer.Typer) -> None:
                 help="Aligned reference FASTA (mothur backend). Required for --backend mothur.",
             ),
         ] = None,
+        count_table: Annotated[
+            Path | None,
+            typer.Option(
+                "--count-table",
+                help="mothur backend: make.contigs's .count_table, carrying sample groups. "
+                "Without it, samples cannot be distinguished in the output table.",
+            ),
+        ] = None,
         maxambig: Annotated[
             int,
             typer.Option("--maxambig", min=0, help="Max ambiguous bases (mothur screen.seqs)."),
@@ -423,6 +431,7 @@ def register(app: typer.Typer) -> None:
             sample_delimiter=sample_delimiter,
             sample_field=sample_field,
             reference_alignment=reference_alignment,
+            count_table=count_table,
             maxambig=maxambig,
             maxhomop=maxhomop,
             pre_cluster_diffs=pre_cluster_diffs,
