@@ -21,6 +21,25 @@ Captured 2026-07-26 on `condaforge/miniforge3:24.9.2-0` + `mothur=1.48.5`
 | `get_oturep.txt` | `get.oturep(column=…, list=…, count=…, fasta=…, method=abundance)` — **no `label`** | Confirms `label` is not a valid `get.oturep` parameter: passing it only prints `[WARNING]: label is not a valid parameter, ignoring.`, which `check_mothur_errors` does not catch. This fixture is captured WITHOUT `label` and contains no such warning. Emits `.rep.count_table` and `.rep.fasta` together. |
 | `classify_otu.txt` | `classify.otu(list=…, count=…, taxonomy=…, label=0.03)` | Emits `.cons.taxonomy` and `.cons.tax.summary` together — pins that `select_output(..., ".cons.taxonomy")` picks the consensus taxonomy file and not the near-miss summary file. Also confirms `classify.otu` runs cleanly (exit 0, no warnings) WITH a `count` parameter supplied. |
 
+## Pipeline-configuration fixtures (captured 2026-07-28)
+
+**The fixtures above were all captured on unaligned, group-less toy input.** Four
+mothur commands behave *differently* in the configuration the real pipeline uses
+— aligned sequences and a count table carrying sample groups — and the
+difference was invisible until a full end-to-end run. These fixtures capture
+that real configuration. Prefer them when reasoning about pipeline behaviour.
+
+Captured from a 2-sample, 3-species paired-end run (99 read pairs) through all
+12 SOP steps, which recovered the designed community structure.
+
+| File | Command | What it pins |
+|---|---|---|
+| `make_contigs_paired.txt` | `make.contigs(file=<2 samples>)` | Emits `.contigs.count_table` **carrying group columns**. That file is the ONLY carrier of read→sample identity — `make.contigs` does not rename sequences. Discarding it makes every downstream table single-sample. |
+| `screen_seqs_aligned.txt` | `screen.seqs(fasta=<.align>, count=…, optimize=start-end, criteria=90)` | Input is `align.seqs`'s `.align`, so output is `.good.**align**`, never `.good.fasta`. Here nothing was screened out, so **no `.count_table` is emitted at all**. |
+| `screen_seqs_removed.txt` | same, on input with an ambiguous-base sequence | When sequences ARE removed: `.good.align` + `.bad.accnos` + `.good.count_table`. Two `Output File Names:` blocks (an internal `remove.seqs` first); last-block-wins keeps `select_output` unambiguous. Compare with the file above — `.count_table` is **conditional on data**. |
+| `chimera_vsearch_grouped.txt` | `chimera.vsearch(fasta=…, count=<grouped>, dereplicate=t)` | **Outputs invert** versus `chimera_vsearch.txt`: with a grouped count table it emits `.count_table` + `.accnos` + `.chimeras` and **no `.fasta`**; with a group-less one it emits `.fasta` and no `.count_table`. The chimera-free FASTA must then come from an explicit `remove.seqs(accnos=…, fasta=…)`. |
+| `cluster_opti.txt` | `cluster(column=…, count=…, method=opti, cutoff=0.03)` | Real output is named `opti_**mcc**`, not `opti_tptn`. `opti_tptn` only appears when the distance file is blank and `cluster` aborts. Emits `.list` + `.steps` + `.sensspec`. |
+
 ## Observed format
 
 - The header line is `Output File Names: ` — **with one trailing space**.

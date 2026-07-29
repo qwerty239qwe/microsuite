@@ -1,0 +1,74 @@
+Linux version
+
+Using ReadLine,Boost,HDF5,GSL
+mothur v.1.48.5
+Last updated: 1/13/26
+by
+Patrick D. Schloss
+
+Department of Microbiology & Immunology
+
+University of Michigan
+http://www.mothur.org
+
+When using, please cite:
+Schloss, P.D., et al., Introducing mothur: Open-source, platform-independent, community-supported software for describing and comparing microbial communities. Appl Environ Microbiol, 2009. 75(23):7537-41.
+
+Distributed under the GNU General Public License
+
+Type 'help()' for information on the commands that are available
+
+For questions and analysis support, please visit our forum at https://forum.mothur.org
+
+Type 'quit()' to exit program
+
+[NOTE]: Setting random seed to 19760620.
+
+Script Mode
+
+
+
+mothur > set.dir(output=/data)
+Mothur's directories:
+outputDir=/data/
+
+mothur > screen.seqs(fasta=/data/stability.trim.contigs.unique.align, count=/data/stability.trim.contigs.count_table, optimize=start-end, criteria=90, maxambig=0, maxhomop=8)
+
+Using 16 processors.
+Optimizing start to 1.
+Optimizing end to 265.
+6
+6
+6
+5
+6
+5
+6
+6
+6
+6
+6
+5
+6
+6
+6
+5
+
+It took 0 secs to screen 92 sequences, removed 0.
+
+[NOTE]: no sequences were bad, removing /data/stability.trim.contigs.unique.bad.accnos
+
+
+Output File Names:
+/data/stability.trim.contigs.unique.good.align
+
+
+It took 0 secs to screen 92 sequences.
+
+mothur > quit()
+
+
+It took 0 seconds to run 3 commands from your script.
+
+Logfile : mothur.1785327379.logfile
+

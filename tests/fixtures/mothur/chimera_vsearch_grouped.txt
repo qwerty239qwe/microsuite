@@ -1,0 +1,112 @@
+vsearch v2.30.5_linux_x86_64, 7.7GB RAM, 16 cores
+https://github.com/torognes/vsearch
+
+vsearch v2.30.5_linux_x86_64, 7.7GB RAM, 16 cores
+https://github.com/torognes/vsearch
+
+Reading file /data/stability.trim.contigs.unique.good.filter.unique.precluster.temp1.temp 100%
+6500 nt in 26 seqs, min 250, max 250, avg 250
+Masking 100%
+Sorting by abundance 100%
+Counting k-mers 100%
+Reading file /data/stability.trim.contigs.unique.good.filter.unique.precluster.tempDetecting chimeras 100%
+11000 nt in 44 seqs, min 250, max 250, avg 250
+Masking 100%
+Sorting by abundance 100%
+Counting k-mers 100%
+Detecting chimeras 100%
+Found 0 (0.0%) chimeras, 44 (100.0%) non-chimeras,
+and 0 (0.0%) borderline sequences in 44 unique sequences.
+Taking abundance information into account, this corresponds to
+0 (0.0%) chimeras, 44 (100.0%) non-chimeras,
+and 0 (0.0%) borderline sequences in 44 total sequences.
+ 100%
+Found 0 (0.0%) chimeras, 26 (100.0%) non-chimeras,
+and 0 (0.0%) borderline sequences in 26 unique sequences.
+Taking abundance information into account, this corresponds to
+0 (0.0%) chimeras, 53 (100.0%) non-chimeras,
+and 0 (0.0%) borderline sequences in 53 total sequences.
+Linux version
+
+Using ReadLine,Boost,HDF5,GSL
+mothur v.1.48.5
+Last updated: 1/13/26
+by
+Patrick D. Schloss
+
+Department of Microbiology & Immunology
+
+University of Michigan
+http://www.mothur.org
+
+When using, please cite:
+Schloss, P.D., et al., Introducing mothur: Open-source, platform-independent, community-supported software for describing and comparing microbial communities. Appl Environ Microbiol, 2009. 75(23):7537-41.
+
+Distributed under the GNU General Public License
+
+Type 'help()' for information on the commands that are available
+
+For questions and analysis support, please visit our forum at https://forum.mothur.org
+
+Type 'quit()' to exit program
+
+[NOTE]: Setting random seed to 19760620.
+
+Script Mode
+
+
+
+mothur > set.dir(output=/data)
+Mothur's directories:
+outputDir=/data/
+
+mothur > chimera.vsearch(fasta=/data/stability.trim.contigs.unique.good.filter.unique.precluster.fasta, count=/data/stability.trim.contigs.unique.good.filter.unique.precluster.count_table, dereplicate=t)
+
+Using 16 processors.
+Unable to open vsearch. Trying output directory /data/vsearch.
+Unable to open /data/vsearch. Trying mothur's executable directory vsearch.
+Unable to open vsearch.
+vsearch file does not exist. Checking path... 
+Found vsearch in your path, using /opt/conda/bin//vsearch
+Using vsearch version v2.30.5.
+Checking sequences from /data/stability.trim.contigs.unique.good.filter.unique.precluster.fasta ...
+
+/******************************************/
+Splitting by sample: 
+
+Using 16 processors.
+Reducing processors to 2.
+
+Selecting sequences for groups sampleB
+
+
+Selecting sequences for groups sampleA
+
+Selected 26 sequences from sampleB.
+Selected 44 sequences from sampleA.
+
+It took 0 seconds to split the dataset by sample.
+/******************************************/
+Reducing processors to 2.
+
+It took 1 secs to check 44 sequences from group sampleA.
+
+It took 1 secs to check 26 sequences from group sampleB.
+It took 1 secs to check 70 sequences.
+
+
+No chimeras found, skipping remove.seqs.
+
+Output File Names:
+/data/stability.trim.contigs.unique.good.filter.unique.precluster.denovo.vsearch.count_table
+/data/stability.trim.contigs.unique.good.filter.unique.precluster.denovo.vsearch.chimeras
+/data/stability.trim.contigs.unique.good.filter.unique.precluster.denovo.vsearch.accnos
+
+
+mothur > quit()
+
+
+It took 1 seconds to run 3 commands from your script.
+
+Logfile : mothur.1785327380.logfile
+
