@@ -170,9 +170,7 @@ def test_taxonomy_is_per_otu_consensus_over_full_membership(sop_output: Path) ->
     # well-formed, wrong consensus.
     shared_header, *shared_rows = _read_tsv(sop_output / "table.shared")
     otus = shared_header[3:]
-    shared_total = {
-        otu: sum(int(row[3 + i]) for row in shared_rows) for i, otu in enumerate(otus)
-    }
+    shared_total = {otu: sum(int(row[3 + i]) for row in shared_rows) for i, otu in enumerate(otus)}
 
     tax_header, *tax_rows = _read_tsv(sop_output / "taxonomy.tsv")
     assert tax_header[:3] == ["OTU", "Size", "Taxonomy"], (
@@ -183,6 +181,44 @@ def test_taxonomy_is_per_otu_consensus_over_full_membership(sop_output: Path) ->
         assert int(size) == shared_total[otu], (
             f"{otu}: consensus covered {size} sequences but the OTU holds "
             f"{shared_total[otu]} -- classification saw only part of the OTU"
+        )
+
+
+def test_clustering_actually_clustered(sop_output: Path) -> None:
+    # A degenerate distance matrix makes mothur emit a .list where every unique
+    # sequence is its own OTU. Every later step then succeeds, so the run exits
+    # 0 with a full table and full taxonomy that happen to describe no
+    # clustering at all. mothur exits 1 on the two ways we know to provoke this,
+    # so run_command catches it -- this asserts the outcome directly rather than
+    # relying on that staying true.
+    _header, *rows = _read_tsv(sop_output / "table.tsv")
+    unique_seqs = sum(
+        1
+        for line in (sop_output / "unique-seqs.fasta").read_text(encoding="utf-8").splitlines()
+        if line.startswith(">")
+    )
+
+    assert len(rows) < unique_seqs, (
+        f"{len(rows)} OTUs from {unique_seqs} unique sequences -- clustering "
+        "collapsed nothing, which is what a blank distance matrix produces"
+    )
+
+
+def test_representative_sequences_are_unaligned(sop_output: Path) -> None:
+    # get.oturep reads the filtered alignment, so its output carries gap
+    # characters unless degapped. The vsearch and usearch backends return
+    # unaligned centroids under this same option, and downstream consumers
+    # (mafft-fasttree, qiime2 classifiers) assume unaligned input.
+    sequences = [
+        line
+        for line in (sop_output / "rep-seqs.fasta").read_text(encoding="utf-8").splitlines()
+        if line and not line.startswith(">")
+    ]
+
+    assert sequences, "rep-seqs.fasta has no sequence lines"
+    for line in sequences:
+        assert "-" not in line and "." not in line, (
+            f"rep-seqs.fasta still carries alignment gaps: {line[:60]}"
         )
 
 
