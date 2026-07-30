@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -135,6 +136,43 @@ def test_write_stability_file_rejects_unmatched_fastq_file(tmp_path: Path) -> No
 
     with pytest.raises(MicrobiomeSuiteError, match="weirdfile.fastq.gz"):
         write_stability_file(reads, tmp_path / "stability.files")
+
+
+def test_run_mothur_sop_validates_taxonomy_paths_before_make_contigs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A typo'd trainset path used to fail only after all 12 cluster steps had
+    # already run (validated inside tax_classify(), reached last). Validate
+    # reference_alignment/taxonomy_reference/taxonomy_map up front, before
+    # make.contigs -- the spec's error table mandates "before step 1".
+    reads = tmp_path / "reads"
+    reads.mkdir()
+    (reads / "sampleA_R1.fastq.gz").write_text("", encoding="utf-8")
+    (reads / "sampleA_R2.fastq.gz").write_text("", encoding="utf-8")
+
+    reference_alignment = tmp_path / "silva.align"
+    reference_alignment.write_text(">ref\nAC-GT\n", encoding="utf-8")
+    taxonomy_map = tmp_path / "trainset.tax"
+    taxonomy_map.write_text("r\tBacteria;\n", encoding="utf-8")
+
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    with pytest.raises(MicrobiomeSuiteError, match="does not exist"):
+        run_mothur_sop(
+            reads_dir=reads,
+            output_dir=tmp_path / "out",
+            reference_alignment=reference_alignment,
+            taxonomy_reference=tmp_path / "missing_trainset.fasta",
+            taxonomy_map=taxonomy_map,
+        )
+
+    assert calls == []
 
 
 def test_run_mothur_sop_threads_files_correctly_between_steps(

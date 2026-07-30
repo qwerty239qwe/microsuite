@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import shutil
+from collections import Counter
 from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
-from microsuite.methods._dispatch import require_backend
+from microsuite.methods._dispatch import reject_options, require_backend
 from microsuite.methods.mothur import ensure_non_empty_fasta, run_mothur, select_output
 from microsuite.runtime.runner import CommandLog, run_command
 
@@ -37,7 +38,29 @@ def cluster(
     timeout: float | None = None,
 ) -> None:
     backend = require_backend(backend, SUPPORTED_BACKENDS, "cluster")
+
+    # sample_delimiter/sample_field/maxambig/maxhomop/pre_cluster_diffs all have
+    # non-None defaults, so a caller who never touched them must not trip a
+    # rejection meant for callers who explicitly set them. Collapse "still at
+    # its default" to None here so reject_options only ever sees a value the
+    # caller actually chose.
+    sample_delimiter_chosen = None if sample_delimiter == "_" else sample_delimiter
+    sample_field_chosen = None if sample_field == 0 else sample_field
+    maxambig_chosen = None if maxambig == 0 else maxambig
+    maxhomop_chosen = None if maxhomop == 8 else maxhomop
+    pre_cluster_diffs_chosen = None if pre_cluster_diffs == 2 else pre_cluster_diffs
+
     if backend == "mothur":
+        reject_options(
+            "mothur",
+            {
+                "--table": table,
+                "--reads": reads,
+                "--output-uc": output_uc,
+                "--sample-delimiter": sample_delimiter_chosen,
+                "--sample-field": sample_field_chosen,
+            },
+        )
         if reference_alignment is None:
             raise MicrobiomeSuiteError("--reference-alignment is required for --backend mothur.")
         cluster_mothur(
@@ -59,6 +82,23 @@ def cluster(
         )
         return
     if backend == "qiime2-vsearch":
+        reject_options(
+            "qiime2-vsearch",
+            {
+                "--reads": reads,
+                "--output-uc": output_uc,
+                "--sample-delimiter": sample_delimiter_chosen,
+                "--sample-field": sample_field_chosen,
+                "--reference-alignment": reference_alignment,
+                "--count-table": count_table,
+                "--maxambig": maxambig_chosen,
+                "--maxhomop": maxhomop_chosen,
+                "--pre-cluster-diffs": pre_cluster_diffs_chosen,
+                "--output-otu-list": output_otu_list,
+                "--output-count-table": output_count_table,
+                "--output-unique-seqs": output_unique_seqs,
+            },
+        )
         if table is None:
             raise MicrobiomeSuiteError("--table is required for --backend qiime2-vsearch.")
         cluster_qiime2_vsearch(
@@ -73,6 +113,20 @@ def cluster(
         )
         return
     if backend == "vsearch":
+        reject_options(
+            "vsearch",
+            {
+                "--table": table,
+                "--reference-alignment": reference_alignment,
+                "--count-table": count_table,
+                "--maxambig": maxambig_chosen,
+                "--maxhomop": maxhomop_chosen,
+                "--pre-cluster-diffs": pre_cluster_diffs_chosen,
+                "--output-otu-list": output_otu_list,
+                "--output-count-table": output_count_table,
+                "--output-unique-seqs": output_unique_seqs,
+            },
+        )
         cluster_vsearch(
             rep_seqs=rep_seqs,
             reads=reads,
@@ -88,6 +142,21 @@ def cluster(
         )
         return
     if backend == "usearch":
+        reject_options(
+            "usearch",
+            {
+                "--table": table,
+                "--reads": reads,
+                "--reference-alignment": reference_alignment,
+                "--count-table": count_table,
+                "--maxambig": maxambig_chosen,
+                "--maxhomop": maxhomop_chosen,
+                "--pre-cluster-diffs": pre_cluster_diffs_chosen,
+                "--output-otu-list": output_otu_list,
+                "--output-count-table": output_count_table,
+                "--output-unique-seqs": output_unique_seqs,
+            },
+        )
         cluster_usearch(
             rep_seqs=rep_seqs,
             output_table=output_table,
@@ -124,6 +193,12 @@ def cluster_mothur(
     """Run the clustering half of mothur's MiSeq SOP over a FASTA."""
     if not 0 < identity <= 1:
         raise MicrobiomeSuiteError("--identity must be greater than 0 and less than or equal to 1.")
+    if output_table.suffix == ".shared":
+        raise MicrobiomeSuiteError(
+            f"--output-table must not end in '.shared': {output_table}. cluster_mothur derives "
+            "its own .shared sidecar from --output-table by replacing the suffix, so a "
+            "--output-table already ending in '.shared' would collide with and overwrite itself."
+        )
 
     ensure_input(rep_seqs)
     ensure_input(reference_alignment)
@@ -187,7 +262,14 @@ def cluster_mothur(
         count = select_output(out, ".count_table", step="screen.seqs")
 
     out = step("filter.seqs", {"fasta": str(fasta), "vertical": "T", "trump": "."})
-    fasta = select_output(out, ".fasta", step="filter.seqs")
+    # filter.seqs is precisely the step that can trim every alignment column
+    # away when the reference alignment does not cover the amplicon, leaving
+    # a well-formed FASTA whose sequences all trimmed to zero length. Counting
+    # '>' header lines alone (what ensure_non_empty_fasta guarded against
+    # before) would let that through as "non-empty".
+    fasta = ensure_non_empty_fasta(
+        select_output(out, ".fasta", step="filter.seqs"), step="filter.seqs"
+    )
 
     out = step("unique.seqs", {"fasta": str(fasta), "count": str(count)})
     fasta = select_output(out, ".fasta", step="unique.seqs")
@@ -254,9 +336,20 @@ def cluster_mothur(
     )
     representatives = select_output(out, ".fasta", step="get.oturep")
 
+    # get.oturep's input is the filtered ALIGNMENT, so representatives carries
+    # '.'/'-' alignment gap characters. The vsearch/usearch backends produce
+    # unaligned centroids under this same --output-rep-seqs contract, so
+    # degap it here -- otherwise a consumer expecting unaligned sequences
+    # (phylogeny --backend mafft-fasttree, tax_classify --backend qiime2)
+    # gets a well-formed wrong result. output_unique_seqs is deliberately left
+    # aligned: it is what classify.otu's .list refers to by name, and
+    # degapping it would break that name matching.
+    out = step("degap.seqs", {"fasta": str(representatives)})
+    degapped = select_output(out, ".fasta", step="degap.seqs")
+
     write_otu_table_from_shared(shared, output_table)
     shutil.copyfile(shared, shared_sidecar)
-    shutil.copyfile(representatives, output_rep_seqs)
+    shutil.copyfile(degapped, output_rep_seqs)
     if output_otu_list is not None:
         shutil.copyfile(otu_list, output_otu_list)
     if output_count_table is not None:
@@ -543,6 +636,17 @@ def write_otu_table_from_shared(shared: Path, output: Path) -> None:
                 f"mothur .shared file has a malformed row ({descriptor}): expected "
                 f"{expected_columns} columns, found {len(record)}: {shared}"
             )
+
+    group_counts = Counter(record[1] for record in records)
+    duplicated = sorted(group for group, count in group_counts.items() if count > 1)
+    if duplicated:
+        # record_by_sample below dedupes by Group, keeping only the LAST
+        # occurrence's row. A repeated Group would otherwise emit two
+        # identical columns, both carrying the later row's counts -- silently
+        # replacing one sample's data with another's.
+        raise MicrobiomeSuiteError(
+            f"mothur .shared file has duplicate Group(s) {duplicated}: {shared}"
+        )
 
     samples = sorted(record[1] for record in records)
     record_by_sample = {record[1]: record for record in records}

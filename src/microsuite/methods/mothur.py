@@ -181,21 +181,34 @@ def run_mothur(
 
 
 def ensure_non_empty_fasta(path: Path, *, step: str) -> Path:
-    """Raise if a FASTA is missing or has no records.
+    """Raise if a FASTA is missing, has no records, or every sequence is empty.
 
     mothur writes an empty FASTA and continues when a filter removes every
     sequence, so the failure would otherwise surface as an empty feature table
     many steps later. A missing file is a different bug (an upstream step
     never ran, or wrote somewhere unexpected), so it gets its own message
     rather than being folded into the "removed every sequence" case.
+
+    Counting '>' header lines alone cannot catch a FASTA whose records
+    survived but were trimmed to zero length -- e.g. filter.seqs, when the
+    reference alignment does not cover the amplicon and every column gets
+    trimmed away. That gets its own message too, since the fix (check the
+    reference alignment) differs from either of the other two cases.
     """
     if not path.exists():
         raise MicrobiomeSuiteError(
             f"mothur step '{step}' expected output file {path} does not exist."
         )
-    if not any(line.startswith(">") for line in path.read_text(encoding="utf-8").splitlines()):
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if not any(line.startswith(">") for line in lines):
         raise MicrobiomeSuiteError(
             f"mothur step '{step}' removed every sequence. "
             "Relax the screening parameters and rerun."
+        )
+    if not any(not line.startswith(">") and line.strip().strip(".-") for line in lines):
+        raise MicrobiomeSuiteError(
+            f"mothur step '{step}' trimmed every sequence to zero length. "
+            "This usually means the reference alignment does not cover the amplicon; "
+            "check --reference-alignment and rerun."
         )
     return path

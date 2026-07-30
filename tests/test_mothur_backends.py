@@ -129,6 +129,20 @@ def test_ensure_non_empty_fasta_raises_on_missing_file(tmp_path: Path) -> None:
         ensure_non_empty_fasta(missing, step="screen.seqs")
 
 
+def test_ensure_non_empty_fasta_raises_on_sequences_trimmed_to_zero_length(
+    tmp_path: Path,
+) -> None:
+    # filter.seqs can trim every alignment column away when the reference
+    # alignment does not cover the amplicon, leaving headers whose sequence
+    # line is either absent or nothing but alignment gap characters. Counting
+    # '>' header lines alone would let this through as "non-empty".
+    trimmed = tmp_path / "trimmed.fasta"
+    trimmed.write_text(">seq1\n\n>seq2\n----\n", encoding="utf-8")
+
+    with pytest.raises(MicrobiomeSuiteError, match="trimmed every sequence to zero length"):
+        ensure_non_empty_fasta(trimmed, step="filter.seqs")
+
+
 def test_run_mothur_rejects_work_dir_with_parentheses(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -220,6 +234,21 @@ def test_write_otu_table_from_shared_rejects_malformed_header(tmp_path: Path) ->
         write_otu_table_from_shared(shared, tmp_path / "table.tsv")
 
 
+def test_write_otu_table_from_shared_rejects_duplicate_group(tmp_path: Path) -> None:
+    # record_by_sample dedupes by Group, keeping only the LAST occurrence's
+    # row. A repeated Group would otherwise emit two identical columns, both
+    # carrying the later row's counts -- silently replacing one sample's data
+    # with another's.
+    shared = tmp_path / "final.opti_mcc.shared"
+    shared.write_text(
+        "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t5\n0.03\tsampleA\t1\t9\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(MicrobiomeSuiteError, match="sampleA"):
+        write_otu_table_from_shared(shared, tmp_path / "table.tsv")
+
+
 def _mothur_stdout(*names: str) -> str:
     listed = "\n".join(names)
     return f"mothur > step\n\nOutput File Names: \n{listed}\n\n"
@@ -268,6 +297,9 @@ def _sop_stdouts(tmp_path: Path, *, screen_removed: bool = False) -> list[str]:
         _mothur_stdout(f"{base}.opti_mcc.list"),
         _mothur_stdout(f"{base}.opti_mcc.shared"),
         _mothur_stdout(f"{base}.rep.fasta"),
+        # degap.seqs: verified against real mothur 1.48.5 to emit a single
+        # '.ng.fasta'.
+        _mothur_stdout(f"{base}.rep.ng.fasta"),
     ]
 
 
@@ -315,8 +347,11 @@ def test_cluster_mothur_runs_the_sop_in_order(
     (tmp_path / "seqs.opti_mcc.shared").write_text(
         "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t4\n", encoding="utf-8"
     )
-    (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
-    for name in ("seqs.unique.fasta", "seqs.good.align", "seqs.pick.fasta"):
+    # get.oturep's representatives are aligned (gap characters intact);
+    # degap.seqs's output is what actually reaches output_rep_seqs.
+    (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nAC-GT\n", encoding="utf-8")
+    (tmp_path / "seqs.rep.ng.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
+    for name in ("seqs.unique.fasta", "seqs.good.align", "seqs.filter.fasta", "seqs.pick.fasta"):
         (tmp_path / name).write_text(">a_1\nACGT\n", encoding="utf-8")
 
     cluster(
@@ -342,6 +377,7 @@ def test_cluster_mothur_runs_the_sop_in_order(
         "cluster",
         "make.shared",
         "get.oturep",
+        "degap.seqs",
     ]
 
 
@@ -390,8 +426,11 @@ def test_cluster_mothur_threads_files_correctly_between_steps(
     (tmp_path / "seqs.opti_mcc.shared").write_text(
         "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t4\n", encoding="utf-8"
     )
-    (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
-    for name in ("seqs.unique.fasta", "seqs.good.align", "seqs.pick.fasta"):
+    # get.oturep's representatives are aligned (gap characters intact);
+    # degap.seqs's output is what actually reaches output_rep_seqs.
+    (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nAC-GT\n", encoding="utf-8")
+    (tmp_path / "seqs.rep.ng.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
+    for name in ("seqs.unique.fasta", "seqs.good.align", "seqs.filter.fasta", "seqs.pick.fasta"):
         (tmp_path / name).write_text(">a_1\nACGT\n", encoding="utf-8")
 
     output_unique_seqs = tmp_path / "unique-seqs.fasta"
@@ -528,8 +567,9 @@ def test_cluster_mothur_screen_seqs_count_table_used_when_present(
     (tmp_path / "seqs.opti_mcc.shared").write_text(
         "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t4\n", encoding="utf-8"
     )
-    (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
-    for name in ("seqs.unique.fasta", "seqs.good.align", "seqs.pick.fasta"):
+    (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nAC-GT\n", encoding="utf-8")
+    (tmp_path / "seqs.rep.ng.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
+    for name in ("seqs.unique.fasta", "seqs.good.align", "seqs.filter.fasta", "seqs.pick.fasta"):
         (tmp_path / name).write_text(">a_1\nACGT\n", encoding="utf-8")
 
     cluster(
@@ -571,8 +611,9 @@ def test_cluster_mothur_screen_seqs_count_table_absent_carries_prior_forward(
     (tmp_path / "seqs.opti_mcc.shared").write_text(
         "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t4\n", encoding="utf-8"
     )
-    (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
-    for name in ("seqs.unique.fasta", "seqs.good.align", "seqs.pick.fasta"):
+    (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nAC-GT\n", encoding="utf-8")
+    (tmp_path / "seqs.rep.ng.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
+    for name in ("seqs.unique.fasta", "seqs.good.align", "seqs.filter.fasta", "seqs.pick.fasta"):
         (tmp_path / name).write_text(">a_1\nACGT\n", encoding="utf-8")
 
     cluster(
@@ -609,8 +650,9 @@ def test_cluster_mothur_converts_identity_to_distance_cutoff(
     (tmp_path / "seqs.opti_mcc.shared").write_text(
         "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t4\n", encoding="utf-8"
     )
-    (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
-    for name in ("seqs.unique.fasta", "seqs.good.align", "seqs.pick.fasta"):
+    (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nAC-GT\n", encoding="utf-8")
+    (tmp_path / "seqs.rep.ng.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
+    for name in ("seqs.unique.fasta", "seqs.good.align", "seqs.filter.fasta", "seqs.pick.fasta"):
         (tmp_path / name).write_text(">a_1\nACGT\n", encoding="utf-8")
 
     cluster(
@@ -652,7 +694,8 @@ def test_cluster_mothur_copies_otu_list_and_count_table_when_requested(
     (tmp_path / "seqs.opti_mcc.shared").write_text(
         "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t4\n", encoding="utf-8"
     )
-    (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
+    (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nAC-GT\n", encoding="utf-8")
+    (tmp_path / "seqs.rep.ng.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
     # The step="cluster" .list and chimera.vsearch's own post-chimera
     # .count_table -- the two files output_otu_list/output_count_table must
     # surface.
@@ -660,7 +703,7 @@ def test_cluster_mothur_copies_otu_list_and_count_table_when_requested(
     (tmp_path / "seqs.denovo.vsearch.count_table").write_text(
         "Representative_Sequence\ttotal\na_1\t1\n", encoding="utf-8"
     )
-    for name in ("seqs.unique.fasta", "seqs.good.align", "seqs.pick.fasta"):
+    for name in ("seqs.unique.fasta", "seqs.good.align", "seqs.filter.fasta", "seqs.pick.fasta"):
         (tmp_path / name).write_text(">a_1\nACGT\n", encoding="utf-8")
 
     output_otu_list = tmp_path / "otu.list"
@@ -699,6 +742,90 @@ def test_cluster_mothur_requires_reference_alignment(tmp_path: Path) -> None:
             output_table=tmp_path / "table.tsv",
             output_rep_seqs=tmp_path / "rep.fasta",
             identity=0.97,
+        )
+
+
+def test_cluster_mothur_rejects_output_table_ending_in_shared(tmp_path: Path) -> None:
+    # cluster_mothur derives its own .shared sidecar from --output-table by
+    # replacing the suffix; an --output-table that already ends in .shared
+    # would collide with, and be overwritten by, its own sidecar.
+    seqs = tmp_path / "seqs.fasta"
+    seqs.write_text(">a_1\nACGT\n", encoding="utf-8")
+    reference = tmp_path / "silva.align"
+    reference.write_text(">ref\nAC-GT\n", encoding="utf-8")
+
+    with pytest.raises(MicrobiomeSuiteError, match=r"\.shared"):
+        cluster(
+            backend="mothur",
+            rep_seqs=seqs,
+            output_table=tmp_path / "results.shared",
+            output_rep_seqs=tmp_path / "rep.fasta",
+            reference_alignment=reference,
+            identity=0.97,
+        )
+
+
+def test_cluster_vsearch_rejects_mothur_only_option(tmp_path: Path) -> None:
+    # Silently dropping a mothur-only option would make e.g.
+    # --output-otu-list exit 0 and write nothing under --backend vsearch.
+    rep_seqs = tmp_path / "rep.fasta"
+    rep_seqs.write_text(">a\nACGT\n", encoding="utf-8")
+
+    with pytest.raises(MicrobiomeSuiteError, match="--reference-alignment"):
+        cluster(
+            backend="vsearch",
+            rep_seqs=rep_seqs,
+            output_table=tmp_path / "table.tsv",
+            output_rep_seqs=tmp_path / "rep-out.fasta",
+            reference_alignment=tmp_path / "silva.align",
+        )
+
+
+def test_cluster_mothur_rejects_vsearch_only_option(tmp_path: Path) -> None:
+    rep_seqs = tmp_path / "rep.fasta"
+    rep_seqs.write_text(">a\nACGT\n", encoding="utf-8")
+    reference = tmp_path / "silva.align"
+    reference.write_text(">ref\nAC-GT\n", encoding="utf-8")
+
+    with pytest.raises(MicrobiomeSuiteError, match="--output-uc"):
+        cluster(
+            backend="mothur",
+            rep_seqs=rep_seqs,
+            output_table=tmp_path / "table.tsv",
+            output_rep_seqs=tmp_path / "rep-out.fasta",
+            reference_alignment=reference,
+            output_uc=tmp_path / "out.uc",
+        )
+
+
+def test_cluster_qiime2_vsearch_rejects_mothur_only_option(tmp_path: Path) -> None:
+    table = tmp_path / "table.qza"
+    table.write_text("", encoding="utf-8")
+    rep_seqs = tmp_path / "rep-seqs.qza"
+    rep_seqs.write_text("", encoding="utf-8")
+
+    with pytest.raises(MicrobiomeSuiteError, match="--maxambig"):
+        cluster(
+            backend="qiime2-vsearch",
+            table=table,
+            rep_seqs=rep_seqs,
+            output_table=tmp_path / "clustered-table.qza",
+            output_rep_seqs=tmp_path / "clustered-rep-seqs.qza",
+            maxambig=1,
+        )
+
+
+def test_cluster_usearch_rejects_qiime2_only_option(tmp_path: Path) -> None:
+    rep_seqs = tmp_path / "rep-seqs.fasta"
+    rep_seqs.write_text(">a\nACGT\n", encoding="utf-8")
+
+    with pytest.raises(MicrobiomeSuiteError, match="--table"):
+        cluster(
+            backend="usearch",
+            table=tmp_path / "table.qza",
+            rep_seqs=rep_seqs,
+            output_table=tmp_path / "otu-table.tsv",
+            output_rep_seqs=tmp_path / "centroids.fasta",
         )
 
 

@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
-from microsuite._paths import prepare_output
+from microsuite._paths import ensure_input, prepare_output
 from microsuite.methods.cluster import cluster
 from microsuite.methods.mothur import run_mothur, select_output
 from microsuite.methods.tax_classify import tax_classify
@@ -85,6 +85,14 @@ def run_mothur_sop(
     """Run make.contigs, then the mothur cluster and taxonomy backends."""
     if not reads_dir.is_dir():
         raise MicrobiomeSuiteError(f"Reads directory does not exist: {reads_dir}")
+    # Validated here, before step 1, rather than left to cluster() (which only
+    # checks reference_alignment, after make.contigs already ran) and
+    # tax_classify() (which only checks taxonomy_reference/taxonomy_map, after
+    # all 12 cluster steps have run). A typo'd path must fail immediately, not
+    # at the end of a long run.
+    ensure_input(reference_alignment)
+    ensure_input(taxonomy_reference)
+    ensure_input(taxonomy_map)
     output_dir.mkdir(parents=True, exist_ok=True)
     run_dir = output_dir / "logs"
 
