@@ -78,9 +78,7 @@ def test_python_sdk_facade_exposes_fastqc(tmp_path: Path, monkeypatch: pytest.Mo
 
     monkeypatch.setattr("shutil.which", lambda name: "fastqc" if name == "fastqc" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 

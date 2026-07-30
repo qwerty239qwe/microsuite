@@ -30,9 +30,7 @@ def test_qc_fastqc_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 
     monkeypatch.setattr("shutil.which", lambda name: "fastqc" if name == "fastqc" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -151,9 +149,7 @@ def test_qc_fastqc_extract_builds_command(tmp_path: Path, monkeypatch: pytest.Mo
 
     monkeypatch.setattr("shutil.which", lambda name: "fastqc" if name == "fastqc" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -173,9 +169,7 @@ def test_qc_multiqc_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 
     monkeypatch.setattr("shutil.which", lambda name: "multiqc" if name == "multiqc" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -196,9 +190,7 @@ def test_qc_multiqc_force_reaches_tool(tmp_path: Path, monkeypatch: pytest.Monke
 
     monkeypatch.setattr("shutil.which", lambda name: "multiqc" if name == "multiqc" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -215,9 +207,7 @@ def test_qc_qiime2_demux_builds_command(tmp_path: Path, monkeypatch: pytest.Monk
 
     monkeypatch.setattr("shutil.which", lambda name: "qiime" if name == "qiime" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -246,9 +236,7 @@ def test_qc_qiime2_demux_force_unlinks_existing_output(
 
     monkeypatch.setattr("shutil.which", lambda name: "qiime" if name == "qiime" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         assert not output.exists()
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -263,9 +251,7 @@ def test_trim_fastp_single_builds_command(tmp_path: Path, monkeypatch: pytest.Mo
 
     monkeypatch.setattr("shutil.which", lambda name: "fastp" if name == "fastp" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -342,9 +328,7 @@ def test_trim_fastp_paired_builds_command(tmp_path: Path, monkeypatch: pytest.Mo
 
     monkeypatch.setattr("shutil.which", lambda name: "fastp" if name == "fastp" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -376,9 +360,7 @@ def test_trim_cutadapt_single_builds_command(
 
     monkeypatch.setattr("shutil.which", lambda name: "cutadapt" if name == "cutadapt" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -424,9 +406,7 @@ def test_trim_cutadapt_paired_builds_command(
 
     monkeypatch.setattr("shutil.which", lambda name: "cutadapt" if name == "cutadapt" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -475,9 +455,7 @@ def test_trim_trimmomatic_single_builds_command(
         "shutil.which", lambda name: "trimmomatic" if name == "trimmomatic" else None
     )
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -521,7 +499,7 @@ def test_trim_trimmomatic_paired_builds_command(
     )
     monkeypatch.setattr(
         "subprocess.run",
-        lambda command, *, check, text, capture_output: (
+        lambda command, **kwargs: (
             calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
         ),
     )
@@ -566,7 +544,7 @@ def test_trim_trim_galore_single_builds_command(
     )
     monkeypatch.setattr(
         "subprocess.run",
-        lambda command, *, check, text, capture_output: (
+        lambda command, **kwargs: (
             calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
         ),
     )
@@ -609,7 +587,7 @@ def test_trim_trim_galore_v2_version_flag_builds_command(
     )
     monkeypatch.setattr(
         "subprocess.run",
-        lambda command, *, check, text, capture_output: (
+        lambda command, **kwargs: (
             calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
         ),
     )
@@ -699,7 +677,7 @@ def test_trim_trim_galore_paired_builds_command(
     )
     monkeypatch.setattr(
         "subprocess.run",
-        lambda command, *, check, text, capture_output: (
+        lambda command, **kwargs: (
             calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
         ),
     )
@@ -948,9 +926,7 @@ def test_cli_trim_cutadapt_builds_command(tmp_path: Path, monkeypatch: pytest.Mo
 
     monkeypatch.setattr("shutil.which", lambda name: "cutadapt" if name == "cutadapt" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 

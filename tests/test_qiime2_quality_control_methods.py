@@ -43,9 +43,7 @@ def test_qc_filter_qiime2_filter_reads_builds_command(
 
     monkeypatch.setattr("shutil.which", qiime_only)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -94,7 +92,7 @@ def test_qc_filter_qiime2_filter_reads_keep_matches_flag(
     monkeypatch.setattr("shutil.which", qiime_only)
     monkeypatch.setattr(
         "subprocess.run",
-        lambda command, *, check, text, capture_output: (
+        lambda command, **kwargs: (
             calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
         ),
     )
@@ -163,9 +161,7 @@ def test_qc_filter_qiime2_exclude_seqs_builds_command(
 
     monkeypatch.setattr("shutil.which", qiime_only)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -218,7 +214,7 @@ def test_qc_filter_qiime2_exclude_seqs_blast_omits_threads(
     monkeypatch.setattr("shutil.which", qiime_only)
     monkeypatch.setattr(
         "subprocess.run",
-        lambda command, *, check, text, capture_output: (
+        lambda command, **kwargs: (
             calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
         ),
     )
@@ -246,7 +242,7 @@ def test_qc_filter_qiime2_bowtie2_build_builds_command(
     monkeypatch.setattr("shutil.which", qiime_only)
     monkeypatch.setattr(
         "subprocess.run",
-        lambda command, *, check, text, capture_output: (
+        lambda command, **kwargs: (
             calls.append(command) or subprocess.CompletedProcess(command, 0, "", "")
         ),
     )
@@ -283,9 +279,7 @@ def test_decontam_qiime2_identify_builds_command(
 
     monkeypatch.setattr("shutil.which", qiime_only)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -362,9 +356,7 @@ def test_evaluate_qiime2_taxonomy_builds_command(
 
     monkeypatch.setattr("shutil.which", qiime_only)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 

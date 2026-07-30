@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -15,13 +16,7 @@ def test_run_command_writes_structured_logs(
 ) -> None:
     calls: list[list[str]] = []
 
-    def fake_run(
-        command: list[str],
-        *,
-        check: bool,
-        text: bool,
-        capture_output: bool,
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "hello\n", "warn\n")
 
@@ -187,3 +182,38 @@ def test_resolve_threads_auto_and_bounds(monkeypatch: pytest.MonkeyPatch) -> Non
 
     with pytest.raises(MicrobiomeSuiteError, match="threads"):
         resolve_threads("none")
+
+
+def test_run_command_survives_output_that_is_not_valid_utf8(tmp_path: Path) -> None:
+    # External tools are not obliged to emit valid UTF-8. mothur's align.seqs
+    # draws a progress bar containing raw bytes, and bare text=True decoded
+    # strictly, so the whole run died with UnicodeDecodeError instead of
+    # executing the tool. Undecodable bytes must degrade, not abort.
+    result = run_command(
+        [
+            sys.executable,
+            "-c",
+            r"import sys; sys.stdout.buffer.write(b'start\xce\xff\xfeend')",
+        ],
+        "should not fail",
+        run_dir=tmp_path / "run",
+    )
+
+    assert "start" in result.stdout
+    assert "end" in result.stdout
+    # The captured log must also be writable, which it would not be if the
+    # replacement characters were absent and raw bytes had survived.
+    assert "start" in (tmp_path / "run" / "stdout.log").read_text(encoding="utf-8")
+
+
+def test_run_command_decodes_output_as_utf8_regardless_of_platform_locale(
+    tmp_path: Path,
+) -> None:
+    # text=True without an explicit encoding uses the platform locale, so the
+    # same tool bytes decoded as cp1252 on Windows and UTF-8 on Linux.
+    result = run_command(
+        [sys.executable, "-c", r"import sys; sys.stdout.buffer.write('café·µ'.encode())"],
+        "should not fail",
+    )
+
+    assert "café·µ" in result.stdout
