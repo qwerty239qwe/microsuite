@@ -192,3 +192,50 @@ jobs:
           test -d results/nextflow-real/diversity
           test -d results/nextflow-real/functional
           test -s results/nextflow-real/report/report.html
+
+  mothur-smoke:
+    name: mothur SOP smoke
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.12"
+      MICROSUITE_RUN_MOTHUR_SMOKE: "1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: uv sync --all-extras --locked
+
+      - name: Install mothur
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: mothur
+          create-args: mothur=1.48.5
+          init-shell: bash
+          condarc: |
+            channels:
+              - conda-forge
+              - bioconda
+
+      # Runs the real 12-command MiSeq SOP and asserts on the resulting biology.
+      # Five defects once survived the mocked unit suite because a mock returns
+      # whatever stdout the test author believed mothur produces; every one of
+      # them yielded a complete, well-formed, wrong table rather than an error.
+      - name: Run the mothur MiSeq SOP end to end
+        shell: bash -el {0}
+        run: |
+          micromamba activate mothur
+          mothur "#help()" | head -5
+          uv run pytest tests/integration/test_mothur_smoke.py -v

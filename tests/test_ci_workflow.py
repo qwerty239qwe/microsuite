@@ -37,6 +37,11 @@ def test_github_actions_ci_runs_project_quality_gate() -> None:
     assert "sudo apt-get install -y --no-install-recommends fastp vsearch mafft fasttree" in text
     assert "uv pip install cutadapt multiqc" in text
     assert "uv run pytest tests/integration/test_external_tools.py" in text
+    assert "mothur-smoke:" in text
+    assert "mamba-org/setup-micromamba@v2" in text
+    assert "mothur=1.48.5" in text
+    assert 'MICROSUITE_RUN_MOTHUR_SMOKE: "1"' in text
+    assert "uv run pytest tests/integration/test_mothur_smoke.py" in text
     assert "docker-build:" not in text
     # A real (non-stub) end-to-end run is available on demand.
     assert "nextflow-real:" in text
