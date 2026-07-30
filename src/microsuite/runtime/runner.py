@@ -69,7 +69,20 @@ def run_command(
         _append_event(run_dir, "command_start", command=command, log=log, started_at=started)
         _write_run(run_dir, command=command, log=log, started_at=started)
     try:
-        run_kwargs: dict[str, Any] = {"check": False, "text": True, "capture_output": True}
+        # encoding/errors are pinned deliberately. External tools are not
+        # required to emit valid UTF-8 -- mothur's align.seqs draws a progress
+        # bar containing raw bytes -- and bare text=True decodes strictly using
+        # the platform locale, so undecodable output raised UnicodeDecodeError
+        # instead of running the tool, and the same bytes decoded differently on
+        # Windows than on Linux. Replacing undecodable bytes keeps the run alive;
+        # the streams are for logs and marker scans, never round-tripped.
+        run_kwargs: dict[str, Any] = {
+            "check": False,
+            "text": True,
+            "capture_output": True,
+            "encoding": "utf-8",
+            "errors": "replace",
+        }
         if timeout is not None:
             run_kwargs["timeout"] = timeout
         if cwd is not None:
