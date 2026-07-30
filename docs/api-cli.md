@@ -35,8 +35,8 @@ microsuite bin --backend concoct --contigs contigs.fa --coverage coverage.tsv --
 mothur backend examples (reference data is user-supplied; see [docs/mothur.md](mothur.md)):
 
 ```bash
-microsuite cluster --backend mothur --rep-seqs contigs.fasta --reference-alignment silva.v4.align --output-table table.tsv --output-rep-seqs rep-seqs.fasta --output-otu-list otu.list --output-count-table table.count_table
-microsuite tax_classify --backend mothur --rep-seqs rep-seqs.fasta --taxonomy-reference trainset.fasta --taxonomy-map trainset.tax --otu-list otu.list --count-table table.count_table -o taxonomy.tsv
+microsuite cluster --backend mothur --rep-seqs contigs.fasta --reference-alignment silva.v4.align --count-table contigs.count_table --output-table table.tsv --output-rep-seqs rep-seqs.fasta --output-otu-list otu.list --output-count-table table.count_table --output-unique-seqs unique-seqs.fasta
+microsuite tax_classify --backend mothur --rep-seqs unique-seqs.fasta --taxonomy-reference trainset.fasta --taxonomy-map trainset.tax --otu-list otu.list --count-table table.count_table -o taxonomy.tsv
 microsuite workflow mothur --reads-dir reads/ --reference-alignment silva.v4.align --taxonomy-reference trainset.fasta --taxonomy-map trainset.tax --out runs/mothur-sop
 ```
 

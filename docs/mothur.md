@@ -84,7 +84,13 @@ microsuite workflow mothur \
 
 This writes `runs/mothur-sop/table.tsv` (feature-major OTU count table),
 `runs/mothur-sop/table.shared` (mothur's native sample-major sidecar),
-`runs/mothur-sop/rep-seqs.fasta` (one representative sequence per OTU),
+`runs/mothur-sop/rep-seqs.fasta` (one representative, degapped sequence per
+OTU — like the vsearch/usearch backends, safe to feed directly into
+`phylogeny --backend mafft-fasttree` or `tax_classify --backend qiime2`),
+`runs/mothur-sop/otu.list` (mothur's `.list` OTU membership),
+`runs/mothur-sop/table.count_table` (post-chimera count table),
+`runs/mothur-sop/unique-seqs.fasta` (post-chimera unique sequences — the
+correct `tax_classify` input; see step 4),
 `runs/mothur-sop/taxonomy.tsv` (per-OTU consensus taxonomy — see step 4), and
 per-step logs under `runs/mothur-sop/logs/`.
 
@@ -99,29 +105,40 @@ gives more control — for example, reusing an already-assembled contigs FASTA,
 or classifying against a different trainset than the one used for the last
 clustering run.
 
-Cluster first. `--output-otu-list` and `--output-count-table` are optional,
-but supplying them is what makes per-OTU consensus taxonomy possible in the
-next step:
+Cluster first. `--count-table` is `make.contigs`'s count table; it is the
+only carrier of read-to-sample identity, since mothur (unlike vsearch/usearch)
+never encodes a sample in the sequence label — omit it and every sample
+collapses into a single output column. `--output-otu-list`,
+`--output-count-table`, and `--output-unique-seqs` are optional, but supplying
+them is what makes per-OTU consensus taxonomy possible in the next step:
 
 ```bash
 microsuite cluster --backend mothur \
   --rep-seqs contigs.fasta \
   --reference-alignment silva.seed_v138_1.pcr.align \
+  --count-table contigs.count_table \
   --output-table table.tsv \
   --output-rep-seqs rep-seqs.fasta \
   --output-otu-list otu.list \
-  --output-count-table table.count_table
+  --output-count-table table.count_table \
+  --output-unique-seqs unique-seqs.fasta
 ```
 
-Then classify. Feeding `cluster`'s `--output-otu-list` back in as
-`--otu-list` (and its `--output-count-table` as `--count-table`) makes mothur
-collapse per-sequence assignments into one consensus call per OTU via
-`classify.otu`; without `--otu-list`, `tax_classify` returns per-sequence
-taxonomy instead:
+Then classify. Feed in `unique-seqs.fasta` — cluster's `--output-unique-seqs`
+output — not `rep-seqs.fasta`. `classify.otu`'s `.list` (from
+`--output-otu-list`) names every post-chimera **unique** sequence in each OTU,
+while `--output-rep-seqs` holds exactly one representative sequence per OTU;
+classifying the representatives silently consensuses over a fraction of each
+OTU's members and returns a plausible-looking but wrong taxonomy. Do not
+"simplify" this back to `rep-seqs.fasta`. Feeding `cluster`'s
+`--output-otu-list` back in as `--otu-list` (and its `--output-count-table` as
+`--count-table`) makes mothur collapse per-sequence assignments into one
+consensus call per OTU via `classify.otu`; without `--otu-list`,
+`tax_classify` returns per-sequence taxonomy instead:
 
 ```bash
 microsuite tax_classify --backend mothur \
-  --rep-seqs rep-seqs.fasta \
+  --rep-seqs unique-seqs.fasta \
   --taxonomy-reference trainset19_072023.pds/trainset19_072023.pds.fasta \
   --taxonomy-map trainset19_072023.pds/trainset19_072023.pds.tax \
   --otu-list otu.list \
@@ -174,6 +191,31 @@ but its name doesn't match a recognized mate-pair pattern (`sampleA_R1.fastq.gz`
 naming the exact file rather than silently skipping it. A silently skipped
 FASTQ would mean a sample goes missing from the run with no error — this
 fails loudly instead so the file gets renamed or removed deliberately.
+
+**"mothur step '...' trimmed every sequence to zero length"**
+
+`filter.seqs` is the step that trips this: when `--reference-alignment`
+doesn't actually cover the region your primers amplify (for example, the
+untrimmed full-length SILVA alignment, or one trimmed to the wrong
+coordinates), every sequence's non-gap columns get filtered away, leaving a
+well-formed FASTA whose records all have zero-length sequence. Counting `>`
+header lines alone would let this through as "non-empty", so
+`ensure_non_empty_fasta` checks sequence content specifically and raises:
+
+> `mothur step 'filter.seqs' trimmed every sequence to zero length. This usually means the reference alignment does not cover the amplicon; check --reference-alignment and rerun.`
+
+Recheck the `pcr.seqs` start/end coordinates used to trim your reference
+alignment (see "1. The reference alignment" above) against your actual primer
+pair.
+
+**"mothur step 'cluster' failed: ..."**
+
+If `--identity` is set too strict for the data — too few sequence pairs fall
+within the resulting distance cutoff — `dist.seqs` can write a blank distance
+matrix. mothur's `cluster` step then aborts (exit code 1) instead of writing
+its usual `opti_mcc`-named output, and `cluster_mothur` re-raises with
+mothur's own `[ERROR]:` line appended after this `mothur step 'cluster'
+failed: ` prefix. Lower `--identity` (the default is `0.97`) and rerun.
 
 ## Why this is user-supplied
 
