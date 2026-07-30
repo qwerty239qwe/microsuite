@@ -31,6 +31,7 @@ def cluster(
     pre_cluster_diffs: int = 2,
     output_otu_list: Path | None = None,
     output_count_table: Path | None = None,
+    output_unique_seqs: Path | None = None,
     force: bool = False,
     run_dir: Path | None = None,
     timeout: float | None = None,
@@ -51,6 +52,7 @@ def cluster(
             pre_cluster_diffs=pre_cluster_diffs,
             output_otu_list=output_otu_list,
             output_count_table=output_count_table,
+            output_unique_seqs=output_unique_seqs,
             force=force,
             run_dir=run_dir,
             timeout=timeout,
@@ -114,6 +116,7 @@ def cluster_mothur(
     pre_cluster_diffs: int,
     output_otu_list: Path | None,
     output_count_table: Path | None,
+    output_unique_seqs: Path | None,
     force: bool,
     run_dir: Path | None,
     timeout: float | None,
@@ -134,6 +137,8 @@ def cluster_mothur(
         prepare_output(output_otu_list, force=force)
     if output_count_table is not None:
         prepare_output(output_count_table, force=force)
+    if output_unique_seqs is not None:
+        prepare_output(output_unique_seqs, force=force)
 
     cutoff = round(1.0 - identity, 4)
     work_dir = output_table.parent / f"{output_table.stem}.mothur"
@@ -211,6 +216,8 @@ def cluster_mothur(
     fasta = ensure_non_empty_fasta(
         select_output(out, ".fasta", step="remove.seqs"), step="remove.seqs"
     )
+    if output_unique_seqs is not None:
+        shutil.copyfile(fasta, output_unique_seqs)
 
     out = step("dist.seqs", {"fasta": str(fasta), "cutoff": str(cutoff)})
     column = select_output(out, ".dist", step="dist.seqs")

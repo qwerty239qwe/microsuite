@@ -119,6 +119,7 @@ def run_mothur_sop(
     output_rep_seqs = output_dir / "rep-seqs.fasta"
     output_otu_list = output_dir / "otu.list"
     output_count_table = output_dir / "table.count_table"
+    output_unique_seqs = output_dir / "unique-seqs.fasta"
     cluster(
         backend="mothur",
         rep_seqs=contigs,
@@ -129,14 +130,27 @@ def run_mothur_sop(
         identity=identity,
         output_otu_list=output_otu_list,
         output_count_table=output_count_table,
+        output_unique_seqs=output_unique_seqs,
         force=force,
         run_dir=run_dir / "cluster",
         timeout=timeout,
     )
 
+    # classify.otu's .list names the post-chimera UNIQUE sequences (many per
+    # OTU), not get.oturep's representatives (exactly one per OTU). Feeding
+    # classify.seqs the representatives here -- however tempting, since
+    # output_rep_seqs reads as "the sequences for this OTU table" -- silently
+    # starves classify.otu's per-OTU consensus vote down to whichever sliver
+    # of each OTU's members happen to be representatives, while still
+    # producing a complete, plausible-looking taxonomy table with no error.
+    # Measured on a real run: 3 representatives vs. 68 post-chimera uniques,
+    # consensus Size counts of 29/2/1 against true OTU totals of 40/34/23.
+    # classify.seqs/classify.otu must run on the SAME fasta+count_table pair
+    # mothur's own MiSeq SOP uses -- the post-chimera uniques -- not the
+    # representatives. Do not "simplify" this back to output_rep_seqs.
     tax_classify(
         backend="mothur",
-        rep_seqs=output_rep_seqs,
+        rep_seqs=output_unique_seqs,
         output=output_dir / "taxonomy.tsv",
         taxonomy_reference=taxonomy_reference,
         taxonomy_map=taxonomy_map,

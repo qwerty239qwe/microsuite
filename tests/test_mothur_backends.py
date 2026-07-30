@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -374,6 +375,17 @@ def test_cluster_mothur_threads_files_correctly_between_steps(
 
     monkeypatch.setattr("subprocess.run", fake_run)
 
+    # Spy on shutil.copyfile so we can pin the exact source path used to
+    # populate output_unique_seqs, not just its final content.
+    copied: list[tuple[Path, Path]] = []
+    real_copyfile = shutil.copyfile
+
+    def spy_copyfile(src: object, dst: object) -> object:
+        copied.append((Path(src), Path(dst)))  # type: ignore[arg-type]
+        return real_copyfile(src, dst)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(shutil, "copyfile", spy_copyfile)
+
     # get.oturep and make.shared outputs are read back, so create them.
     (tmp_path / "seqs.opti_mcc.shared").write_text(
         "label\tGroup\tnumOtus\tOtu0001\n0.03\tsampleA\t1\t4\n", encoding="utf-8"
@@ -381,6 +393,8 @@ def test_cluster_mothur_threads_files_correctly_between_steps(
     (tmp_path / "seqs.rep.fasta").write_text(">Otu0001\nACGT\n", encoding="utf-8")
     for name in ("seqs.unique.fasta", "seqs.good.align", "seqs.pick.fasta"):
         (tmp_path / name).write_text(">a_1\nACGT\n", encoding="utf-8")
+
+    output_unique_seqs = tmp_path / "unique-seqs.fasta"
 
     cluster(
         backend="mothur",
@@ -390,6 +404,7 @@ def test_cluster_mothur_threads_files_correctly_between_steps(
         reference_alignment=reference,
         identity=0.97,
         count_table=count_table,
+        output_unique_seqs=output_unique_seqs,
     )
 
     # Map each command name to its full script. unique.seqs runs twice, so
@@ -475,6 +490,17 @@ def test_cluster_mothur_threads_files_correctly_between_steps(
     # reader to skip warnings here and masks a later one that matters.
     assert "label=" not in oturep_script
     assert "column=" not in oturep_script
+
+    # 10. output_unique_seqs is populated from remove.seqs's post-chimera
+    # .pick.fasta -- the EXACT same file dist.seqs consumed above (remove_fasta)
+    # -- not the pre-chimera fasta, the alignment, or get.oturep's
+    # representatives. Assert on the recorded copyfile source path, not a
+    # filename substring: every candidate fasta in this fixture is named
+    # "seqs.<something>fasta", so a substring check on "pick" or "fasta" would
+    # pass even if the wrong file were copied.
+    copy_sources = {dst: src for src, dst in copied}
+    assert output_unique_seqs in copy_sources
+    assert copy_sources[output_unique_seqs] == Path(remove_fasta)
 
 
 def test_cluster_mothur_screen_seqs_count_table_used_when_present(

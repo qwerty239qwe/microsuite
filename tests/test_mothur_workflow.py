@@ -198,8 +198,14 @@ def test_run_mothur_sop_threads_files_correctly_between_steps(
     # cluster(rep_seqs=...).
     assert cluster_calls[0]["rep_seqs"] == contigs_fasta
 
-    # 2. cluster's output_rep_seqs becomes tax_classify's rep_seqs.
-    assert tax_classify_calls[0]["rep_seqs"] == cluster_calls[0]["output_rep_seqs"]
+    # 2. cluster's output_unique_seqs (the post-chimera unique FASTA, which
+    # classify.otu's .list actually names) becomes tax_classify's rep_seqs --
+    # NOT cluster's output_rep_seqs (get.oturep's one-sequence-per-OTU
+    # representative FASTA), which would starve classify.otu's consensus vote
+    # down to an arbitrary sliver of each OTU's members.
+    assert cluster_calls[0]["output_unique_seqs"] is not None
+    assert tax_classify_calls[0]["rep_seqs"] == cluster_calls[0]["output_unique_seqs"]
+    assert tax_classify_calls[0]["rep_seqs"] != cluster_calls[0]["output_rep_seqs"]
 
     # 3. cluster's output_otu_list/output_count_table become tax_classify's
     # otu_list/count_table -- the Finding 1 per-OTU consensus wiring.

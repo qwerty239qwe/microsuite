@@ -411,6 +411,15 @@ def register(app: typer.Typer) -> None:
                 help="Optional mothur post-chimera .count_table sidecar.",
             ),
         ] = None,
+        output_unique_seqs: Annotated[
+            Path | None,
+            typer.Option(
+                "--output-unique-seqs",
+                help="Optional mothur post-chimera unique-sequences FASTA sidecar "
+                "(remove.seqs's .pick.fasta) -- the correct classify.seqs input, as opposed "
+                "to the one-per-OTU representatives in --output-rep-seqs.",
+            ),
+        ] = None,
         force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
         run_dir: Annotated[
             Path | None, typer.Option("--run-dir", help="Write runtime logs here.")
@@ -437,6 +446,7 @@ def register(app: typer.Typer) -> None:
             pre_cluster_diffs=pre_cluster_diffs,
             output_otu_list=output_otu_list,
             output_count_table=output_count_table,
+            output_unique_seqs=output_unique_seqs,
             force=force,
             run_dir=run_dir,
             timeout=timeout,
