@@ -130,7 +130,10 @@ def check_fastq_primers(
         for option, read, side, sequence, anchored in patterns
     ]
     selected = _select_files(files, normalized["max_files"])
-    aggregate = {
+    # Annotated because the values are heterogeneous -- two running ints and a
+    # list of mismatch counts -- so an inferred dict[str, int | list] makes every
+    # later `+=` and `.extend` a type error.
+    aggregate: dict[str, dict[str, Any]] = {
         option: {"matched_records": 0, "records_examined": 0, "mismatches": []}
         for option, _, _, _, _ in patterns
     }
