@@ -70,9 +70,7 @@ def validate_primer_check_config(
             raise ValueError(f"primer_check.{key} is empty after removing Cutadapt anchors")
         invalid = sorted(set(sequence) - set(IUPAC_BASES))
         if invalid:
-            raise ValueError(
-                f"primer_check.{key} contains unsupported bases: {', '.join(invalid)}"
-            )
+            raise ValueError(f"primer_check.{key} contains unsupported bases: {', '.join(invalid)}")
         options[key] = value
 
     return {
@@ -132,7 +130,10 @@ def check_fastq_primers(
         for option, read, side, sequence, anchored in patterns
     ]
     selected = _select_files(files, normalized["max_files"])
-    aggregate = {
+    # Annotated because the values are heterogeneous -- two running ints and a
+    # list of mismatch counts -- so an inferred dict[str, int | list] makes every
+    # later `+=` and `.extend` a type error.
+    aggregate: dict[str, dict[str, Any]] = {
         option: {"matched_records": 0, "records_examined": 0, "mismatches": []}
         for option, _, _, _, _ in patterns
     }
@@ -180,9 +181,7 @@ def check_fastq_primers(
                 "records_examined": len(sequences),
                 "match_rate": (len(matches) / len(sequences)) if sequences else None,
                 "mean_mismatches": (
-                    sum(item["mismatches"] for item in matches) / len(matches)
-                    if matches
-                    else None
+                    sum(item["mismatches"] for item in matches) / len(matches) if matches else None
                 ),
                 "positions": {
                     "min": min((item["position"] for item in matches), default=None),
@@ -203,9 +202,7 @@ def check_fastq_primers(
                 else None
             ),
             "mean_mismatches": (
-                sum(value["mismatches"]) / len(value["mismatches"])
-                if value["mismatches"]
-                else None
+                sum(value["mismatches"]) / len(value["mismatches"]) if value["mismatches"] else None
             ),
         }
         for option, value in aggregate.items()
@@ -306,9 +303,7 @@ def _find_match(
     for start in starts:
         mismatches = sum(
             1
-            for observed, expected in zip(
-                read[start : start + length], pattern, strict=True
-            )
+            for observed, expected in zip(read[start : start + length], pattern, strict=True)
             if observed not in IUPAC_BASES.get(expected, frozenset())
         )
         if mismatches <= max_mismatches and (best is None or mismatches < best["mismatches"]):

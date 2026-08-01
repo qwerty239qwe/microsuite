@@ -1,0 +1,64 @@
+Linux version
+
+Using ReadLine,Boost,HDF5,GSL
+mothur v.1.48.5
+Last updated: 1/13/26
+by
+Patrick D. Schloss
+
+Department of Microbiology & Immunology
+
+University of Michigan
+http://www.mothur.org
+
+When using, please cite:
+Schloss, P.D., et al., Introducing mothur: Open-source, platform-independent, community-supported software for describing and comparing microbial communities. Appl Environ Microbiol, 2009. 75(23):7537-41.
+
+Distributed under the GNU General Public License
+
+Type 'help()' for information on the commands that are available
+
+For questions and analysis support, please visit our forum at https://forum.mothur.org
+
+Type 'quit()' to exit program
+
+[NOTE]: Setting random seed to 19760620.
+
+Script Mode
+
+
+
+mothur > set.dir(output=/data)
+Mothur's directories:
+outputDir=/data/
+
+mothur > cluster(column=/data/stability.trim.contigs.unique.good.filter.unique.precluster.pick.dist, count=/data/stability.trim.contigs.unique.good.filter.unique.precluster.denovo.vsearch.count_table, method=opti, cutoff=0.03)
+
+Using 16 processors.
+
+Clustering /data/stability.trim.contigs.unique.good.filter.unique.precluster.pick.dist
+
+0.03
+
+
+iter	time	label	num_otus	cutoff	tp	tn	fp	fn	sensitivity	specificity	ppv	npv	fdr	accuracy	mcc	f1score
+0	0	0.03	68	0.03	0	1431	0	847	0	1	0	0.628183	1	0.628183	0	0	
+1	0	0.03	3	0.03	847	1431	0	0	1	1	1	1	1	1	1	1	
+2	0	0.03	3	0.03	847	1431	0	0	1	1	1	1	1	1	1	1	
+
+
+It took 0 seconds to cluster
+
+Output File Names: 
+/data/stability.trim.contigs.unique.good.filter.unique.precluster.pick.opti_mcc.0.03.list
+/data/stability.trim.contigs.unique.good.filter.unique.precluster.pick.opti_mcc.0.03.steps
+/data/stability.trim.contigs.unique.good.filter.unique.precluster.pick.opti_mcc.0.03.sensspec
+
+
+mothur > quit()
+
+
+It took 0 seconds to run 3 commands from your script.
+
+Logfile : mothur.1785327382.logfile
+

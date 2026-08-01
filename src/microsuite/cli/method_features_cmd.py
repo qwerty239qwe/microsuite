@@ -373,6 +373,53 @@ def register(app: typer.Typer) -> None:
             int,
             typer.Option("--sample-field", min=0, help="Zero-based sample ID field in labels."),
         ] = 0,
+        reference_alignment: Annotated[
+            Path | None,
+            typer.Option(
+                "--reference-alignment",
+                help="Aligned reference FASTA (mothur backend). Required for --backend mothur.",
+            ),
+        ] = None,
+        count_table: Annotated[
+            Path | None,
+            typer.Option(
+                "--count-table",
+                help="mothur backend: make.contigs's .count_table, carrying sample groups. "
+                "Without it, samples cannot be distinguished in the output table.",
+            ),
+        ] = None,
+        maxambig: Annotated[
+            int,
+            typer.Option("--maxambig", min=0, help="Max ambiguous bases (mothur screen.seqs)."),
+        ] = 0,
+        maxhomop: Annotated[
+            int,
+            typer.Option("--maxhomop", min=1, help="Max homopolymer length (mothur screen.seqs)."),
+        ] = 8,
+        pre_cluster_diffs: Annotated[
+            int,
+            typer.Option("--pre-cluster-diffs", min=0, help="mothur pre.cluster diffs."),
+        ] = 2,
+        output_otu_list: Annotated[
+            Path | None,
+            typer.Option("--output-otu-list", help="Optional mothur .list OTU membership sidecar."),
+        ] = None,
+        output_count_table: Annotated[
+            Path | None,
+            typer.Option(
+                "--output-count-table",
+                help="Optional mothur post-chimera .count_table sidecar.",
+            ),
+        ] = None,
+        output_unique_seqs: Annotated[
+            Path | None,
+            typer.Option(
+                "--output-unique-seqs",
+                help="Optional mothur post-chimera unique-sequences FASTA sidecar "
+                "(remove.seqs's .pick.fasta) -- the correct classify.seqs input, as opposed "
+                "to the one-per-OTU representatives in --output-rep-seqs.",
+            ),
+        ] = None,
         force: Annotated[bool, typer.Option("--force", help="Overwrite existing outputs.")] = False,
         run_dir: Annotated[
             Path | None, typer.Option("--run-dir", help="Write runtime logs here.")
@@ -392,6 +439,14 @@ def register(app: typer.Typer) -> None:
             output_uc=output_uc,
             sample_delimiter=sample_delimiter,
             sample_field=sample_field,
+            reference_alignment=reference_alignment,
+            count_table=count_table,
+            maxambig=maxambig,
+            maxhomop=maxhomop,
+            pre_cluster_diffs=pre_cluster_diffs,
+            output_otu_list=output_otu_list,
+            output_count_table=output_count_table,
+            output_unique_seqs=output_unique_seqs,
             force=force,
             run_dir=run_dir,
             timeout=timeout,

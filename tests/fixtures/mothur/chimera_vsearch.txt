@@ -1,0 +1,85 @@
+vsearch v2.30.5_linux_x86_64, 7.7GB RAM, 16 cores
+https://github.com/torognes/vsearch
+
+Reading file /data/test.unique.temp 100%
+750 nt in 3 seqs, min 250, max 250, avg 250
+Masking 100%
+Sorting by abundance 100%
+Counting k-mers 100%
+Detecting chimeras 100%
+Found 1 (33.3%) chimeras, 2 (66.7%) non-chimeras,
+and 0 (0.0%) borderline sequences in 3 unique sequences.
+Taking abundance information into account, this corresponds to
+3 (12.0%) chimeras, 22 (88.0%) non-chimeras,
+and 0 (0.0%) borderline sequences in 25 total sequences.
+Linux version
+
+Using ReadLine,Boost,HDF5,GSL
+mothur v.1.48.5
+Last updated: 1/13/26
+by
+Patrick D. Schloss
+
+Department of Microbiology & Immunology
+
+University of Michigan
+http://www.mothur.org
+
+When using, please cite:
+Schloss, P.D., et al., Introducing mothur: Open-source, platform-independent, community-supported software for describing and comparing microbial communities. Appl Environ Microbiol, 2009. 75(23):7537-41.
+
+Distributed under the GNU General Public License
+
+Type 'help()' for information on the commands that are available
+
+For questions and analysis support, please visit our forum at https://forum.mothur.org
+
+Type 'quit()' to exit program
+
+[NOTE]: Setting random seed to 19760620.
+
+Script Mode
+
+
+
+mothur > set.dir(output=/data)
+Mothur's directories:
+outputDir=/data/
+
+mothur > chimera.vsearch(fasta=/data/test.unique.fasta, count=/data/test.sparse.count_table, dereplicate=t)
+
+Using 16 processors.
+Unable to open vsearch. Trying output directory /data/vsearch.
+Unable to open /data/vsearch. Trying mothur's executable directory vsearch.
+Unable to open vsearch.
+vsearch file does not exist. Checking path... 
+Found vsearch in your path, using /opt/conda/bin//vsearch
+Using vsearch version v2.30.5.
+Checking sequences from /data/test.unique.fasta ...
+When using template=self, mothur can only use 1 processor, continuing.
+
+It took 0 secs to check your sequences. 1 chimeras were found.
+
+Removing chimeras from your input files:
+/******************************************/
+Running command: remove.seqs(fasta=/data/test.unique.fasta, accnos=/data/test.unique.denovo.vsearch.accnos)
+Removed 1 sequences from /data/test.unique.fasta.
+
+Output File Names:
+/data/test.unique.pick.fasta
+
+/******************************************/
+
+Output File Names:
+/data/test.unique.denovo.vsearch.chimeras
+/data/test.unique.denovo.vsearch.accnos
+/data/test.unique.denovo.vsearch.fasta
+
+
+mothur > quit()
+
+
+It took 1 seconds to run 3 commands from your script.
+
+Logfile : mothur.1785122578.logfile
+

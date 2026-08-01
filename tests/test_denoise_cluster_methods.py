@@ -32,9 +32,7 @@ def test_denoise_qiime2_dada2_single_builds_command(
 
     monkeypatch.setattr("shutil.which", lambda name: "qiime" if name == "qiime" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -143,9 +141,7 @@ def test_denoise_qiime2_dada2_paired_builds_command(
 
     monkeypatch.setattr("shutil.which", lambda name: "qiime" if name == "qiime" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -372,9 +368,7 @@ def test_denoise_qiime2_deblur_builds_command(
 
     monkeypatch.setattr("shutil.which", lambda name: "qiime" if name == "qiime" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -423,9 +417,7 @@ def test_denoise_dada2_r_builds_rscript_command(
     calls: list[list[str]] = []
     monkeypatch.setattr("shutil.which", lambda name: "Rscript" if name == "Rscript" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -705,9 +697,7 @@ def test_cluster_qiime2_vsearch_builds_command(
 
     monkeypatch.setattr("shutil.which", lambda name: "qiime" if name == "qiime" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -749,9 +739,7 @@ def test_cluster_vsearch_builds_table_from_uc(
 
     monkeypatch.setattr("shutil.which", lambda name: "vsearch" if name == "vsearch" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         Path(command[command.index("--uc") + 1]).write_text(
             "S\t0\t20\t*\t*\t*\t*\t*\ts1_read1\t*\n"
@@ -802,9 +790,7 @@ def test_cluster_vsearch_remaps_reads_for_per_sample_counts(
 
     monkeypatch.setattr("shutil.which", lambda name: "vsearch" if name == "vsearch" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         if "--usearch_global" in command:
             # map every original read back to a centroid (query in field 8,
@@ -868,9 +854,7 @@ def test_cluster_usearch_builds_table_from_uc(
 
     monkeypatch.setattr("shutil.which", lambda name: "usearch" if name == "usearch" else None)
 
-    def fake_run(
-        command: list[str], *, check: bool, text: bool, capture_output: bool
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         Path(command[command.index("-uc") + 1]).write_text(
             "S\t0\t20\t*\t*\t*\t*\t*\ts1_read1\t*\n"

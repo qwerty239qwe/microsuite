@@ -36,4 +36,17 @@ WORKFLOWS = [
         outputs="QIIME 2 artifacts/visualizations, per-step runtime logs, report.html, run.json.",
         status="ready",
     ),
+    WorkflowSpec(
+        name="mothur",
+        summary="Run the mothur MiSeq SOP from paired FASTQ files to an OTU table.",
+        inputs=(
+            "Paired FASTQ directory, an aligned reference FASTA, and a "
+            "mothur trainset (reference FASTA + taxonomy file)."
+        ),
+        outputs=(
+            "table.tsv, table.shared, rep-seqs.fasta, otu.list, table.count_table, "
+            "unique-seqs.fasta, taxonomy.tsv, per-step logs."
+        ),
+        status="ready",
+    ),
 ]

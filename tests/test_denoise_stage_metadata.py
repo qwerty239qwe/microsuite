@@ -25,7 +25,7 @@ def _run_denoise(tmp_path: Path, monkeypatch, returncode: int) -> None:
     out_stats = tmp_path / "stats.tsv"
     monkeypatch.setattr("shutil.which", lambda name: "Rscript" if name == "Rscript" else None)
 
-    def fake_run(command, *, check, text, capture_output):
+    def fake_run(command, **kwargs):
         if returncode == 0:
             out_table.write_text("#OTU\ts1\nASV1\t5\n")
             out_rep.write_text(">ASV1\nACGT\n")

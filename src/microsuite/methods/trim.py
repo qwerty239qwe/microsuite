@@ -5,6 +5,7 @@ from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.methods._dispatch import reject_options as _reject_options
 from microsuite.methods._dispatch import require_backend
 from microsuite.methods._qiime import require_qiime, run_qiime
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
@@ -377,16 +378,6 @@ def trim_cutadapt(
 def _add_optional(command: list[str], option: str, value: str | None) -> None:
     if value is not None:
         command.extend([option, value])
-
-
-def _reject_options(backend: str, options: dict[str, object | None]) -> None:
-    rejected = [
-        option
-        for option, value in options.items()
-        if value is not None and value is not False and value != []
-    ]
-    if rejected:
-        raise MicrobiomeSuiteError(f"{', '.join(rejected)} not supported by --backend {backend}.")
 
 
 def trim_trimmomatic(

@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import shutil
+from collections import Counter
 from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
-from microsuite.methods._dispatch import require_backend
+from microsuite.methods._dispatch import reject_options, require_backend
+from microsuite.methods.mothur import ensure_non_empty_fasta, run_mothur, select_output
 from microsuite.runtime.runner import CommandLog, run_command
 
-SUPPORTED_BACKENDS = ("vsearch", "usearch", "qiime2-vsearch")
+SUPPORTED_BACKENDS = ("vsearch", "usearch", "qiime2-vsearch", "mothur")
 
 
 def cluster(
@@ -23,12 +25,80 @@ def cluster(
     output_uc: Path | None = None,
     sample_delimiter: str = "_",
     sample_field: int = 0,
+    reference_alignment: Path | None = None,
+    count_table: Path | None = None,
+    maxambig: int = 0,
+    maxhomop: int = 8,
+    pre_cluster_diffs: int = 2,
+    output_otu_list: Path | None = None,
+    output_count_table: Path | None = None,
+    output_unique_seqs: Path | None = None,
     force: bool = False,
     run_dir: Path | None = None,
     timeout: float | None = None,
 ) -> None:
     backend = require_backend(backend, SUPPORTED_BACKENDS, "cluster")
+
+    # sample_delimiter/sample_field/maxambig/maxhomop/pre_cluster_diffs all have
+    # non-None defaults, so a caller who never touched them must not trip a
+    # rejection meant for callers who explicitly set them. Collapse "still at
+    # its default" to None here so reject_options only ever sees a value the
+    # caller actually chose.
+    sample_delimiter_chosen = None if sample_delimiter == "_" else sample_delimiter
+    sample_field_chosen = None if sample_field == 0 else sample_field
+    maxambig_chosen = None if maxambig == 0 else maxambig
+    maxhomop_chosen = None if maxhomop == 8 else maxhomop
+    pre_cluster_diffs_chosen = None if pre_cluster_diffs == 2 else pre_cluster_diffs
+
+    if backend == "mothur":
+        reject_options(
+            "mothur",
+            {
+                "--table": table,
+                "--reads": reads,
+                "--output-uc": output_uc,
+                "--sample-delimiter": sample_delimiter_chosen,
+                "--sample-field": sample_field_chosen,
+            },
+        )
+        if reference_alignment is None:
+            raise MicrobiomeSuiteError("--reference-alignment is required for --backend mothur.")
+        cluster_mothur(
+            rep_seqs=rep_seqs,
+            output_table=output_table,
+            output_rep_seqs=output_rep_seqs,
+            reference_alignment=reference_alignment,
+            count_table=count_table,
+            identity=identity,
+            maxambig=maxambig,
+            maxhomop=maxhomop,
+            pre_cluster_diffs=pre_cluster_diffs,
+            output_otu_list=output_otu_list,
+            output_count_table=output_count_table,
+            output_unique_seqs=output_unique_seqs,
+            force=force,
+            run_dir=run_dir,
+            timeout=timeout,
+        )
+        return
     if backend == "qiime2-vsearch":
+        reject_options(
+            "qiime2-vsearch",
+            {
+                "--reads": reads,
+                "--output-uc": output_uc,
+                "--sample-delimiter": sample_delimiter_chosen,
+                "--sample-field": sample_field_chosen,
+                "--reference-alignment": reference_alignment,
+                "--count-table": count_table,
+                "--maxambig": maxambig_chosen,
+                "--maxhomop": maxhomop_chosen,
+                "--pre-cluster-diffs": pre_cluster_diffs_chosen,
+                "--output-otu-list": output_otu_list,
+                "--output-count-table": output_count_table,
+                "--output-unique-seqs": output_unique_seqs,
+            },
+        )
         if table is None:
             raise MicrobiomeSuiteError("--table is required for --backend qiime2-vsearch.")
         cluster_qiime2_vsearch(
@@ -43,6 +113,20 @@ def cluster(
         )
         return
     if backend == "vsearch":
+        reject_options(
+            "vsearch",
+            {
+                "--table": table,
+                "--reference-alignment": reference_alignment,
+                "--count-table": count_table,
+                "--maxambig": maxambig_chosen,
+                "--maxhomop": maxhomop_chosen,
+                "--pre-cluster-diffs": pre_cluster_diffs_chosen,
+                "--output-otu-list": output_otu_list,
+                "--output-count-table": output_count_table,
+                "--output-unique-seqs": output_unique_seqs,
+            },
+        )
         cluster_vsearch(
             rep_seqs=rep_seqs,
             reads=reads,
@@ -58,6 +142,21 @@ def cluster(
         )
         return
     if backend == "usearch":
+        reject_options(
+            "usearch",
+            {
+                "--table": table,
+                "--reads": reads,
+                "--reference-alignment": reference_alignment,
+                "--count-table": count_table,
+                "--maxambig": maxambig_chosen,
+                "--maxhomop": maxhomop_chosen,
+                "--pre-cluster-diffs": pre_cluster_diffs_chosen,
+                "--output-otu-list": output_otu_list,
+                "--output-count-table": output_count_table,
+                "--output-unique-seqs": output_unique_seqs,
+            },
+        )
         cluster_usearch(
             rep_seqs=rep_seqs,
             output_table=output_table,
@@ -71,6 +170,190 @@ def cluster(
             timeout=timeout,
         )
         return
+
+
+def cluster_mothur(
+    *,
+    rep_seqs: Path,
+    output_table: Path,
+    output_rep_seqs: Path,
+    reference_alignment: Path,
+    count_table: Path | None,
+    identity: float,
+    maxambig: int,
+    maxhomop: int,
+    pre_cluster_diffs: int,
+    output_otu_list: Path | None,
+    output_count_table: Path | None,
+    output_unique_seqs: Path | None,
+    force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
+) -> None:
+    """Run the clustering half of mothur's MiSeq SOP over a FASTA."""
+    if not 0 < identity <= 1:
+        raise MicrobiomeSuiteError("--identity must be greater than 0 and less than or equal to 1.")
+    if output_table.suffix == ".shared":
+        raise MicrobiomeSuiteError(
+            f"--output-table must not end in '.shared': {output_table}. cluster_mothur derives "
+            "its own .shared sidecar from --output-table by replacing the suffix, so a "
+            "--output-table already ending in '.shared' would collide with and overwrite itself."
+        )
+
+    ensure_input(rep_seqs)
+    ensure_input(reference_alignment)
+    if count_table is not None:
+        ensure_input(count_table)
+    prepare_output(output_table, force=force)
+    prepare_output(output_rep_seqs, force=force)
+    shared_sidecar = output_table.with_suffix(".shared")
+    prepare_output(shared_sidecar, force=force)
+    if output_otu_list is not None:
+        prepare_output(output_otu_list, force=force)
+    if output_count_table is not None:
+        prepare_output(output_count_table, force=force)
+    if output_unique_seqs is not None:
+        prepare_output(output_unique_seqs, force=force)
+
+    cutoff = round(1.0 - identity, 4)
+    work_dir = output_table.parent / f"{output_table.stem}.mothur"
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    def step(name: str, params: dict[str, str]) -> list[Path]:
+        step_run_dir = None if run_dir is None else run_dir / name.replace(".", "_")
+        return run_mothur(name, params, work_dir=work_dir, run_dir=step_run_dir, timeout=timeout)
+
+    # make.contigs's count table is the only carrier of read->sample identity
+    # (mothur does not rename reads to encode a sample). When the caller
+    # supplies one, dereplicate against it so every downstream count table
+    # keeps its group columns; format=count with no count table collapses
+    # every sample into a single "total" column.
+    if count_table is not None:
+        out = step("unique.seqs", {"fasta": str(rep_seqs), "count": str(count_table)})
+    else:
+        out = step("unique.seqs", {"fasta": str(rep_seqs), "format": "count"})
+    fasta = ensure_non_empty_fasta(
+        select_output(out, ".fasta", step="unique.seqs"), step="unique.seqs"
+    )
+    count = select_output(out, ".count_table", step="unique.seqs")
+
+    out = step("align.seqs", {"fasta": str(fasta), "reference": str(reference_alignment)})
+    aligned = select_output(out, ".align", step="align.seqs")
+
+    out = step(
+        "screen.seqs",
+        {
+            "fasta": str(aligned),
+            "count": str(count),
+            "optimize": "start-end",
+            "criteria": "90",
+            "maxambig": str(maxambig),
+            "maxhomop": str(maxhomop),
+        },
+    )
+    # screen.seqs's input here is align.seqs's .align, so its output is
+    # .good.align, not .good.fasta. Its .count_table is conditional: mothur
+    # only emits one when sequences were actually removed. Absent one, the
+    # count table from the prior unique.seqs step is still current.
+    fasta = ensure_non_empty_fasta(
+        select_output(out, ".align", step="screen.seqs"), step="screen.seqs"
+    )
+    if any(path.name.endswith(".count_table") for path in out):
+        count = select_output(out, ".count_table", step="screen.seqs")
+
+    out = step("filter.seqs", {"fasta": str(fasta), "vertical": "T", "trump": "."})
+    # filter.seqs is precisely the step that can trim every alignment column
+    # away when the reference alignment does not cover the amplicon, leaving
+    # a well-formed FASTA whose sequences all trimmed to zero length. Counting
+    # '>' header lines alone (what ensure_non_empty_fasta guarded against
+    # before) would let that through as "non-empty".
+    fasta = ensure_non_empty_fasta(
+        select_output(out, ".fasta", step="filter.seqs"), step="filter.seqs"
+    )
+
+    out = step("unique.seqs", {"fasta": str(fasta), "count": str(count)})
+    fasta = select_output(out, ".fasta", step="unique.seqs")
+    count = select_output(out, ".count_table", step="unique.seqs")
+
+    out = step(
+        "pre.cluster",
+        {"fasta": str(fasta), "count": str(count), "diffs": str(pre_cluster_diffs)},
+    )
+    fasta = select_output(out, ".fasta", step="pre.cluster")
+    count = select_output(out, ".count_table", step="pre.cluster")
+
+    out = step(
+        "chimera.vsearch",
+        {"fasta": str(fasta), "count": str(count), "dereplicate": "t"},
+    )
+    # With a GROUPED count table (the case here, since pre.cluster's count
+    # table carries sample groups), chimera.vsearch emits the post-chimera
+    # .count_table and the chimeric sequences' .accnos, but NO .fasta. The
+    # chimera-free FASTA must be built explicitly from the pre-chimera fasta
+    # (pre.cluster's, still held in `fasta`) via remove.seqs.
+    count = select_output(out, ".count_table", step="chimera.vsearch")
+    accnos = select_output(out, ".accnos", step="chimera.vsearch")
+
+    out = step("remove.seqs", {"accnos": str(accnos), "fasta": str(fasta)})
+    fasta = ensure_non_empty_fasta(
+        select_output(out, ".fasta", step="remove.seqs"), step="remove.seqs"
+    )
+    if output_unique_seqs is not None:
+        shutil.copyfile(fasta, output_unique_seqs)
+
+    out = step("dist.seqs", {"fasta": str(fasta), "cutoff": str(cutoff)})
+    column = select_output(out, ".dist", step="dist.seqs")
+
+    out = step(
+        "cluster",
+        {
+            "column": str(column),
+            "count": str(count),
+            "method": "opti",
+            "cutoff": str(cutoff),
+        },
+    )
+    otu_list = select_output(out, ".list", step="cluster")
+
+    out = step(
+        "make.shared",
+        {"list": str(otu_list), "count": str(count), "label": str(cutoff)},
+    )
+    shared = select_output(out, ".shared", step="make.shared")
+
+    out = step(
+        "get.oturep",
+        # No `column` here: method=abundance picks the most abundant sequence per
+        # OTU and needs no distance matrix, so mothur warns and ignores it. Passing
+        # it would leave a permanent warning on this step, masking any later one
+        # that actually means something.
+        {
+            "list": str(otu_list),
+            "count": str(count),
+            "fasta": str(fasta),
+            "method": "abundance",
+        },
+    )
+    representatives = select_output(out, ".fasta", step="get.oturep")
+
+    # get.oturep's input is the filtered ALIGNMENT, so representatives carries
+    # '.'/'-' alignment gap characters. The vsearch/usearch backends produce
+    # unaligned centroids under this same --output-rep-seqs contract, so
+    # degap it here -- otherwise a consumer expecting unaligned sequences
+    # (phylogeny --backend mafft-fasttree, tax_classify --backend qiime2)
+    # gets a well-formed wrong result. output_unique_seqs is deliberately left
+    # aligned: it is what classify.otu's .list refers to by name, and
+    # degapping it would break that name matching.
+    out = step("degap.seqs", {"fasta": str(representatives)})
+    degapped = select_output(out, ".fasta", step="degap.seqs")
+
+    write_otu_table_from_shared(shared, output_table)
+    shutil.copyfile(shared, shared_sidecar)
+    shutil.copyfile(degapped, output_rep_seqs)
+    if output_otu_list is not None:
+        shutil.copyfile(otu_list, output_otu_list)
+    if output_count_table is not None:
+        shutil.copyfile(count, output_count_table)
 
 
 def cluster_qiime2_vsearch(
@@ -322,3 +605,58 @@ def _sample_from_label(label: str, *, sample_delimiter: str, sample_field: int) 
     if sample_field >= len(fields):
         return label
     return fields[sample_field]
+
+
+def write_otu_table_from_shared(shared: Path, output: Path) -> None:
+    """Convert mothur's sample-major .shared into microsuite's feature-major TSV.
+
+    .shared columns are: label, Group, numOtus, then one column per OTU.
+    """
+    rows = [
+        line.rstrip("\n").split("\t")
+        for line in shared.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    if len(rows) < 2:
+        raise MicrobiomeSuiteError(f"mothur .shared file has no rows: {shared}")
+
+    header, *records = rows
+    if len(header) < 3 or [col.lower() for col in header[:3]] != ["label", "group", "numotus"]:
+        raise MicrobiomeSuiteError(
+            "mothur .shared file has an unexpected header (expected columns starting "
+            f"with 'label', 'Group', 'numOtus'; found {header}): {shared}"
+        )
+
+    otus = header[3:]
+    expected_columns = len(header)
+    for row_number, record in enumerate(records, start=1):
+        if len(record) != expected_columns:
+            descriptor = f"sample {record[1]!r}" if len(record) > 1 else f"row {row_number}"
+            raise MicrobiomeSuiteError(
+                f"mothur .shared file has a malformed row ({descriptor}): expected "
+                f"{expected_columns} columns, found {len(record)}: {shared}"
+            )
+
+    group_counts = Counter(record[1] for record in records)
+    duplicated = sorted(group for group, count in group_counts.items() if count > 1)
+    if duplicated:
+        # record_by_sample below dedupes by Group, keeping only the LAST
+        # occurrence's row. A repeated Group would otherwise emit two
+        # identical columns, both carrying the later row's counts -- silently
+        # replacing one sample's data with another's.
+        raise MicrobiomeSuiteError(
+            f"mothur .shared file has duplicate Group(s) {duplicated}: {shared}"
+        )
+
+    samples = sorted(record[1] for record in records)
+    record_by_sample = {record[1]: record for record in records}
+    otu_indices = {otu: index for index, otu in enumerate(otus)}
+
+    with output.open("w", encoding="utf-8", newline="") as handle:
+        handle.write("feature-id\t" + "\t".join(samples) + "\n")
+        # mothur zero-pads OTU labels to a fixed width within a file (Otu0001,
+        # Otu0002, ...), so lexical sort here equals numeric sort.
+        for otu in sorted(otus):
+            index = otu_indices[otu]
+            counts = [record_by_sample[sample][3 + index] for sample in samples]
+            handle.write(otu + "\t" + "\t".join(counts) + "\n")

@@ -6,10 +6,11 @@ from pathlib import Path
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
 from microsuite.metadata import Artifact, stage_execution
-from microsuite.methods._dispatch import require_backend
+from microsuite.methods._dispatch import reject_options, require_backend
+from microsuite.methods.mothur import run_mothur, select_output
 from microsuite.runtime.runner import CommandLog, resolve_threads, run_command
 
-SUPPORTED_METHODS = ("qiime2", "kraken2", "bracken", "metaphlan", "emu")
+SUPPORTED_METHODS = ("qiime2", "kraken2", "bracken", "metaphlan", "emu", "mothur")
 
 
 def tax_classify(
@@ -21,17 +22,48 @@ def tax_classify(
     input_type: str = "fastq",
     level: str = "S",
     read_length: int = 150,
+    taxonomy_reference: Path | None = None,
+    taxonomy_map: Path | None = None,
+    otu_list: Path | None = None,
+    count_table: Path | None = None,
     threads: int | str = 1,
     force: bool = False,
     run_dir: Path | None = None,
     timeout: float | None = None,
 ) -> None:
+    backend = require_backend(backend, SUPPORTED_METHODS, "taxonomy classification")
+
+    if backend == "mothur":
+        reject_options(
+            "mothur",
+            {
+                "--classifier": classifier,
+                # input_type defaults to "fastq" rather than None, so only a value the
+                # user actually chose can be rejected here. mothur classifies FASTA and
+                # has no input-type switch, so anything non-default is meaningless to it.
+                "--input-type": None if input_type == "fastq" else input_type,
+            },
+        )
+        if taxonomy_reference is None or taxonomy_map is None:
+            raise MicrobiomeSuiteError(
+                "--taxonomy-reference and --taxonomy-map are both required for --backend mothur."
+            )
+    else:
+        reject_options(
+            backend,
+            {
+                "--taxonomy-reference": taxonomy_reference,
+                "--taxonomy-map": taxonomy_map,
+                "--otu-list": otu_list,
+                "--count-table": count_table,
+            },
+        )
+
     from microsuite.refdb.service import resolve_classifier
 
     if classifier is not None:
         classifier = resolve_classifier(str(classifier))
 
-    backend = require_backend(backend, SUPPORTED_METHODS, "taxonomy classification")
     resolved_threads = resolve_threads(threads)
     with stage_execution(
         output.resolve().parent,
@@ -93,6 +125,27 @@ def tax_classify(
                 output=output,
                 input_type=input_type,
                 threads=resolved_threads,
+                force=force,
+                run_dir=run_dir,
+                timeout=timeout,
+            )
+            return
+        if backend == "mothur":
+            # taxonomy_reference/taxonomy_map are validated non-None above, in
+            # the `backend == "mothur"` branch before `stage_execution`. The
+            # asserts restate that runtime guarantee for the type checker here
+            # and, unlike a cast, fail loudly at this exact spot if a future
+            # refactor ever breaks the dominance between validation and
+            # dispatch, instead of passing None into ensure_input() silently.
+            assert taxonomy_reference is not None
+            assert taxonomy_map is not None
+            tax_classify_mothur(
+                rep_seqs=rep_seqs,
+                output=output,
+                taxonomy_reference=taxonomy_reference,
+                taxonomy_map=taxonomy_map,
+                otu_list=otu_list,
+                count_table=count_table,
                 force=force,
                 run_dir=run_dir,
                 timeout=timeout,
@@ -381,3 +434,55 @@ def tax_classify_qiime2(
             outputs={"taxonomy": str(output)},
         ),
     )
+
+
+def tax_classify_mothur(
+    *,
+    rep_seqs: Path,
+    output: Path,
+    taxonomy_reference: Path,
+    taxonomy_map: Path,
+    otu_list: Path | None,
+    count_table: Path | None,
+    force: bool,
+    run_dir: Path | None,
+    timeout: float | None,
+) -> None:
+    """Classify sequences with mothur's naive Bayes classifier.
+
+    With an ``otu_list`` from the mothur cluster backend, the per-sequence
+    assignments are consensus-collapsed per OTU via classify.otu.
+    """
+    ensure_input(rep_seqs)
+    ensure_input(taxonomy_reference)
+    ensure_input(taxonomy_map)
+    prepare_output(output, force=force)
+
+    work_dir = output.parent / f"{output.stem}.mothur"
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    def step(name: str, params: dict[str, str]) -> list[Path]:
+        step_run_dir = None if run_dir is None else run_dir / name.replace(".", "_")
+        return run_mothur(name, params, work_dir=work_dir, run_dir=step_run_dir, timeout=timeout)
+
+    classify_params = {
+        "fasta": str(rep_seqs),
+        "reference": str(taxonomy_reference),
+        "taxonomy": str(taxonomy_map),
+    }
+    if count_table is not None:
+        ensure_input(count_table)
+        classify_params["count"] = str(count_table)
+
+    out = step("classify.seqs", classify_params)
+    assignments = select_output(out, ".taxonomy", step="classify.seqs")
+
+    if otu_list is not None:
+        ensure_input(otu_list)
+        otu_params = {"list": str(otu_list), "taxonomy": str(assignments)}
+        if count_table is not None:
+            otu_params["count"] = str(count_table)
+        out = step("classify.otu", otu_params)
+        assignments = select_output(out, ".cons.taxonomy", step="classify.otu")
+
+    shutil.copyfile(assignments, output)

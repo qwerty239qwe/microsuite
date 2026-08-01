@@ -71,6 +71,31 @@ def register(app: typer.Typer) -> None:
                 "--read-length", min=1, help="Bracken read length used for abundance estimates."
             ),
         ] = 150,
+        taxonomy_reference: Annotated[
+            Path | None,
+            typer.Option(
+                "--taxonomy-reference",
+                help="Reference sequence FASTA. mothur backend only.",
+            ),
+        ] = None,
+        taxonomy_map: Annotated[
+            Path | None,
+            typer.Option(
+                "--taxonomy-map",
+                help="Reference taxonomy file, 'id<TAB>lineage'. mothur backend only.",
+            ),
+        ] = None,
+        otu_list: Annotated[
+            Path | None,
+            typer.Option(
+                "--otu-list",
+                help="mothur .list file; enables per-OTU consensus taxonomy.",
+            ),
+        ] = None,
+        count_table: Annotated[
+            Path | None,
+            typer.Option("--count-table", help="mothur .count_table file."),
+        ] = None,
         threads: Annotated[str, typer.Option("--threads", help="Thread count or 'auto'.")] = "1",
         force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
         run_dir: Annotated[
@@ -87,6 +112,10 @@ def register(app: typer.Typer) -> None:
             input_type=input_type,
             level=level,
             read_length=read_length,
+            taxonomy_reference=taxonomy_reference,
+            taxonomy_map=taxonomy_map,
+            otu_list=otu_list,
+            count_table=count_table,
             output=output,
             threads=threads,
             force=force,

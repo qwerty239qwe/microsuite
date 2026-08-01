@@ -1,0 +1,83 @@
+# mothur stdout fixtures
+
+Verbatim stdout captured from **mothur 1.48.5** running in
+`containers/mothur/Dockerfile`. These files are evidence, not illustration:
+`tests/test_mothur_parser.py` asserts against them to pin mothur's output
+format. **Never hand-edit them.** If a parser test fails, the parser is wrong.
+
+Captured 2026-07-26 on `condaforge/miniforge3:24.9.2-0` + `mothur=1.48.5`
+(bioconda build `h11ba690_0`). `classify_seqs.txt`, `get_oturep.txt`, and
+`classify_otu.txt` were captured 2026-07-27 against the built
+`microsuite/mothur:local` image (same mothur 1.48.5).
+
+| File | Command | Purpose |
+|---|---|---|
+| `unique_seqs.txt` | `unique.seqs(fasta=…, format=count)` | Normal `Output File Names:` block. |
+| `make_contigs.txt` | `make.contigs(file=…)` | Two `.fasta` outputs — the ambiguity `select_output` must reject. |
+| `error_on_failure.txt` | `align.seqs(fasta=…, reference=<missing>)` | Failure output. |
+| `multi_block.txt` | `unique.seqs(fasta=…, format=count)` then `summary.seqs(fasta=current, count=current)` | Two `Output File Names:` blocks in one run — pins that the parser takes the LAST block. |
+| `chimera_vsearch.txt` | `chimera.vsearch(fasta=…, count=…, dereplicate=t)` | Two `Output File Names:` blocks from a *single* command: an internal `remove.seqs` block naming `test.unique.pick.fasta` (never written to disk under that name), followed by the real final block (`.chimeras`, `.accnos`, `.fasta`). No `.count_table` is produced. |
+| `classify_seqs.txt` | `classify.seqs(fasta=…, count=…, reference=…, taxonomy=…)` | Emits `.wang.taxonomy` and `.wang.tax.summary` together — pins that `select_output(..., ".taxonomy")` picks the taxonomy file and not the near-miss summary file. |
+| `get_oturep.txt` | `get.oturep(column=…, list=…, count=…, fasta=…, method=abundance)` — **no `label`** | Confirms `label` is not a valid `get.oturep` parameter: passing it only prints `[WARNING]: label is not a valid parameter, ignoring.`, which `check_mothur_errors` does not catch. This fixture is captured WITHOUT `label` and contains no such warning. Emits `.rep.count_table` and `.rep.fasta` together. |
+| `classify_otu.txt` | `classify.otu(list=…, count=…, taxonomy=…, label=0.03)` | Emits `.cons.taxonomy` and `.cons.tax.summary` together — pins that `select_output(..., ".cons.taxonomy")` picks the consensus taxonomy file and not the near-miss summary file. Also confirms `classify.otu` runs cleanly (exit 0, no warnings) WITH a `count` parameter supplied. |
+
+## Pipeline-configuration fixtures (captured 2026-07-28)
+
+**The fixtures above were all captured on unaligned, group-less toy input.** Four
+mothur commands behave *differently* in the configuration the real pipeline uses
+— aligned sequences and a count table carrying sample groups — and the
+difference was invisible until a full end-to-end run. These fixtures capture
+that real configuration. Prefer them when reasoning about pipeline behaviour.
+
+Captured from a 2-sample, 3-species paired-end run (99 read pairs) through all
+12 SOP steps, which recovered the designed community structure.
+
+| File | Command | What it pins |
+|---|---|---|
+| `make_contigs_paired.txt` | `make.contigs(file=<2 samples>)` | Emits `.contigs.count_table` **carrying group columns**. That file is the ONLY carrier of read→sample identity — `make.contigs` does not rename sequences. Discarding it makes every downstream table single-sample. |
+| `screen_seqs_aligned.txt` | `screen.seqs(fasta=<.align>, count=…, optimize=start-end, criteria=90)` | Input is `align.seqs`'s `.align`, so output is `.good.**align**`, never `.good.fasta`. Here nothing was screened out, so **no `.count_table` is emitted at all**. |
+| `screen_seqs_removed.txt` | same, on input with an ambiguous-base sequence | When sequences ARE removed: `.good.align` + `.bad.accnos` + `.good.count_table`. Two `Output File Names:` blocks (an internal `remove.seqs` first); last-block-wins keeps `select_output` unambiguous. Compare with the file above — `.count_table` is **conditional on data**. |
+| `chimera_vsearch_grouped.txt` | `chimera.vsearch(fasta=…, count=<grouped>, dereplicate=t)` | **Outputs invert** versus `chimera_vsearch.txt`: with a grouped count table it emits `.count_table` + `.accnos` + `.chimeras` and **no `.fasta`**; with a group-less one it emits `.fasta` and no `.count_table`. The chimera-free FASTA must then come from an explicit `remove.seqs(accnos=…, fasta=…)`. |
+| `cluster_opti.txt` | `cluster(column=…, count=…, method=opti, cutoff=0.03)` | Real output is named `opti_**mcc**`, not `opti_tptn`. `opti_tptn` only appears when the distance file is blank and `cluster` aborts. Emits `.list` + `.steps` + `.sensspec`. |
+
+## Observed format
+
+- The header line is `Output File Names: ` — **with one trailing space**.
+- The block ends at the first blank line, followed by a second blank line
+  before the next `mothur >` prompt.
+- Error lines are prefixed `[ERROR]: ` (colon, space).
+
+## Exit code on failure: 1
+
+**This cannot be recorded in a captured stdout stream**, so it is recorded here.
+The `error_on_failure.txt` run returned **exit code 1**, reproduced twice by the
+implementer and once independently by the coordinator:
+
+```console
+$ docker run --rm -v "/tmp/mv:/data" microsuite/mothur:local \
+    "#set.dir(output=/data); align.seqs(fasta=/data/test.fasta, reference=/data/missing.fasta)" \
+    > /tmp/mv/out.txt 2>&1
+$ echo "EXIT CODE: $?"
+EXIT CODE: 1
+```
+
+This disproved the original design premise that mothur exits 0 on failure.
+`run_command` already raises on non-zero exit, so `check_mothur_errors` is
+defence in depth against a failure mode not sampled here — see the Error
+handling section of
+`docs/superpowers/specs/2026-07-25-mothur-workflow-design.md`.
+
+To re-verify after a mothur upgrade, rerun the command above and check both the
+exit code and whether the three format observations still hold.
+
+## Banner double-count
+
+`error_on_failure.txt` contains two lines matching a bare `[ERROR]` substring:
+
+```
+[ERROR]: did not complete align.seqs.
+Detected 1 [ERROR] messages, please review.
+```
+
+Only the first carries the `[ERROR]: ` anchor. A bare-substring scan reports one
+failure as two — which is why `MOTHUR_ERROR_MARKER` includes the colon and space.
