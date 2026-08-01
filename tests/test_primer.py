@@ -13,8 +13,7 @@ from microsuite.primer import check_fastq_primers, primer_check_fails
 
 def write_fastq(path: Path, sequences: list[str]) -> None:
     text = "".join(
-        f"@read-{i}\n{sequence}\n+\n{'I' * len(sequence)}\n"
-        for i, sequence in enumerate(sequences)
+        f"@read-{i}\n{sequence}\n+\n{'I' * len(sequence)}\n" for i, sequence in enumerate(sequences)
     )
     if path.suffix == ".gz":
         with gzip.open(path, "wt", encoding="utf-8") as handle:
