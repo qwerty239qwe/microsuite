@@ -35,8 +35,31 @@ def estimate_sparcc(
         seed=seed,
     )
     rng = np.random.default_rng(seed)
-    _dirichlet_normalize(validated_counts, pseudocount=pseudocount, rng=rng)
-    raise NotImplementedError("SparCC outer aggregation is not implemented yet.")
+    outer_results = [
+        _estimate_inner(
+            _dirichlet_normalize(validated_counts, pseudocount=pseudocount, rng=rng),
+            inner_iterations=inner_iterations,
+            exclusion_threshold=exclusion_threshold,
+        )
+        for _ in range(iterations)
+    ]
+    correlation = np.median(
+        np.stack([result.correlation for result in outer_results]),
+        axis=0,
+    )
+    median_covariance = np.median(
+        np.stack([result.covariance for result in outer_results]),
+        axis=0,
+    )
+    correlation = (correlation + correlation.T) / 2.0
+    correlation = np.clip(correlation, -1.0, 1.0)
+    np.fill_diagonal(correlation, 1.0)
+    variances = np.diag(median_covariance)
+    if not np.isfinite(variances).all() or (variances <= 0.0).any():
+        raise MicrobiomeSuiteError("SparCC median covariance diagonal is invalid.")
+    scales = np.sqrt(variances)
+    covariance = correlation * (scales[:, None] * scales[None, :])
+    return SparCCResult(covariance=covariance, correlation=correlation)
 
 
 def _validate_inputs(

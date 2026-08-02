@@ -129,8 +129,7 @@ def test_exact_integer_floats_are_accepted_without_mutating_caller() -> None:
     assert validated.dtype == np.float64
     assert not np.shares_memory(validated, counts)
 
-    with pytest.raises(NotImplementedError):
-        estimate_sparcc(counts)
+    estimate_sparcc(counts, iterations=2)
     np.testing.assert_array_equal(counts, before)
 
 
@@ -165,12 +164,98 @@ def test_dirichlet_draws_do_not_touch_numpy_global_rng() -> None:
     np.testing.assert_array_equal(np.random.random(5), expected)
 
 
-def test_estimator_validates_before_the_unimplemented_outer_aggregation() -> None:
+def test_estimator_applies_validation() -> None:
     with pytest.raises(MicrobiomeSuiteError):
         estimate_sparcc(np.ones((1, 3)))
 
-    with pytest.raises(NotImplementedError, match="outer aggregation"):
-        estimate_sparcc(valid_counts())
+
+def test_outer_estimator_is_reproducible_and_returns_consistent_matrices() -> None:
+    first = estimate_sparcc(valid_counts(), iterations=3, seed=12)
+    repeated = estimate_sparcc(valid_counts(), iterations=3, seed=12)
+    different = estimate_sparcc(valid_counts(), iterations=3, seed=13)
+
+    np.testing.assert_array_equal(first.correlation, repeated.correlation)
+    np.testing.assert_array_equal(first.covariance, repeated.covariance)
+    assert not np.array_equal(first.correlation, different.correlation)
+    for matrix in (first.correlation, first.covariance):
+        assert matrix.shape == (3, 3)
+        assert np.isfinite(matrix).all()
+        np.testing.assert_allclose(matrix, matrix.T, rtol=0.0, atol=1e-15)
+    np.testing.assert_array_equal(np.diag(first.correlation), np.ones(3))
+    assert np.max(np.abs(first.correlation)) <= 1.0
+    scales = np.sqrt(np.diag(first.covariance))
+    np.testing.assert_allclose(
+        first.covariance / (scales[:, None] * scales[None, :]),
+        first.correlation,
+        rtol=1e-14,
+        atol=1e-15,
+    )
+
+
+def test_outer_estimator_uses_one_local_generator_and_exact_iteration_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_default_rng = np.random.default_rng
+    original_normalize = sparcc_core._dirichlet_normalize
+    generator_calls: list[int] = []
+    normalization_generators: list[np.random.Generator] = []
+
+    def recording_default_rng(seed: int) -> np.random.Generator:
+        generator_calls.append(seed)
+        return original_default_rng(seed)
+
+    def recording_normalize(
+        counts: np.ndarray,
+        *,
+        pseudocount: float,
+        rng: np.random.Generator,
+    ) -> np.ndarray:
+        normalization_generators.append(rng)
+        return original_normalize(counts, pseudocount=pseudocount, rng=rng)
+
+    monkeypatch.setattr(np.random, "default_rng", recording_default_rng)
+    monkeypatch.setattr(sparcc_core, "_dirichlet_normalize", recording_normalize)
+
+    estimate_sparcc(valid_counts(), iterations=4, seed=17)
+
+    assert generator_calls == [17]
+    assert len(normalization_generators) == 4
+    assert len({id(rng) for rng in normalization_generators}) == 1
+
+
+def test_outer_estimator_uses_elementwise_medians_and_rebuilds_covariance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    correlations = []
+    for coefficient in (0.1, 0.5, 0.3):
+        correlation = np.full((3, 3), coefficient)
+        np.fill_diagonal(correlation, 1.0)
+        correlations.append(correlation)
+    covariance_diagonals = (
+        np.array([1.0, 4.0, 9.0]),
+        np.array([9.0, 16.0, 25.0]),
+        np.array([4.0, 9.0, 16.0]),
+    )
+    scripted_results = [
+        SparCCResult(covariance=np.diag(diagonal), correlation=correlation)
+        for diagonal, correlation in zip(covariance_diagonals, correlations, strict=True)
+    ]
+
+    def scripted_inner(*args: object, **kwargs: object) -> SparCCResult:
+        return scripted_results.pop(0)
+
+    monkeypatch.setattr(sparcc_core, "_estimate_inner", scripted_inner)
+    result = estimate_sparcc(valid_counts(), iterations=3)
+
+    expected_correlation = np.full((3, 3), 0.3)
+    np.fill_diagonal(expected_correlation, 1.0)
+    expected_scales = np.array([2.0, 3.0, 4.0])
+    expected_covariance = expected_correlation * (
+        expected_scales[:, None] * expected_scales[None, :]
+    )
+    np.testing.assert_array_equal(result.correlation, expected_correlation)
+    np.testing.assert_array_equal(result.covariance, expected_covariance)
+    assert scripted_results == []
 
 
 def test_clr_is_centered_within_each_sample() -> None:
