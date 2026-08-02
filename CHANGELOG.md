@@ -5,6 +5,29 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-08-02
+
+### Fixed
+
+- **`diff_abundance --backend maaslin2` produced results confounded by
+  sequencing depth.** The backend passed a raw count table to MaAsLin 2 with
+  `normalization = "NONE"`, so every feature in a deeply sequenced sample
+  carried a systematically larger value and the model attributed that depth
+  difference to whatever covariate correlated with it. Output remained
+  well formed with plausible p-values, so nothing surfaced the error. Now uses
+  `normalization = "TSS"`, MaAsLin 2's own default.
+- **`diff_abundance --backend lefse` had the same defect.** LEfSe expects
+  relative abundances; handed raw counts, `lefser` emits a warning and
+  continues, yielding LDA scores driven by library size. Counts are now
+  converted with `lefser::relativeAb` before testing.
+
+`aldex2` and `ancombc` were checked and are unaffected — both handle
+compositionality and library size internally.
+
+**If you ran either backend on 0.2.0 or earlier, re-run those analyses.** The
+severity depends on how much sequencing depth varies across your samples and
+whether that variation correlates with the group being tested.
+
 ## [0.2.0] - 2026-07-30
 
 ### Added

@@ -23,12 +23,18 @@ features <- as.data.frame(t(counts), check.names = FALSE)
 
 run_dir <- tempfile("maaslin2-")
 dir.create(run_dir)
+# normalization must not be "NONE" here. The caller passes a raw count table,
+# so without library-size normalization every feature in a deeply sequenced
+# sample carries a systematically larger value, and the model attributes that
+# depth difference to whichever covariate happens to correlate with it. The
+# output stays well formed and the p-values look plausible, so the error is
+# invisible. TSS is MaAsLin 2's own default and pairs with transform = "LOG".
 Maaslin2::Maaslin2(
   input_data = features,
   input_metadata = metadata,
   output = run_dir,
   fixed_effects = c(group_col),
-  normalization = "NONE",
+  normalization = "TSS",
   transform = "LOG",
   analysis_method = "LM",
   standardize = FALSE,
