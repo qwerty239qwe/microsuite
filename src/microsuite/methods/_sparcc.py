@@ -7,6 +7,9 @@ import numpy as np
 
 from microsuite._errors import MicrobiomeSuiteError
 
+_MIN_BASIS_VARIANCE = 1e-4
+_CORRELATION_ROUNDOFF_TOLERANCE = 1e-12
+
 
 @dataclass(frozen=True)
 class SparCCResult:
@@ -34,7 +37,9 @@ def estimate_sparcc(
     )
     rng = np.random.default_rng(seed)
     _dirichlet_normalize(validated_counts, pseudocount=pseudocount, rng=rng)
-    raise NotImplementedError("SparCC basis algebra is implemented in the next plan task.")
+    raise NotImplementedError(
+        "SparCC iterative exclusion and outer aggregation are not implemented yet."
+    )
 
 
 def _validate_inputs(
@@ -133,3 +138,82 @@ def _dirichlet_normalize(
     if not np.isfinite(draws).all() or (draws <= 0.0).any() or not np.isfinite(totals).all():
         raise MicrobiomeSuiteError("SparCC Dirichlet normalization produced invalid values.")
     return draws / totals
+
+
+def _clr(compositions: np.ndarray) -> np.ndarray:
+    """Return sample-wise centered log-ratios for positive compositions."""
+    if compositions.ndim != 2 or not np.isfinite(compositions).all():
+        raise MicrobiomeSuiteError("SparCC compositions must be a finite two-dimensional array.")
+    if (compositions <= 0.0).any():
+        raise MicrobiomeSuiteError("SparCC compositions must be strictly positive.")
+    logged = np.log(compositions)
+    return logged - logged.mean(axis=1, keepdims=True)
+
+
+def _variation_matrix(clr_values: np.ndarray) -> np.ndarray:
+    """Build the Aitchison variation matrix using sample covariance (ddof=1)."""
+    covariance = np.cov(clr_values, rowvar=False, ddof=1)
+    variances = np.diag(covariance)
+    variation = variances[:, None] + variances[None, :] - 2.0 * covariance
+    variation = (variation + variation.T) / 2.0
+    np.fill_diagonal(variation, 0.0)
+    return variation
+
+
+def _basis_system(variation: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Construct the initial sparse-correlation basis-variance system."""
+    feature_count = variation.shape[0]
+    coefficients = np.ones((feature_count, feature_count), dtype=np.float64)
+    coefficients += np.eye(feature_count) * (feature_count - 2)
+    return coefficients, variation.sum(axis=1)
+
+
+def _solve_basis_variances(coefficients: np.ndarray, target: np.ndarray) -> np.ndarray:
+    """Solve basis variances, using a generalized inverse for singular systems."""
+    try:
+        variances = np.linalg.solve(coefficients, target)
+    except np.linalg.LinAlgError:
+        try:
+            variances = np.linalg.pinv(coefficients) @ target
+        except np.linalg.LinAlgError as exc:
+            raise MicrobiomeSuiteError("SparCC could not solve the basis system.") from exc
+    if not np.isfinite(variances).all():
+        raise MicrobiomeSuiteError("SparCC basis variances are not finite.")
+    return np.maximum(variances, _MIN_BASIS_VARIANCE)
+
+
+def _reconstruct_covariance(variation: np.ndarray, variances: np.ndarray) -> np.ndarray:
+    """Reconstruct and symmetrize covariance from variation and basis variance."""
+    covariance = 0.5 * (variances[:, None] + variances[None, :] - variation)
+    covariance = (covariance + covariance.T) / 2.0
+    np.fill_diagonal(covariance, variances)
+    if not np.isfinite(covariance).all():
+        raise MicrobiomeSuiteError("SparCC reconstructed covariance is not finite.")
+    return covariance
+
+
+def _covariance_to_correlation(covariance: np.ndarray) -> np.ndarray:
+    """Convert covariance to correlation, clipping floating-point excursions."""
+    variances = np.diag(covariance)
+    if not np.isfinite(variances).all() or (variances <= 0.0).any():
+        raise MicrobiomeSuiteError("SparCC covariance diagonal must be finite and positive.")
+    scales = np.sqrt(variances)
+    correlation = covariance / (scales[:, None] * scales[None, :])
+    correlation = (correlation + correlation.T) / 2.0
+    if not np.isfinite(correlation).all():
+        raise MicrobiomeSuiteError("SparCC reconstructed correlation is not finite.")
+    if (np.abs(correlation) > 1.0 + _CORRELATION_ROUNDOFF_TOLERANCE).any():
+        raise MicrobiomeSuiteError("SparCC reconstructed correlation exceeds valid bounds.")
+    correlation = np.clip(correlation, -1.0, 1.0)
+    np.fill_diagonal(correlation, 1.0)
+    return correlation
+
+
+def _estimate_initial(compositions: np.ndarray) -> SparCCResult:
+    """Compute one deterministic pre-exclusion SparCC estimate."""
+    variation = _variation_matrix(_clr(compositions))
+    coefficients, target = _basis_system(variation)
+    variances = _solve_basis_variances(coefficients, target)
+    covariance = _reconstruct_covariance(variation, variances)
+    correlation = _covariance_to_correlation(covariance)
+    return SparCCResult(covariance=covariance, correlation=correlation)

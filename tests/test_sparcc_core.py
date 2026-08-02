@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
 from inspect import signature
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -9,10 +10,19 @@ import pytest
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite.methods._sparcc import (
     SparCCResult,
+    _basis_system,
+    _clr,
+    _covariance_to_correlation,
     _dirichlet_normalize,
+    _estimate_initial,
+    _reconstruct_covariance,
+    _solve_basis_variances,
     _validate_inputs,
+    _variation_matrix,
     estimate_sparcc,
 )
+
+SPARCC_FIXTURES = Path(__file__).parent / "fixtures" / "sparcc"
 
 
 def valid_counts() -> np.ndarray:
@@ -154,5 +164,116 @@ def test_estimator_validates_before_the_unimplemented_algebra() -> None:
     with pytest.raises(MicrobiomeSuiteError):
         estimate_sparcc(np.ones((1, 3)))
 
-    with pytest.raises(NotImplementedError, match="basis algebra"):
+    with pytest.raises(NotImplementedError, match="iterative exclusion"):
         estimate_sparcc(valid_counts())
+
+
+def test_clr_is_centered_within_each_sample() -> None:
+    compositions = np.array([[0.1, 0.2, 0.7], [0.6, 0.3, 0.1]])
+
+    clr_values = _clr(compositions)
+
+    np.testing.assert_allclose(clr_values.mean(axis=1), 0.0, rtol=0.0, atol=1e-15)
+
+
+def test_variation_uses_sample_variance_and_has_aitchison_invariants() -> None:
+    compositions = np.array([[0.1, 0.2, 0.7], [0.6, 0.3, 0.1], [0.25, 0.25, 0.5]])
+    logged = np.log(compositions)
+    expected = np.empty((3, 3))
+    population = np.empty((3, 3))
+    for left in range(3):
+        for right in range(3):
+            log_ratio = logged[:, left] - logged[:, right]
+            expected[left, right] = np.var(log_ratio, ddof=1)
+            population[left, right] = np.var(log_ratio, ddof=0)
+
+    variation = _variation_matrix(_clr(compositions))
+
+    np.testing.assert_allclose(variation, expected, rtol=1e-14, atol=1e-15)
+    assert not np.allclose(variation, population)
+    np.testing.assert_allclose(variation, variation.T, rtol=0.0, atol=0.0)
+    np.testing.assert_array_equal(np.diag(variation), np.zeros(3))
+    assert variation.min() >= -1e-15
+
+
+def test_initial_basis_system_is_hand_computable_and_floors_variances() -> None:
+    variation = np.array([[0.0, 3.0, 4.0], [3.0, 0.0, 5.0], [4.0, 5.0, 0.0]])
+
+    coefficients, target = _basis_system(variation)
+    variances = _solve_basis_variances(coefficients, target)
+
+    np.testing.assert_array_equal(
+        coefficients, np.array([[2.0, 1.0, 1.0], [1.0, 2.0, 1.0], [1.0, 1.0, 2.0]])
+    )
+    np.testing.assert_array_equal(target, np.array([7.0, 8.0, 9.0]))
+    np.testing.assert_allclose(variances, np.array([1.0, 2.0, 3.0]))
+    np.testing.assert_array_equal(
+        _solve_basis_variances(np.eye(3), np.array([-1.0, 0.0, 2.0])),
+        np.array([1e-4, 1e-4, 2.0]),
+    )
+
+
+def test_covariance_reconstruction_is_symmetric_bounded_and_has_expected_diagonal() -> None:
+    variances = np.array([1.0, 4.0, 9.0])
+    variation = np.array([[0.0, 3.0, 12.0], [3.0, 0.0, 7.0], [12.0, 7.0, 0.0]])
+    expected_covariance = np.array([[1.0, 1.0, -1.0], [1.0, 4.0, 3.0], [-1.0, 3.0, 9.0]])
+
+    covariance = _reconstruct_covariance(variation, variances)
+    correlation = _covariance_to_correlation(covariance)
+
+    np.testing.assert_array_equal(covariance, expected_covariance)
+    np.testing.assert_array_equal(covariance, covariance.T)
+    np.testing.assert_array_equal(np.diag(covariance), variances)
+    np.testing.assert_array_equal(np.diag(correlation), np.ones(3))
+    assert np.max(np.abs(correlation)) <= 1.0
+    roundoff_covariance = np.array([[1.0, 1.0 + 5e-13], [1.0 + 5e-13, 1.0]])
+    np.testing.assert_array_equal(_covariance_to_correlation(roundoff_covariance), np.ones((2, 2)))
+
+
+def test_singular_basis_system_uses_generalized_inverse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_pinv = np.linalg.pinv
+    solve_calls = 0
+    pinv_calls = 0
+
+    def recording_solve(coefficients: np.ndarray, target: np.ndarray) -> np.ndarray:
+        nonlocal solve_calls
+        solve_calls += 1
+        raise np.linalg.LinAlgError("singular test system")
+
+    def recording_pinv(coefficients: np.ndarray) -> np.ndarray:
+        nonlocal pinv_calls
+        pinv_calls += 1
+        return original_pinv(coefficients)
+
+    monkeypatch.setattr(np.linalg, "solve", recording_solve)
+    monkeypatch.setattr(np.linalg, "pinv", recording_pinv)
+    coefficients = np.ones((3, 3))
+    variances = _solve_basis_variances(coefficients, np.ones(3))
+    covariance = _reconstruct_covariance(np.zeros((3, 3)), variances)
+    correlation = _covariance_to_correlation(covariance)
+
+    assert solve_calls == 1
+    assert pinv_calls == 1
+    assert np.isfinite(correlation).all()
+    np.testing.assert_array_equal(correlation, correlation.T)
+
+
+def test_initial_estimate_matches_pinned_spieceasi_pre_exclusion_result() -> None:
+    compositions = np.loadtxt(
+        SPARCC_FIXTURES / "inner_compositions.tsv",
+        delimiter="\t",
+        skiprows=1,
+        usecols=range(1, 7),
+    )
+    expected = np.loadtxt(
+        SPARCC_FIXTURES / "inner_initial_reference_cor.tsv",
+        delimiter="\t",
+        skiprows=1,
+        usecols=range(1, 7),
+    )
+
+    result = _estimate_initial(compositions)
+
+    np.testing.assert_allclose(result.correlation, expected, rtol=1e-10, atol=1e-12)
