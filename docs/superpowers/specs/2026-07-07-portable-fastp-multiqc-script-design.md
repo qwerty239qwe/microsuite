@@ -57,7 +57,7 @@ multiqc` structure.
 - Delete the `/tmp` uv-env bootstrap (`UV_PROJECT_ENVIRONMENT`, `uv sync`,
   `uv pip install multiqc`) — microsuite is required on `PATH`, so the script
   just invokes it.
-- Delete the hardcoded `/mnt/c/Users/yute.lin/...` input fallback and all WSL
+- Delete the hardcoded `/mnt/c/Users/<user>/...` input fallback and all WSL
   assumptions.
 - Flip the overwrite default: today `FORCE=1` (always `--force`). Change to
   no-overwrite by default; add an opt-in `--force` flag and drop `--no-force`.
