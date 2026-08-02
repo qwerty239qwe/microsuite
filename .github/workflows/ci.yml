@@ -138,6 +138,51 @@ jobs:
       - name: Run Python API external integration tests
         run: uv run pytest tests/integration/test_external_tools.py
 
+  sparcc-reference:
+    name: Pinned SpiecEasi SparCC reference
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.12"
+      MICROSUITE_RUN_SPARCC_REFERENCE: "1"
+      SPIECEASI_SOURCE_DIR: ${{ github.workspace }}/spieceasi-source
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check out pinned SpiecEasi source
+        uses: actions/checkout@v4
+        with:
+          repository: zdk123/SpiecEasi
+          ref: faed6a4476fe0a8dc701ea15cbdfe98d56ce6704
+          path: spieceasi-source
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+          use-public-rspm: true
+
+      - name: Install Python dependencies
+        run: uv sync --locked
+
+      - name: Install VGAM
+        run: Rscript -e 'install.packages("VGAM", repos = "https://cloud.r-project.org")'
+
+      - name: Run pinned SpiecEasi reference test
+        run: uv run pytest tests/integration/test_sparcc_spieceasi_reference.py -v
+
   nextflow-real:
     name: Nextflow real end-to-end (amplicon_microsuite)
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run-real-nextflow == 'true' }}
