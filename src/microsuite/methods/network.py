@@ -15,6 +15,7 @@ from microsuite._paths import ensure_input, prepare_output
 from microsuite.diversity._matrix import dense_counts
 from microsuite.io.h5ad import read_h5ad
 from microsuite.methods._dispatch import require_backend
+from microsuite.methods._sparcc import estimate_sparcc
 from microsuite.runtime.runner import CommandLog, run_command
 
 SUPPORTED_BACKENDS = ("native-correlation", "sparcc", "spieceasi", "flashweave")
@@ -34,6 +35,10 @@ def network(
     min_prevalence: float = 0.1,
     top_n: int | None = None,
     pseudocount: float = 1.0,
+    iterations: int = 20,
+    inner_iterations: int = 10,
+    exclusion_threshold: float = 0.1,
+    seed: int = 0,
     spieceasi_method: str = "mb",
     lambda_min_ratio: float = 0.01,
     nlambda: int = 20,
@@ -63,6 +68,10 @@ def network(
             min_prevalence=min_prevalence,
             top_n=top_n,
             pseudocount=pseudocount,
+            iterations=iterations,
+            inner_iterations=inner_iterations,
+            exclusion_threshold=exclusion_threshold,
+            seed=seed,
         )
         result.to_csv(prepare_output(output, force=force), sep="\t", index=False)
         return
@@ -124,23 +133,37 @@ def sparcc_network(
     min_prevalence: float = 0.1,
     top_n: int | None = None,
     pseudocount: float = 1.0,
+    iterations: int = 20,
+    inner_iterations: int = 10,
+    exclusion_threshold: float = 0.1,
+    seed: int = 0,
 ) -> pd.DataFrame:
-    matrix, feature_ids = _filtered_feature_matrix(
+    counts, feature_ids = _filtered_feature_counts(
         adata,
-        transform="clr",
         min_prevalence=min_prevalence,
-        pseudocount=pseudocount,
     )
-    edges = _edge_list_from_matrix(
-        matrix,
+    try:
+        result = estimate_sparcc(
+            counts,
+            iterations=iterations,
+            inner_iterations=inner_iterations,
+            exclusion_threshold=exclusion_threshold,
+            pseudocount=pseudocount,
+            seed=seed,
+        )
+    except MicrobiomeSuiteError as exc:
+        if "integer-valued" in str(exc):
+            raise MicrobiomeSuiteError(
+                "SparCC network inference requires raw counts; "
+                "fractional or normalized values were detected."
+            ) from exc
+        raise
+    return _edge_list_from_correlation_matrix(
+        result.correlation,
         feature_ids,
-        method="pearson",
         min_abs_weight=min_abs_weight,
         top_n=top_n,
-        backend="sparcc",
     )
-    edges["p_value"] = np.nan
-    return edges
 
 
 def run_spieceasi(
@@ -250,6 +273,20 @@ def _filtered_feature_matrix(
     return _transform_counts(counts, transform=transform, pseudocount=pseudocount), feature_ids
 
 
+def _filtered_feature_counts(
+    adata: ad.AnnData,
+    *,
+    min_prevalence: float,
+) -> tuple[np.ndarray, list[str]]:
+    if not 0 <= min_prevalence <= 1:
+        raise MicrobiomeSuiteError("--min-prevalence must be between 0 and 1.")
+    counts = dense_counts(adata)
+    prevalence = (counts > 0).mean(axis=0)
+    keep = prevalence >= min_prevalence
+    feature_ids = adata.var_names.astype(str).to_numpy()[keep].tolist()
+    return counts[:, keep], feature_ids
+
+
 def _transform_counts(counts: np.ndarray, *, transform: str, pseudocount: float) -> np.ndarray:
     transform = transform.lower()
     if transform == "counts":
@@ -298,6 +335,44 @@ def _edge_list_from_matrix(
                     "p_value": float(result.pvalue),
                     "method": method,
                     "backend": backend,
+                }
+            )
+    edges = pd.DataFrame(rows)
+    if edges.empty:
+        return _empty_edges()
+    edges = edges.sort_values(["abs_weight", "source", "target"], ascending=[False, True, True])
+    if top_n is not None:
+        if top_n < 1:
+            raise MicrobiomeSuiteError("--top-n must be at least 1 when provided.")
+        edges = edges.head(top_n)
+    return edges.reset_index(drop=True)
+
+
+def _edge_list_from_correlation_matrix(
+    correlation: np.ndarray,
+    feature_ids: list[str],
+    *,
+    min_abs_weight: float,
+    top_n: int | None,
+) -> pd.DataFrame:
+    if not 0 <= min_abs_weight <= 1:
+        raise MicrobiomeSuiteError("--min-abs-weight must be between 0 and 1.")
+    rows = []
+    for i, source in enumerate(feature_ids):
+        for j in range(i + 1, len(feature_ids)):
+            target = feature_ids[j]
+            weight = float(correlation[i, j])
+            if np.isnan(weight) or abs(weight) < min_abs_weight:
+                continue
+            rows.append(
+                {
+                    "source": source,
+                    "target": target,
+                    "weight": weight,
+                    "abs_weight": abs(weight),
+                    "p_value": np.nan,
+                    "method": "sparcc",
+                    "backend": "sparcc",
                 }
             )
     edges = pd.DataFrame(rows)
