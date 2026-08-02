@@ -3,10 +3,10 @@
 - **Date:** 2026-08-02
 - **Status:** Approved (design), pending implementation plan
 - **Author:** YT Lin (with Claude)
-- **Origin:** An audit of `oral_microbiome_gingivitis`, a private research project that
+- **Origin:** An audit of the consumer project, a private research project that
   consumes microsuite across ~21 study accessions. Every workaround script,
   container, and written complaint in that repo was traced back to the microsuite
-  code it works around. Findings: `.superpowers/sdd/gingivitis-audit.md`.
+  code it works around. Findings: `.superpowers/sdd/consumer-audit.md`.
 
 ## Background
 
