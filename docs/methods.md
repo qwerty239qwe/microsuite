@@ -161,9 +161,34 @@ features clustered by sequence identity, commonly 97%.
 | Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `native-correlation` | microsuite 0.1.0 | ready | `microsuite network infer --backend native-correlation --table table.h5ad -o network.tsv` | `network(backend="native-correlation", table=..., output=...)` | [microsuite Python](../containers/microsuite/Dockerfile) | Simple and transparent; compositional bias risk. | Correlation network analysis. |
-| `sparcc` | microsuite 0.1.0 | ready | `microsuite network infer --backend sparcc --table table.h5ad -o sparcc.tsv` | `network(backend="sparcc", table=..., output=...)` | [microsuite Python](../containers/microsuite/Dockerfile) | CLR correlation approximation for compositional data; full SparCC bootstrapping remains external. | SparCC-style association network analysis. |
+| `sparcc` | microsuite 0.1.0 | ready | `microsuite network infer --backend sparcc --table table.h5ad -o sparcc.tsv` | `network(backend="sparcc", table=..., output=...)` | [microsuite Python](../containers/microsuite/Dockerfile) | Native SparCC estimator with Dirichlet normalization and iterative exclusion; fixed seeds are reproducible, but bootstrap p-values are not computed. | SparCC compositional association network inference. |
 | `spieceasi` | SpiecEasi R user env | ready | `microsuite network infer --backend spieceasi --table table.h5ad -o spieceasi.tsv` | `network(backend="spieceasi", table=..., output=...)` | External R/SpiecEasi environment | Strong ecological network method; R dependency and tuning burden. | SPIEC-EASI network inference. |
 | `flashweave` | FlashWeave Julia user env | ready | `microsuite network infer --backend flashweave --table table.h5ad -o flashweave.edgelist` | `network(backend="flashweave", table=..., output=...)` | External Julia/FlashWeave environment | Handles heterogeneous metadata; separate Julia runtime needed. | FlashWeave network inference. |
+
+#### SparCC input and reproducibility
+
+The native `sparcc` backend requires a sample-by-feature table of raw,
+nonnegative integer counts. Do not pass proportions, relative abundances, CLR
+values, or other normalized measurements. Each outer iteration adds the
+positive `--pseudocount` (default `1.0`) as a Dirichlet concentration offset,
+draws one composition per sample, reconstructs the SparCC basis covariance, and
+iteratively excludes strongly correlated feature pairs. The final correlation
+matrix is the elementwise median across outer iterations.
+
+Four SparCC-specific CLI options control reproducibility and tuning:
+
+- `--sparcc-iterations` (default `20`) sets the number of outer Dirichlet draws.
+- `--sparcc-inner-iterations` (default `10`) caps pair-exclusion updates within
+  each draw.
+- `--sparcc-exclusion-threshold` (default `0.1`, range `[0, 1]`) sets the
+  absolute-correlation threshold above which a pair may be excluded.
+- `--sparcc-seed` (default `0`) seeds a local random generator. Identical input,
+  options, and seed produce identical output; changing the seed may change edge
+  weights.
+
+SparCC edge rows keep the common network schema, but `p_value` is `NaN` because
+this backend does not run bootstrap significance testing. Treat edge weights as
+association estimates, not as statistically significant findings.
 
 ### Functional Profiling
 

@@ -5,6 +5,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Released `network infer --backend sparcc` outputs were mislabeled.** In all
+  released versions, the backend calculated CLR-Pearson correlations while
+  labeling them as SparCC. It now uses the native SparCC estimator with
+  Dirichlet normalization and iterative pair exclusion. **Rerun every network
+  previously produced with `--backend sparcc`;** corrected edge weights can
+  differ. The backend does not calculate bootstrap significance, so `p_value`
+  remains `NaN` and must not be interpreted as evidence of significance.
+
 ## [0.2.1] - 2026-08-02
 
 ### Fixed
