@@ -8,7 +8,6 @@ import numpy as np
 from microsuite._errors import MicrobiomeSuiteError
 
 _MIN_BASIS_VARIANCE = 1e-4
-_CORRELATION_ROUNDOFF_TOLERANCE = 1e-12
 
 
 @dataclass(frozen=True)
@@ -37,9 +36,7 @@ def estimate_sparcc(
     )
     rng = np.random.default_rng(seed)
     _dirichlet_normalize(validated_counts, pseudocount=pseudocount, rng=rng)
-    raise NotImplementedError(
-        "SparCC iterative exclusion and outer aggregation are not implemented yet."
-    )
+    raise NotImplementedError("SparCC outer aggregation is not implemented yet.")
 
 
 def _validate_inputs(
@@ -193,7 +190,7 @@ def _reconstruct_covariance(variation: np.ndarray, variances: np.ndarray) -> np.
 
 
 def _covariance_to_correlation(covariance: np.ndarray) -> np.ndarray:
-    """Convert covariance to correlation, clipping floating-point excursions."""
+    """Convert covariance and clamp coefficients as required by the pinned reference."""
     variances = np.diag(covariance)
     if not np.isfinite(variances).all() or (variances <= 0.0).any():
         raise MicrobiomeSuiteError("SparCC covariance diagonal must be finite and positive.")
@@ -202,8 +199,6 @@ def _covariance_to_correlation(covariance: np.ndarray) -> np.ndarray:
     correlation = (correlation + correlation.T) / 2.0
     if not np.isfinite(correlation).all():
         raise MicrobiomeSuiteError("SparCC reconstructed correlation is not finite.")
-    if (np.abs(correlation) > 1.0 + _CORRELATION_ROUNDOFF_TOLERANCE).any():
-        raise MicrobiomeSuiteError("SparCC reconstructed correlation exceeds valid bounds.")
     correlation = np.clip(correlation, -1.0, 1.0)
     np.fill_diagonal(correlation, 1.0)
     return correlation
@@ -213,7 +208,74 @@ def _estimate_initial(compositions: np.ndarray) -> SparCCResult:
     """Compute one deterministic pre-exclusion SparCC estimate."""
     variation = _variation_matrix(_clr(compositions))
     coefficients, target = _basis_system(variation)
+    return _estimate_from_basis(variation, coefficients, target)
+
+
+def _select_exclusion_pair(
+    correlation: np.ndarray,
+    excluded: np.ndarray,
+) -> tuple[int, int] | None:
+    """Select the lexicographically first maximum absolute eligible pair."""
+    eligible_pairs = np.argwhere(np.triu(~excluded, k=1))
+    if eligible_pairs.size == 0:
+        return None
+    magnitudes = np.abs(correlation[eligible_pairs[:, 0], eligible_pairs[:, 1]])
+    left, right = eligible_pairs[int(np.argmax(magnitudes))]
+    return int(left), int(right)
+
+
+def _update_basis_for_exclusion(
+    coefficients: np.ndarray,
+    target: np.ndarray,
+    variation: np.ndarray,
+    excluded: np.ndarray,
+    pair: tuple[int, int],
+) -> None:
+    """Remove one symmetric covariance pair from both basis equations."""
+    left, right = sorted(pair)
+    if left == right or excluded[left, right]:
+        raise MicrobiomeSuiteError("SparCC pair is already excluded or lies on the diagonal.")
+    excluded[left, right] = True
+    excluded[right, left] = True
+    coefficients[left, left] -= 1.0
+    coefficients[right, right] -= 1.0
+    coefficients[left, right] -= 1.0
+    coefficients[right, left] -= 1.0
+    target[left] -= variation[left, right]
+    target[right] -= variation[left, right]
+
+
+def _estimate_from_basis(
+    variation: np.ndarray,
+    coefficients: np.ndarray,
+    target: np.ndarray,
+) -> SparCCResult:
+    """Solve one basis state and keep covariance consistent after reference clamping."""
     variances = _solve_basis_variances(coefficients, target)
     covariance = _reconstruct_covariance(variation, variances)
     correlation = _covariance_to_correlation(covariance)
+    scales = np.sqrt(variances)
+    covariance = correlation * (scales[:, None] * scales[None, :])
     return SparCCResult(covariance=covariance, correlation=correlation)
+
+
+def _estimate_inner(
+    compositions: np.ndarray,
+    *,
+    inner_iterations: int = 10,
+    exclusion_threshold: float = 0.1,
+) -> SparCCResult:
+    """Compute one deterministic SparCC estimate with iterative exclusions."""
+    variation = _variation_matrix(_clr(compositions))
+    coefficients, target = _basis_system(variation)
+    excluded = np.zeros(variation.shape, dtype=bool)
+    result = _estimate_from_basis(variation, coefficients, target)
+
+    for _ in range(inner_iterations):
+        pair = _select_exclusion_pair(result.correlation, excluded)
+        if pair is None or abs(result.correlation[pair]) <= exclusion_threshold:
+            break
+        _update_basis_for_exclusion(coefficients, target, variation, excluded, pair)
+        result = _estimate_from_basis(variation, coefficients, target)
+
+    return result

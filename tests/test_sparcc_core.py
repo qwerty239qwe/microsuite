@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import microsuite.methods._sparcc as sparcc_core
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite.methods._sparcc import (
     SparCCResult,
@@ -14,9 +15,13 @@ from microsuite.methods._sparcc import (
     _clr,
     _covariance_to_correlation,
     _dirichlet_normalize,
+    _estimate_from_basis,
     _estimate_initial,
+    _estimate_inner,
     _reconstruct_covariance,
+    _select_exclusion_pair,
     _solve_basis_variances,
+    _update_basis_for_exclusion,
     _validate_inputs,
     _variation_matrix,
     estimate_sparcc,
@@ -160,11 +165,11 @@ def test_dirichlet_draws_do_not_touch_numpy_global_rng() -> None:
     np.testing.assert_array_equal(np.random.random(5), expected)
 
 
-def test_estimator_validates_before_the_unimplemented_algebra() -> None:
+def test_estimator_validates_before_the_unimplemented_outer_aggregation() -> None:
     with pytest.raises(MicrobiomeSuiteError):
         estimate_sparcc(np.ones((1, 3)))
 
-    with pytest.raises(NotImplementedError, match="iterative exclusion"):
+    with pytest.raises(NotImplementedError, match="outer aggregation"):
         estimate_sparcc(valid_counts())
 
 
@@ -226,8 +231,10 @@ def test_covariance_reconstruction_is_symmetric_bounded_and_has_expected_diagona
     np.testing.assert_array_equal(np.diag(covariance), variances)
     np.testing.assert_array_equal(np.diag(correlation), np.ones(3))
     assert np.max(np.abs(correlation)) <= 1.0
-    roundoff_covariance = np.array([[1.0, 1.0 + 5e-13], [1.0 + 5e-13, 1.0]])
-    np.testing.assert_array_equal(_covariance_to_correlation(roundoff_covariance), np.ones((2, 2)))
+    out_of_bounds_covariance = np.array([[1.0, 1.2], [1.2, 1.0]])
+    np.testing.assert_array_equal(
+        _covariance_to_correlation(out_of_bounds_covariance), np.ones((2, 2))
+    )
 
 
 def test_singular_basis_system_uses_generalized_inverse(
@@ -277,3 +284,137 @@ def test_initial_estimate_matches_pinned_spieceasi_pre_exclusion_result() -> Non
     result = _estimate_initial(compositions)
 
     np.testing.assert_allclose(result.correlation, expected, rtol=1e-10, atol=1e-12)
+
+
+@pytest.mark.parametrize(
+    ("strong_value", "expected"),
+    [(0.9, (0, 2)), (-0.9, (0, 2))],
+)
+def test_exclusion_selects_largest_absolute_positive_or_negative_pair(
+    strong_value: float,
+    expected: tuple[int, int],
+) -> None:
+    correlation = np.array([[1.0, 0.2, strong_value], [0.2, 1.0, -0.4], [strong_value, -0.4, 1.0]])
+
+    assert _select_exclusion_pair(correlation, np.zeros((3, 3), dtype=bool)) == expected
+
+
+def test_exclusion_ties_are_broken_lexicographically() -> None:
+    correlation = np.array([[1.0, -0.8, 0.8], [-0.8, 1.0, 0.1], [0.8, 0.1, 1.0]])
+
+    assert _select_exclusion_pair(correlation, np.zeros((3, 3), dtype=bool)) == (0, 1)
+
+
+def test_basis_exclusion_updates_both_equations_and_symmetric_state() -> None:
+    variation = np.array([[0.0, 3.0, 4.0], [3.0, 0.0, 5.0], [4.0, 5.0, 0.0]])
+    coefficients, target = _basis_system(variation)
+    excluded = np.zeros((3, 3), dtype=bool)
+
+    _update_basis_for_exclusion(coefficients, target, variation, excluded, (0, 2))
+
+    np.testing.assert_array_equal(
+        coefficients, np.array([[1.0, 1.0, 0.0], [1.0, 2.0, 1.0], [0.0, 1.0, 1.0]])
+    )
+    np.testing.assert_array_equal(target, np.array([3.0, 8.0, 5.0]))
+    assert excluded[0, 2] and excluded[2, 0]
+    np.testing.assert_array_equal(excluded, excluded.T)
+
+
+def test_excluded_pair_is_not_reselected_or_updated_twice() -> None:
+    correlation = np.array([[1.0, 0.4, 0.9], [0.4, 1.0, 0.5], [0.9, 0.5, 1.0]])
+    variation = np.ones((3, 3)) - np.eye(3)
+    coefficients, target = _basis_system(variation)
+    excluded = np.zeros((3, 3), dtype=bool)
+    _update_basis_for_exclusion(coefficients, target, variation, excluded, (0, 2))
+
+    assert _select_exclusion_pair(correlation, excluded) == (1, 2)
+    with pytest.raises(MicrobiomeSuiteError, match="already excluded"):
+        _update_basis_for_exclusion(coefficients, target, variation, excluded, (2, 0))
+
+
+def test_inner_loop_obeys_threshold_and_iteration_hard_stops(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compositions = np.loadtxt(
+        SPARCC_FIXTURES / "inner_compositions.tsv",
+        delimiter="\t",
+        skiprows=1,
+        usecols=range(1, 7),
+    )
+    original_update = sparcc_core._update_basis_for_exclusion
+    updates: list[tuple[int, int]] = []
+
+    def recording_update(*args: object) -> None:
+        pair = args[-1]
+        assert isinstance(pair, tuple)
+        updates.append(pair)
+        original_update(*args)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(sparcc_core, "_update_basis_for_exclusion", recording_update)
+    _estimate_inner(compositions, inner_iterations=10, exclusion_threshold=1.0)
+    assert updates == []
+
+    _estimate_inner(compositions, inner_iterations=2, exclusion_threshold=0.0)
+    assert len(updates) == 2
+
+
+def test_complete_inner_estimate_matches_pinned_spieceasi_result() -> None:
+    compositions = np.loadtxt(
+        SPARCC_FIXTURES / "inner_compositions.tsv",
+        delimiter="\t",
+        skiprows=1,
+        usecols=range(1, 7),
+    )
+    expected = np.loadtxt(
+        SPARCC_FIXTURES / "inner_reference_cor.tsv",
+        delimiter="\t",
+        skiprows=1,
+        usecols=range(1, 7),
+    )
+
+    result = _estimate_inner(compositions, inner_iterations=10, exclusion_threshold=0.1)
+
+    np.testing.assert_allclose(result.correlation, expected, rtol=1e-9, atol=1e-11)
+    scales = np.sqrt(np.diag(result.covariance))
+    rebuilt_correlation = result.covariance / (scales[:, None] * scales[None, :])
+    np.testing.assert_allclose(
+        rebuilt_correlation,
+        result.correlation,
+        rtol=1e-14,
+        atol=1e-15,
+    )
+
+
+def test_reference_out_of_bounds_excluded_pair_is_clamped_and_covariance_rebuilt() -> None:
+    compositions = np.loadtxt(
+        SPARCC_FIXTURES / "inner_compositions.tsv",
+        delimiter="\t",
+        skiprows=1,
+        usecols=range(1, 7),
+    )
+    variation = _variation_matrix(_clr(compositions))
+    coefficients, target = _basis_system(variation)
+    excluded = np.zeros(variation.shape, dtype=bool)
+    result = _estimate_from_basis(variation, coefficients, target)
+    raw_excluded_values: list[float] = []
+
+    for exclusion_number in range(1, 6):
+        pair = _select_exclusion_pair(result.correlation, excluded)
+        assert pair is not None
+        _update_basis_for_exclusion(coefficients, target, variation, excluded, pair)
+        variances = _solve_basis_variances(coefficients, target)
+        raw_covariance = _reconstruct_covariance(variation, variances)
+        raw_value = raw_covariance[1, 5] / np.sqrt(variances[1] * variances[5])
+        if exclusion_number >= 3:
+            raw_excluded_values.append(float(raw_value))
+        result = _estimate_from_basis(variation, coefficients, target)
+
+    assert raw_excluded_values == pytest.approx(
+        [-1.0968347487871832, -1.4203539793840232, -1.093460799437834],
+        rel=1e-14,
+        abs=1e-15,
+    )
+    assert result.correlation[1, 5] == -1.0
+    assert result.covariance[1, 5] == pytest.approx(
+        -np.sqrt(result.covariance[1, 1] * result.covariance[5, 5])
+    )
