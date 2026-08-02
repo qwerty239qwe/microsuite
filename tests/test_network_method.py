@@ -14,6 +14,7 @@ from typer.testing import CliRunner
 
 import microsuite.methods.network as network_method
 from microsuite._errors import MicrobiomeSuiteError
+from microsuite.cli import network_cmd as network_cli
 from microsuite.cli.app import app
 from microsuite.io.h5ad import write_h5ad
 from microsuite.io.tsv import read_tsv
@@ -281,6 +282,114 @@ def test_network_cli_native_correlation_writes_edge_list(tmp_path: Path) -> None
     assert result.exit_code == 0, result.stdout
     edges = pd.read_csv(output, sep="\t")
     assert "weight" in edges.columns
+
+
+def test_network_cli_forwards_sparcc_defaults_and_explicit_typed_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(network_cli, "network", lambda **parameters: calls.append(parameters))
+    runner = CliRunner()
+    common = [
+        "network",
+        "infer",
+        "--backend",
+        "sparcc",
+        "--table",
+        str(tmp_path / "table.h5ad"),
+        "--output",
+        str(tmp_path / "edges.tsv"),
+    ]
+
+    default_result = runner.invoke(app, common)
+    explicit_result = runner.invoke(
+        app,
+        [
+            *common,
+            "--sparcc-iterations",
+            "7",
+            "--sparcc-inner-iterations",
+            "4",
+            "--sparcc-exclusion-threshold",
+            "0.25",
+            "--sparcc-seed",
+            "91",
+        ],
+    )
+
+    assert default_result.exit_code == 0, default_result.stdout
+    assert explicit_result.exit_code == 0, explicit_result.stdout
+    assert calls[0]["iterations"] == 20
+    assert calls[0]["inner_iterations"] == 10
+    assert calls[0]["exclusion_threshold"] == 0.1
+    assert calls[0]["seed"] == 0
+    assert calls[1]["iterations"] == 7
+    assert calls[1]["inner_iterations"] == 4
+    assert calls[1]["exclusion_threshold"] == 0.25
+    assert calls[1]["seed"] == 91
+    assert isinstance(calls[1]["iterations"], int)
+    assert isinstance(calls[1]["inner_iterations"], int)
+    assert isinstance(calls[1]["exclusion_threshold"], float)
+    assert isinstance(calls[1]["seed"], int)
+
+
+def test_network_cli_sparcc_seed_controls_output_bytes(tmp_path: Path) -> None:
+    table = tmp_path / "small-counts.h5ad"
+    write_h5ad(
+        ad.AnnData(
+            np.array(
+                [
+                    [10, 0, 3, 1],
+                    [4, 2, 0, 3],
+                    [0, 8, 1, 2],
+                    [5, 1, 4, 0],
+                    [2, 5, 2, 1],
+                    [1, 3, 6, 2],
+                ]
+            ),
+            var=pd.DataFrame(index=["a", "b", "c", "d"]),
+        ),
+        table,
+    )
+    outputs = [tmp_path / name for name in ("first.tsv", "repeated.tsv", "different.tsv")]
+    runner = CliRunner()
+
+    for seed, output in zip((12, 12, 13), outputs, strict=True):
+        result = runner.invoke(
+            app,
+            [
+                "network",
+                "infer",
+                "--backend",
+                "sparcc",
+                "--table",
+                str(table),
+                "--output",
+                str(output),
+                "--min-abs-weight",
+                "0",
+                "--min-prevalence",
+                "0",
+                "--sparcc-iterations",
+                "3",
+                "--sparcc-inner-iterations",
+                "2",
+                "--sparcc-seed",
+                str(seed),
+            ],
+        )
+        assert result.exit_code == 0, result.stdout
+
+    assert outputs[0].read_bytes() == outputs[1].read_bytes()
+    first_weights = (
+        pd.read_csv(outputs[0], sep="\t").set_index(["source", "target"])["weight"].sort_index()
+    )
+    different_weights = (
+        pd.read_csv(outputs[2], sep="\t").set_index(["source", "target"])["weight"].sort_index()
+    )
+    assert first_weights.index.equals(different_weights.index)
+    assert not np.array_equal(first_weights.to_numpy(), different_weights.to_numpy())
 
 
 def test_spieceasi_builds_command_and_logs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

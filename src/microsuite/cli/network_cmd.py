@@ -28,7 +28,38 @@ def infer_cmd(
         typer.Option("--min-prevalence", min=0.0, max=1.0, help="Minimum feature prevalence."),
     ] = 0.1,
     top_n: Annotated[int | None, typer.Option("--top-n", min=1)] = None,
-    pseudocount: Annotated[float, typer.Option("--pseudocount", min=0.0)] = 1.0,
+    pseudocount: Annotated[
+        float,
+        typer.Option(
+            "--pseudocount",
+            min=0.0,
+            help=(
+                "CLR zero replacement for native correlation; Dirichlet concentration "
+                "offset for SparCC, where it must be greater than zero."
+            ),
+        ),
+    ] = 1.0,
+    sparcc_iterations: Annotated[
+        int,
+        typer.Option("--sparcc-iterations", min=1, help="SparCC outer iterations."),
+    ] = 20,
+    sparcc_inner_iterations: Annotated[
+        int,
+        typer.Option("--sparcc-inner-iterations", min=1, help="SparCC exclusion iterations."),
+    ] = 10,
+    sparcc_exclusion_threshold: Annotated[
+        float,
+        typer.Option(
+            "--sparcc-exclusion-threshold",
+            min=0.0,
+            max=1.0,
+            help="SparCC correlation exclusion threshold.",
+        ),
+    ] = 0.1,
+    sparcc_seed: Annotated[
+        int,
+        typer.Option("--sparcc-seed", min=0, help="SparCC random seed."),
+    ] = 0,
     spieceasi_method: Annotated[
         str, typer.Option("--spieceasi-method", help="SPIEC-EASI method: mb or glasso.")
     ] = "mb",
@@ -58,6 +89,10 @@ def infer_cmd(
         min_prevalence=min_prevalence,
         top_n=top_n,
         pseudocount=pseudocount,
+        iterations=sparcc_iterations,
+        inner_iterations=sparcc_inner_iterations,
+        exclusion_threshold=sparcc_exclusion_threshold,
+        seed=sparcc_seed,
         spieceasi_method=spieceasi_method,
         lambda_min_ratio=lambda_min_ratio,
         nlambda=nlambda,
