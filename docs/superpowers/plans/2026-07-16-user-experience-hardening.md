@@ -832,7 +832,7 @@ Backward-compatibility gates:
 
 ## 13. Separate Repository Migration After 0.2.0
 
-This work occurs in `oral_microbiome_gingivitis` only after the integrated
+This work occurs in the downstream consumer repository only after the integrated
 MicroSuite release is available.
 
 ### Tasks
