@@ -31,5 +31,10 @@ se <- SummarizedExperiment::SummarizedExperiment(
   assays = list(counts = as.matrix(counts)),
   colData = metadata
 )
+# LEfSe expects relative abundances, not raw counts. Given counts, lefser only
+# emits a warning and carries on, producing LDA scores confounded by sequencing
+# depth -- a complete, plausible, wrong result. relativeAb converts to counts
+# per million, which is what the method assumes.
+se <- lefser::relativeAb(se)
 result <- lefser::lefser(se, classCol = group_col)
 write.table(result, file = output_path, sep = "\t", quote = FALSE, row.names = FALSE)

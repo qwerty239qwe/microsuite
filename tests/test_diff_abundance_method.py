@@ -273,3 +273,24 @@ def test_diff_abundance_threads_runtime_and_image(
         image="img:3",
     )
     assert captured_r["runtime"] == "docker" and captured_r["image"] == "img:3"
+
+
+def test_maaslin2_script_normalizes_library_size() -> None:
+    # The caller hands MaAsLin 2 a raw count table. normalization = "NONE" left
+    # every result confounded by sequencing depth while still producing a
+    # well-formed table of plausible p-values, so nothing surfaced the error.
+    # TSS is MaAsLin 2's own default. Shipped wrong in 0.2.0; fixed in 0.2.1.
+    script = files("microsuite.diffab.r").joinpath("maaslin2.R").read_text(encoding="utf-8")
+
+    assert 'normalization = "TSS"' in script
+    assert 'normalization = "NONE"' not in script
+
+
+def test_lefse_script_converts_counts_to_relative_abundance() -> None:
+    # lefser documents that LEfSe expects relative abundances; handed raw counts
+    # it only warns and continues, yielding LDA scores driven by library size.
+    # Shipped wrong in 0.2.0; fixed in 0.2.1.
+    script = files("microsuite.diffab.r").joinpath("lefse.R").read_text(encoding="utf-8")
+
+    assert "relativeAb" in script
+    assert script.index("relativeAb") < script.index("lefser::lefser")
