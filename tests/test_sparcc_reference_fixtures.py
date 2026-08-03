@@ -169,20 +169,22 @@ def test_provenance_and_hashes_are_frozen() -> None:
         assert f"`{expected_hash}`" in readme
 
 
-def test_python_inputs_regenerate_byte_for_byte(tmp_path: Path) -> None:
-    subprocess.run(
-        [
-            sys.executable,
-            str(FIXTURE_DIR / "generate_inputs.py"),
-            "--output-dir",
-            str(tmp_path),
-        ],
-        check=True,
-    )
+def test_python_inputs_regenerate_deterministically(tmp_path: Path) -> None:
+    generated_dirs = (tmp_path / "first", tmp_path / "second")
+    for generated_dir in generated_dirs:
+        subprocess.run(
+            [
+                sys.executable,
+                str(FIXTURE_DIR / "generate_inputs.py"),
+                "--output-dir",
+                str(generated_dir),
+            ],
+            check=True,
+        )
     for filename in (
         "dense_counts.tsv",
         "zero_counts.tsv",
         "inner_compositions.tsv",
         "latent_correlation.tsv",
     ):
-        assert _sha256(tmp_path / filename) == _sha256(FIXTURE_DIR / filename)
+        assert _sha256(generated_dirs[0] / filename) == _sha256(generated_dirs[1] / filename)

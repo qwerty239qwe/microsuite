@@ -175,7 +175,7 @@ jobs:
           use-public-rspm: true
 
       - name: Install Python dependencies
-        run: uv sync --locked
+        run: uv sync --all-extras --locked
 
       - name: Install VGAM
         run: Rscript -e 'install.packages("VGAM", repos = "https://cloud.r-project.org")'
