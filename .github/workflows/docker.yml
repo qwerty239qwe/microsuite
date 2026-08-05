@@ -118,6 +118,10 @@ jobs:
             dockerfile: containers/r-ecology/Dockerfile
             context: .
             heavy: true
+          - image: r-batch-mmuphin
+            dockerfile: containers/r-batch-mmuphin/Dockerfile
+            context: .
+            heavy: true
           - image: microsuite-picrust2
             dockerfile: containers/microsuite-picrust2/Dockerfile
             context: .

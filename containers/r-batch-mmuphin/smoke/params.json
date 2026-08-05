@@ -1,0 +1,7 @@
+{
+  "batch": "batch",
+  "covariates": [
+    "group"
+  ],
+  "target": null
+}
