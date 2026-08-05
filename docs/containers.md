@@ -19,6 +19,7 @@ containers/mafft-fasttree/     MAFFT/FastTree phylogeny
 containers/metaphlan/          MetaPhlAn marker-gene profiling
 containers/qiime2-amplicon/    QIIME 2 amplicon workflows
 containers/r-dada2/            R DADA2 ASV inference
+containers/r-ecology/          R vegan adonis2/anosim2 beta-diversity tests
 containers/r-diffab/           R differential-abundance tools
 containers/kraken2/            Kraken2 taxonomy profiling and Bracken abundance
 containers/microsuite-picrust2/  microsuite CLI + PICRUSt2 functional profiling
@@ -40,6 +41,7 @@ containers/prjna321534-alpha/    BioProject PRJNA321534 alpha-diversity cloud ru
 | `metaphlan` | MetaPhlAn marker-gene profiling | `metaphlan` | implemented |
 | `qiime2-amplicon` | QIIME 2 amplicon backend | `qiime` | skeleton |
 | `r-dada2` | R DADA2 ASV inference (runtime only; no microsuite) | `Rscript`, `dada2` | implemented |
+| `r-ecology` | vegan formula-based beta-diversity tests | `Rscript`, `vegan` | implemented (heavy) |
 | `microsuite-dada2` | microsuite CLI + R DADA2 backend in one image | `microsuite`, `uv`, `Rscript`, `dada2` | implemented (heavy) |
 | `r-diffab` | R differential abundance backend | `Rscript`, `ANCOMBC`, `ALDEx2`, `MaAsLin2`, `lefser` | implemented |
 | `kraken2` | Kraken2 taxonomy profiling and Bracken abundance | `kraken2`, `bracken` | implemented |
@@ -76,6 +78,7 @@ containers/mafft-fasttree/Dockerfile
 containers/metaphlan/Dockerfile
 containers/qiime2-amplicon/Dockerfile
 containers/r-dada2/Dockerfile
+containers/r-ecology/Dockerfile
 containers/microsuite-dada2/Dockerfile
 containers/r-diffab/Dockerfile
 containers/kraken2/Dockerfile
@@ -84,10 +87,10 @@ containers/prjna321534-alpha/Dockerfile
 ```
 
 Heavy images remain explicit validation steps because QIIME 2,
-R/Bioconductor, and PICRUSt2 images can be large and network-sensitive. Use the
+R/Bioconductor, vegan, and PICRUSt2 images can be large and network-sensitive. Use the
 manual GitHub Actions `build-heavy-containers=true` input to build `metaphlan`,
 `qiime2-amplicon`, `r-dada2`, `r-diffab`, `microsuite-picrust2`, and
-`microsuite-dada2` in CI.
+`microsuite-dada2`, and `r-ecology` in CI.
 
 Unlike the runtime-only `r-dada2` image (R + `dada2`, no microsuite), the
 `microsuite-dada2` image bundles the CLI and the packaged `dada2_denoise.R`, so
@@ -125,6 +128,7 @@ docker build -f containers/mafft-fasttree/Dockerfile -t microsuite-mafft-fasttre
 docker build -f containers/metaphlan/Dockerfile -t microsuite-metaphlan:local .
 docker build -f containers/qiime2-amplicon/Dockerfile -t microsuite-qiime2-amplicon:local .
 docker build -f containers/r-dada2/Dockerfile -t microsuite-r-dada2:local .
+docker build -f containers/r-ecology/Dockerfile -t microsuite-r-ecology:local .
 docker build -f containers/microsuite-dada2/Dockerfile -t microsuite-dada2:local .
 docker build -f containers/r-diffab/Dockerfile -t microsuite-r-diffab:local .
 docker build -f containers/kraken2/Dockerfile -t microsuite-kraken2:local .

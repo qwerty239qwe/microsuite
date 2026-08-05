@@ -18,7 +18,11 @@ SUPPORTED_METHODS = {
     "feature_summarize": ("qiime2",),
     "phylogeny": ("qiime2-mafft-fasttree", "mafft-fasttree"),
     "diversity_core": ("qiime2-core-metrics-phylogenetic",),
-    "diversity_test": ("qiime2-alpha-group-significance", "qiime2-beta-group-significance"),
+    "diversity_test": (
+        "qiime2-alpha-group-significance",
+        "qiime2-beta-group-significance",
+        "qiime2-adonis",
+    ),
     "ordination_plot": ("qiime2-emperor",),
     "rarefaction": ("qiime2-alpha-rarefaction",),
     "tax_train": ("qiime2-naive-bayes",),
@@ -384,6 +388,9 @@ def diversity_test(
     output: Path | None = None,
     method: str = "permanova",
     pairwise: bool = False,
+    formula: str | None = None,
+    permutations: int = 999,
+    n_jobs: int | str = 1,
     force: bool = False,
     run_dir: Path | None = None,
     timeout: float | None = None,
@@ -395,7 +402,45 @@ def diversity_test(
     qiime = require_qiime("QIIME 2 diversity group significance")
     ensure_input(metadata)
     prepare_output(output, force=force)
-    if backend == "qiime2-alpha-group-significance":
+    if backend == "qiime2-adonis":
+        distance_matrix = _required(distance_matrix, "--distance-matrix", backend)
+        if not formula or not formula.strip():
+            raise MicrobiomeSuiteError(f"--formula is required for --backend {backend}.")
+        if "~" in formula or "\n" in formula or "\r" in formula:
+            raise MicrobiomeSuiteError(
+                "--formula must contain only the R formula right-hand side for QIIME 2."
+            )
+        if method.lower() != "permanova":
+            raise MicrobiomeSuiteError(
+                "--method must remain permanova for the QIIME 2 adonis backend."
+            )
+        if metadata_column:
+            raise MicrobiomeSuiteError(
+                f"--metadata-column is not used for --backend {backend}; use --formula."
+            )
+        if pairwise:
+            raise MicrobiomeSuiteError(f"--pairwise is not supported for --backend {backend}.")
+        if permutations < 1:
+            raise MicrobiomeSuiteError("--permutations must be at least 1 for QIIME 2 adonis.")
+        ensure_input(distance_matrix)
+        command = [
+            qiime,
+            "diversity",
+            "adonis",
+            "--i-distance-matrix",
+            str(distance_matrix),
+            "--m-metadata-file",
+            str(metadata),
+            "--p-formula",
+            formula.strip(),
+            "--p-permutations",
+            str(permutations),
+            "--p-n-jobs",
+            str(resolve_threads(n_jobs)),
+            "--o-visualization",
+            str(output),
+        ]
+    elif backend == "qiime2-alpha-group-significance":
         alpha_diversity = _required(alpha_diversity, "--alpha-diversity", backend)
         ensure_input(alpha_diversity)
         command = [
@@ -413,6 +458,12 @@ def diversity_test(
         distance_matrix = _required(distance_matrix, "--distance-matrix", backend)
         if not metadata_column:
             raise MicrobiomeSuiteError(f"--metadata-column is required for --backend {backend}.")
+        if formula:
+            raise MicrobiomeSuiteError(
+                f"--formula is only supported for --backend qiime2-adonis, not {backend}."
+            )
+        if permutations < 1:
+            raise MicrobiomeSuiteError("--permutations must be at least 1 for QIIME 2.")
         ensure_input(distance_matrix)
         command = [
             qiime,
@@ -426,6 +477,8 @@ def diversity_test(
             metadata_column,
             "--p-method",
             method,
+            "--p-permutations",
+            str(permutations),
             "--o-visualization",
             str(output),
         ]

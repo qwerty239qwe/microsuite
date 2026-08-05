@@ -76,6 +76,7 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "containers/r-diffab-aldex2/Dockerfile" in text
     assert "containers/r-diffab-maaslin2/Dockerfile" in text
     assert "containers/r-diffab-lefse/Dockerfile" in text
+    assert "containers/r-ecology/Dockerfile" in text
     assert "containers/r-diffab/Dockerfile" not in text
     assert "build-heavy-containers" in text
     assert "Skipping heavy container image" in text
@@ -101,7 +102,7 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "image: microsuite-dada2" in text
     assert "image: mothur" in text
     assert text.count("heavy: false") == 12
-    assert text.count("heavy: true") == 9
+    assert text.count("heavy: true") == 10
     assert "load: true" in text
     assert "Run FastQC tiny example" in text
     assert "Run MultiQC tiny example" in text

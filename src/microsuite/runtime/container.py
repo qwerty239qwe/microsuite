@@ -11,6 +11,10 @@ from microsuite._errors import MicrobiomeSuiteError
 
 DEFAULT_DADA2_IMAGE = "ghcr.io/qwerty239qwe/microsuite/r-dada2:latest"
 _DADA2_IMAGE_ENV = "MICROSUITE_R_DADA2_IMAGE"
+DEFAULT_ECOLOGY_IMAGE = "ghcr.io/qwerty239qwe/microsuite/r-ecology:latest"
+DEFAULT_VEGAN_IMAGE = DEFAULT_ECOLOGY_IMAGE
+_ECOLOGY_IMAGE_ENV = "MICROSUITE_R_ECOLOGY_IMAGE"
+_VEGAN_IMAGE_ENV = "MICROSUITE_R_VEGAN_IMAGE"
 DEFAULT_DIFFAB_IMAGE_PREFIX = "ghcr.io/qwerty239qwe/microsuite/r-diffab-"
 _DIFFAB_IMAGE_ENV_PREFIX = "MICROSUITE_R_DIFFAB_"
 
@@ -191,6 +195,21 @@ def resolve_dada2_image(override: str | None) -> str:
     if env:
         return env
     return DEFAULT_DADA2_IMAGE
+
+
+def resolve_ecology_image(override: str | None) -> str:
+    """Resolve the vegan ecology image: explicit override, env, then GHCR default."""
+    if override:
+        return override
+    env = os.environ.get(_ECOLOGY_IMAGE_ENV) or os.environ.get(_VEGAN_IMAGE_ENV)
+    if env:
+        return env
+    return DEFAULT_ECOLOGY_IMAGE
+
+
+def resolve_vegan_image(override: str | None) -> str:
+    """Compatibility alias for callers that name the backend rather than image."""
+    return resolve_ecology_image(override)
 
 
 def resolve_diffab_image(backend: str, override: str | None) -> str:

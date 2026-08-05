@@ -26,7 +26,8 @@ rarefy_table(adata, depth=10000)
 alpha_diversity(adata, metric="shannon")
 beta_diversity(adata, metric="bray-curtis")
 pcoa(distance_matrix)
-beta_significance(distance_matrix, metadata, column="body_site", method="permanova")  # or permdisp / anosim
+beta_significance(distance_matrix, metadata, column="body_site", method="permanova")  # native
+vegan_beta_significance(distance_matrix, metadata, formula="site + phase", strata="subject", method="adonis2", runtime="docker")
 mantel_test(matrix_a, matrix_b, method="spearman")
 gamma_diversity(adata, group="body_site")
 beta_turnover(adata, level="genus")
@@ -56,6 +57,20 @@ tool methods, such as FastQC, through the same backend names used by the CLI.
 It does not install or activate QIIME 2, DADA2, Kraken2, R, containers, or
 Nextflow execution environments; those tools must already be available in the
 runtime environment.
+
+`vegan_beta_significance` runs vegan's formula-aware `adonis2` or the
+`anosim2` compatibility entry point (backed by `vegan::anosim`). Set
+`runtime="docker"` to use the `r-ecology` image.
+For `adonis2`, `formula`, `strata`, and `permutations` may be supplied
+together. `formula` is the right-hand side, for example
+`formula="batch + group / time_point"`; `strata="batch:subject"` creates a
+restricted permutation block from the two metadata columns. This is not a
+mixed-effects random intercept, and lme4-style `(1 | ...)` terms are rejected.
+
+For QIIME 2's formula-based action, use the artifact-oriented
+`diversity_test(backend="qiime2-adonis", distance_matrix=..., metadata=...,
+formula="batch + group / time_point", permutations=999)`. It writes a QIIME 2
+`.qzv` visualization, supports `n_jobs`, and does not support `strata`.
 
 External-tool methods accept optional `run_dir` and `timeout` arguments. When
 `run_dir` is supplied, microsuite writes `command.txt`, `stdout.log`,

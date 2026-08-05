@@ -63,6 +63,7 @@ def test_python_sdk_facade_public_exports_include_qc() -> None:
     assert "qc" in api.__all__
     assert "functional_profile" in api.__all__
     assert "beta_significance" in api.__all__
+    assert "vegan_beta_significance" in api.__all__
     assert "mantel_test" in api.__all__
     assert "gamma_diversity" in api.__all__
     assert "constrained_ordination" in api.__all__

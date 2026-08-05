@@ -17,6 +17,10 @@ microsuite normalize --backend native --method clr --table table.h5ad -o clr.h5a
 microsuite abundance --backend native --table table.h5ad --level genus -o abundance.tsv
 microsuite tax_classify --backend qiime2 --rep-seqs rep-seqs.qza --classifier classifier.qza -o taxonomy.qza
 microsuite diff_abundance --backend ancombc --table table.h5ad --group treatment -o diff.tsv
+microsuite diversity beta-significance beta.tsv --metadata metadata.tsv --backend vegan --formula "site + phase" --strata subject --method adonis2 --runtime docker -o adonis2.tsv
+microsuite diversity beta-significance beta.tsv --metadata metadata.tsv --backend vegan --formula "batch + group / time_point" --strata "batch:subject" --permutations 999 --method adonis2 --runtime docker -o repeated-measures.tsv
+microsuite diversity beta-significance beta.tsv --metadata metadata.tsv --backend vegan --column site --method anosim2 --runtime docker -o anosim2.tsv
+microsuite diversity_test --backend qiime2-adonis --distance-matrix distance.qza --metadata metadata.tsv --formula "batch + group / time_point" --permutations 999 --output adonis.qzv
 microsuite report --backend native --run-dir runs/table-summary -o report.html
 ```
 
@@ -55,6 +59,17 @@ Conventions:
 - `--timeout` = optional external command timeout in seconds
 - `--threads auto` = use detected CPU count minus one reserved core when supported
 - external backends must fail clearly when executables are unavailable
+
+The vegan backend delegates formula-based tests to `vegan::adonis2`. The
+`anosim2` name is microsuite's stable compatibility name for vegan's
+`vegan::anosim` function; vegan does not provide an upstream `anosim2` symbol.
+For `adonis2`, `--formula` is the right-hand side only, and it can be combined
+with `--strata` and `--permutations`. `--strata` accepts one metadata column or
+a colon-separated interaction such as `batch:subject`; the latter is materialised
+as a permutation block. This restricts permutations but does not fit an
+lme4-style random effect, so `(1 | batch:subject)` is rejected explicitly.
+Use `--runtime docker` with the `r-ecology` image when local R/vegan is not
+installed.
 
 The CLI is not responsible for large workflow scheduling. Use the Nextflow API
 for full reproducible pipelines.

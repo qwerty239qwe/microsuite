@@ -26,6 +26,7 @@ from microsuite.diversity.ecology import (
 from microsuite.diversity.ecology import (
     taxa_turnover as _taxa_turnover,
 )
+from microsuite.diversity.vegan import vegan_beta_significance as _vegan_beta_significance
 from microsuite.methods.abundance import abundance_native
 from microsuite.methods.normalize import normalize_native
 from microsuite.methods.rarefy import rarefy_native
@@ -86,10 +87,19 @@ def beta_significance(
     distance_matrix: pd.DataFrame,
     metadata: pd.DataFrame,
     *,
-    column: str,
+    column: str | None = None,
     method: str = "permanova",
     permutations: int = 999,
     seed: int = 0,
+    backend: str = "native",
+    formula: str | None = None,
+    strata: str | None = None,
+    runtime: str = "local",
+    image: str | None = None,
+    engine: str = "docker",
+    run_dir: Path | None = None,
+    timeout: float | None = None,
+    sidecar_dir: Path | None = None,
 ) -> pd.DataFrame:
     return _beta_significance(
         distance_matrix,
@@ -98,6 +108,50 @@ def beta_significance(
         method=method,
         permutations=permutations,
         seed=seed,
+        backend=backend,
+        formula=formula,
+        strata=strata,
+        runtime=runtime,
+        image=image,
+        engine=engine,
+        run_dir=run_dir,
+        timeout=timeout,
+        sidecar_dir=sidecar_dir,
+    )
+
+
+def vegan_beta_significance(
+    distance_matrix: pd.DataFrame,
+    metadata: pd.DataFrame,
+    *,
+    column: str | None = None,
+    method: str = "adonis2",
+    formula: str | None = None,
+    strata: str | None = None,
+    permutations: int = 999,
+    seed: int = 0,
+    runtime: str = "local",
+    image: str | None = None,
+    engine: str = "docker",
+    run_dir: Path | None = None,
+    timeout: float | None = None,
+    sidecar_dir: Path | None = None,
+) -> pd.DataFrame:
+    return _vegan_beta_significance(
+        distance_matrix,
+        metadata,
+        column=column,
+        method=method,
+        formula=formula,
+        strata=strata,
+        permutations=permutations,
+        seed=seed,
+        runtime=runtime,
+        image=image,
+        engine=engine,
+        run_dir=run_dir,
+        timeout=timeout,
+        sidecar_dir=sidecar_dir,
     )
 
 

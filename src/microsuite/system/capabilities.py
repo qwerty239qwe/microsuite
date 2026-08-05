@@ -8,6 +8,11 @@ from microsuite.system.version import package_version
 # Capability IDs are stable integration contracts. Increment ``api`` when a
 # consumer must adapt to a behavior or output-schema change.
 _CAPABILITIES: dict[str, dict[str, Any]] = {
+    "diversity.beta_significance.adonis2.vegan": {"available": True, "api": 1},
+    "diversity.beta_significance.adonis.qiime2": {"available": True, "api": 1},
+    "diversity.beta_significance.anosim2.vegan": {"available": True, "api": 1},
+    "diversity.beta_significance.formula.vegan": {"available": True, "api": 1},
+    "diversity.beta_significance.strata.vegan": {"available": True, "api": 1},
     "diversity.beta_significance.permdisp.native": {"available": True, "api": 1},
     "metadata.resolved_config.v1": {"available": True, "api": 1},
     "metadata.stage_result.v1": {"available": True, "api": 1},

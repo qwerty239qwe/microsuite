@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import anndata as ad
 import numpy as np
@@ -23,11 +24,53 @@ def beta_significance(
     distance_matrix: pd.DataFrame,
     metadata: pd.DataFrame,
     *,
-    column: str,
+    column: str | None = None,
     method: str = "permanova",
     permutations: int = 999,
     seed: int = 0,
+    backend: str = "native",
+    formula: str | None = None,
+    strata: str | None = None,
+    runtime: str = "local",
+    image: str | None = None,
+    engine: str = "docker",
+    run_dir: Path | None = None,
+    timeout: float | None = None,
+    sidecar_dir: Path | None = None,
 ) -> pd.DataFrame:
+    backend = backend.lower()
+    if (
+        backend == "native"
+        and method.lower().replace("-", "") in {"adonis2", "anosim2"}
+    ):
+        backend = "vegan"
+    if backend == "vegan":
+        from microsuite.diversity.vegan import vegan_beta_significance
+
+        return vegan_beta_significance(
+            distance_matrix,
+            metadata,
+            column=column,
+            method=method,
+            formula=formula,
+            strata=strata,
+            permutations=permutations,
+            seed=seed,
+            runtime=runtime,
+            image=image,
+            engine=engine,
+            run_dir=run_dir,
+            timeout=timeout,
+            sidecar_dir=sidecar_dir,
+        )
+    if backend != "native":
+        raise MicrobiomeSuiteError("--backend must be native or vegan.")
+    if column is None:
+        raise MicrobiomeSuiteError("Native beta-significance requires --column.")
+    if formula is not None or strata is not None or runtime != "local" or image is not None:
+        raise MicrobiomeSuiteError(
+            "--formula, --strata, and --runtime/--image are only supported with --backend vegan."
+        )
     samples, distances, labels = _aligned_distance_and_labels(distance_matrix, metadata, column)
     method = method.lower()
     if method == "permanova":

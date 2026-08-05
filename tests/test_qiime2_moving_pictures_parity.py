@@ -11,6 +11,7 @@ from microsuite._errors import MicrobiomeSuiteError
 from microsuite.cli.app import app
 from microsuite.methods.qiime2_wrappers import (
     demux,
+    diversity_test,
     feature_summarize,
     metadata_tabulate,
     phylogeny,
@@ -112,6 +113,49 @@ def test_demux_and_feature_summarize_commands(
     assert "--m-barcodes-column" in calls[0]
     assert calls[1][1:3] == ["feature-table", "summarize"]
     assert "--m-sample-metadata-file" in calls[1]
+
+
+def test_qiime2_adonis_builds_formula_permutation_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    distance_matrix = touch(tmp_path / "distance-matrix.qza")
+    metadata = touch(tmp_path / "metadata.tsv")
+    calls: list[list[str]] = []
+    monkeypatch.setattr("shutil.which", qiime_only)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda command, **kwargs: calls.append(command) or fake_success(command),
+    )
+
+    diversity_test(
+        backend="qiime2-adonis",
+        distance_matrix=distance_matrix,
+        metadata=metadata,
+        output=tmp_path / "adonis.qzv",
+        formula="batch + group / time_point",
+        permutations=199,
+        n_jobs=2,
+    )
+
+    assert calls == [
+        [
+            "qiime",
+            "diversity",
+            "adonis",
+            "--i-distance-matrix",
+            str(distance_matrix),
+            "--m-metadata-file",
+            str(metadata),
+            "--p-formula",
+            "batch + group / time_point",
+            "--p-permutations",
+            "199",
+            "--p-n-jobs",
+            "2",
+            "--o-visualization",
+            str(tmp_path / "adonis.qzv"),
+        ]
+    ]
 
 
 def test_phylogeny_and_tax_train_commands(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

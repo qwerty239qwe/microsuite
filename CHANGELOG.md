@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-05
+
+### Added
+
+- Vegan-backed formula beta-diversity significance via `adonis2` and the
+  microsuite `anosim2` compatibility entry point (`vegan::anosim`), with
+  blocked permutations through `--strata`.
+- A dedicated `r-ecology` Docker image with build-time adonis2/anosim2 smoke
+  tests and heavy-image CI registration.
+- A QIIME 2 `adonis` backend through `diversity_test`, with formula,
+  permutation-count, and parallel-job forwarding; it writes QIIME `.qzv`
+  visualizations and does not expose restricted `strata` permutations.
+
 ## [0.2.2] - 2026-08-03
 
 ### Fixed

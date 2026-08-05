@@ -92,6 +92,14 @@ def register(app: typer.Typer) -> None:
         output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
         method: Annotated[str, typer.Option("--method")] = "permanova",
         pairwise: Annotated[bool, typer.Option("--pairwise")] = False,
+        formula: Annotated[
+            str | None,
+            typer.Option("--formula", help="QIIME 2 adonis formula right-hand side."),
+        ] = None,
+        permutations: Annotated[int, typer.Option("--permutations", min=1)] = 999,
+        n_jobs: Annotated[
+            str, typer.Option("--n-jobs", help="QIIME 2 adonis parallel jobs or 'auto'.")
+        ] = "1",
         force: Annotated[bool, typer.Option("--force")] = False,
         run_dir: Annotated[Path | None, typer.Option("--run-dir")] = None,
         timeout: Annotated[float | None, typer.Option("--timeout")] = None,
@@ -105,6 +113,9 @@ def register(app: typer.Typer) -> None:
             output=output,
             method=method,
             pairwise=pairwise,
+            formula=formula,
+            permutations=permutations,
+            n_jobs=n_jobs,
             force=force,
             run_dir=run_dir,
             timeout=timeout,

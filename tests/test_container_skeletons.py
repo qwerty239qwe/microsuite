@@ -30,6 +30,7 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
         "r-diffab-aldex2": ["Rscript", "ALDEx2"],
         "r-diffab-maaslin2": ["Rscript", "Maaslin2"],
         "r-diffab-lefse": ["Rscript", "lefser"],
+        "r-ecology": ["Rscript", "vegan", "adonis2", "anosim2"],
         "kraken2": ["kraken2", "bracken"],
         "microsuite-picrust2": ["microsuite", "picrust2"],
         "microsuite-dada2": ["microsuite", "Rscript", "dada2"],
@@ -89,6 +90,13 @@ def test_r_diffab_smoke_outputs_use_writable_tmp() -> None:
         text = (CONTAINERS / f"r-diffab-{backend}" / "Dockerfile").read_text(encoding="utf-8")
         assert "/tmp/microsuite-smoke-out.tsv" in text
         assert "/opt/microsuite/smoke_out.tsv" not in text
+
+
+def test_r_ecology_smoke_outputs_use_writable_tmp() -> None:
+    text = (CONTAINERS / "r-ecology" / "Dockerfile").read_text(encoding="utf-8")
+    assert "/tmp/microsuite-adonis2.tsv" in text
+    assert "/tmp/microsuite-anosim2.tsv" in text
+    assert "/opt/microsuite/smoke_out.tsv" not in text
 
 
 def test_ancombc_backend_uses_cross_version_tse_input() -> None:

@@ -36,10 +36,9 @@ none of them. `run_id` survives only as a provenance column.
 | # | Deliverable |
 |---|---|
 | 1 | Formulas as a first-class part of `diff_abundance`, across every backend that supports them |
-| 2 | `maaslin3` backend on that unified surface |
-| 3 | `microsuite batch_correct` — a new verb with two backends |
-| 4 | Simpson metric disambiguation |
-| 5 | Zero-depth sample guard in alpha diversity |
+| 2 | `microsuite batch_correct` — a new verb with two backends |
+| 3 | Simpson metric disambiguation |
+| 4 | Zero-depth sample guard in alpha diversity |
 
 Items 4 and 5 are unrelated to the rest and ride along because both are
 silent-wrong-result defects costing roughly an afternoon each, and item 4 is a
@@ -48,9 +47,14 @@ silent-wrong-result defects costing roughly an afternoon each, and item 4 is a
 ### Out of scope, with reasons
 
 - **MMUPHin `lm_meta`.** It is meta-analytic differential abundance, not batch
-  correction, and it runs MaAsLin **2** internally. Shipping it beside MaAsLin 3
-  would invite the assumption that it inherits v3's mixed effects and prevalence
-  testing. It does not. Deferred until that can be surfaced honestly.
+  correction, and it runs MaAsLin **2** internally. Shipping it beside a future
+  MaAsLin 3 backend would invite the assumption that it inherits v3's mixed
+  effects and prevalence testing. It does not. Deferred until that can be
+  surfaced honestly.
+- **MaAsLin 3.** Moved to the 0.4.0 plan so the 0.3.0 release can stabilize the
+  formula surface, batch-correction contract, and existing backends first. Its
+  separate abundance/prevalence outputs and new container need a dedicated
+  output contract and integration smoke test.
 - **ALDEx2 `aldex.glm`.** ALDEx2 does support model matrices, so it *could* join
   the formula surface. microsuite currently calls `aldex.ttest`, and extending it
   is a separate piece of work with its own validation burden.
@@ -80,7 +84,6 @@ this codebase keeps producing.
 |---|---|---|
 | `ancombc` | yes | already has them; `params.json` |
 | `maaslin2` | yes | migrate to `params.json` |
-| `maaslin3` | yes | new, `params.json` |
 | `aldex2` | no | `aldex.ttest` is a two-group test, not a regression |
 | `lefse` | no | LEfSe is a two-class biomarker method |
 
@@ -97,7 +100,7 @@ mechanism `tax_classify` uses for mothur-only options.
 `ancombc.R` already takes `counts.tsv metadata.tsv params.json output.tsv` and
 reads `fix_formula`, `rand_formula`, `group`, and `reference` from the JSON.
 `maaslin2.R` takes a positional `group_col`. Migrate `maaslin2.R` to the
-`params.json` convention and write `maaslin3.R` to it from the start.
+`params.json` convention.
 
 `aldex2.R` and `lefse.R` keep their positional signature. They gain no
 parameters, so a params file would be ceremony.
@@ -109,36 +112,7 @@ It is adopted and wired with full option pass-through in the consumer's
 unified path, keeping its current flags. No deprecation warning in 0.3.0 —
 breaking a working integration to tidy a namespace is not worth it.
 
-## Component 2 — MaAsLin 3
-
-A `maaslin3` backend, `src/microsuite/diffab/r/maaslin3.R`, plus a
-`containers/r-diffab-maaslin3` image following the existing per-backend image
-pattern.
-
-What MaAsLin 3 adds over MaAsLin 2, and why it is worth a new backend rather
-than an upgrade in place:
-
-- **Generalized mixed effects models** — subject-level random effects natively.
-  This is precisely the `(1 | subject_code)` the consumer hand-rolled a script
-  and a Dockerfile to obtain.
-- **Separate abundance and prevalence testing.** MaAsLin 2 tests prevalence only
-  insofar as it leaks into the abundance association; MaAsLin 3 models them
-  distinctly. This means **two result tables, not one**, which the output
-  contract must accommodate rather than flatten.
-- Group-wise differences and ordered predictors — relevant to the consumer's
-  categorical `time_day` and `phase_code` models.
-- Better calibration: −12% shrinkage against MaAsLin 2's +7.9% inflation at
-  n=1000.
-
-`maaslin2` is **retained, not superseded**. Anyone mid-analysis needs the version
-they started with, and reproducing a published MaAsLin 2 result requires
-MaAsLin 2.
-
-Normalization defaults to TSS, as fixed in 0.2.1, and `normalization`,
-`transform`, `min_prevalence`, and `min_abundance` become settable — the
-consumer's own script exposes all of them and microsuite exposes none.
-
-## Component 3 — `microsuite batch_correct`
+## Component 2 — `microsuite batch_correct`
 
 A new verb: table in, corrected table out. Any downstream method consumes the
 result. Keeping it a separate verb rather than a flag on other commands means it
@@ -157,7 +131,7 @@ This is the part of the design most likely to cause a silent wrong result.
 
 `adjust_batch` returns a corrected **abundance** matrix. `ComBat_seq` returns
 **integer counts**. Downstream methods disagree about what they want: ANCOM-BC
-and ALDEx2 expect counts; MaAsLin 2/3 normalize internally; the native
+and ALDEx2 expect counts; MaAsLin 2 and LEfSe normalize internally; the native
 `normalize` command assumes counts.
 
 Feeding a non-count matrix to a count-expecting method produces a complete,
@@ -174,8 +148,8 @@ Exactly these call sites read the key and raise when it says `abundance`:
 - `normalize --method clr` and `--method relative` — already-relative input would
   be normalized twice
 
-`maaslin2`, `maaslin3`, and `lefse` do **not** check, because all three normalize
-internally and accept either.
+`maaslin2` and `lefse` do **not** check, because both normalize internally and
+accept either.
 
 Absent the key — any table written before 0.3.0, or by any other command — the
 check is skipped and behaviour is unchanged. The key is an assertion when
@@ -186,7 +160,7 @@ Batch correction is also **not** a substitute for modelling batch as a covariate
 project has 21 runs and no correction of any kind, and the tempting move is to
 correct once and stop thinking about it.
 
-## Component 4 — Simpson disambiguation
+## Component 3 — Simpson disambiguation
 
 `diversity/alpha.py` computes `simpson = 1 - dominance(...)` (Gini-Simpson) and
 `simpson_d = dominance(...)` (Simpson's D). No microsuite document says so;
@@ -204,7 +178,7 @@ this.
 - Keep `simpson` working unchanged. Renaming it would silently change results for
   every existing caller, which is the very failure being fixed.
 
-## Component 5 — Zero-depth sample guard
+## Component 4 — Zero-depth sample guard
 
 A sample with zero total counts yields `shannon = NaN` and `sobs = 0.0` in the
 same row, with no warning. The consumer strips such samples before microsuite
@@ -242,13 +216,9 @@ Recorded as a follow-up.
 Command construction and option rejection are unit-tested with mocked
 subprocess, matching the existing R-backend tests.
 
-Two things need real execution, because the mothur work established that mocked
+One thing needs real execution, because the mothur work established that mocked
 subprocess tests verify only that we construct the commands we *intended*:
 
-- **A `maaslin3` smoke test** in `tests/integration/`, gated behind an env var
-  and the R package, asserting on results rather than exit status: a known
-  planted association is recovered, and the abundance and prevalence tables are
-  distinct.
 - **A `batch_correct` smoke test** on a synthetic two-batch dataset with a known
   batch effect and a known biological signal, asserting the batch effect shrinks
   and the biological signal survives. A correction that flattens everything would
@@ -259,10 +229,10 @@ data, no committed fixtures, assertions on the biology.
 
 ## Documentation
 
-- `docs/methods.md` — `maaslin3` and both `batch_correct` backends; Simpson
-  convention; the formula-capability table.
+- `docs/methods.md` — both `batch_correct` backends; Simpson convention; the
+  formula-capability table.
 - `docs/batch_correction.md` — new. When correction is appropriate, why it is not
   a substitute for modelling batch as a covariate, and the count-versus-abundance
   distinction.
 - `CHANGELOG.md` — note that `maaslin2` results from before 0.2.1 are not
-  comparable, and that MaAsLin 3 is an addition rather than a replacement.
+  comparable.

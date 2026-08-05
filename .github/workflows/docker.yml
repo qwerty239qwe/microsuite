@@ -5,18 +5,20 @@ on:
     branches: [main]
     paths:
       - "containers/**"
+      - "src/microsuite/diversity/r/**"
       - ".github/workflows/docker.yml"
       - "tests/fixtures/**"
   pull_request:
     branches: [main]
     paths:
       - "containers/**"
+      - "src/microsuite/diversity/r/**"
       - ".github/workflows/docker.yml"
       - "tests/fixtures/**"
   workflow_dispatch:
     inputs:
       build-heavy-containers:
-        description: "Build heavy QIIME 2, R/DADA2, and R differential-abundance images"
+        description: "Build heavy QIIME 2, R/DADA2, vegan, and differential-abundance images"
         required: false
         default: "false"
         type: choice
@@ -110,6 +112,10 @@ jobs:
             heavy: true
           - image: r-diffab-lefse
             dockerfile: containers/r-diffab-lefse/Dockerfile
+            context: .
+            heavy: true
+          - image: r-ecology
+            dockerfile: containers/r-ecology/Dockerfile
             context: .
             heavy: true
           - image: microsuite-picrust2
@@ -353,6 +359,25 @@ jobs:
           test -s tmp/docker-dada2/out/rep-seqs.fasta
           test -s tmp/docker-dada2/out/stats.tsv
           grep -q '^>ASV1' tmp/docker-dada2/out/rep-seqs.fasta
+
+      - name: Smoke test vegan ecology image
+        if: ${{ matrix.image == 'r-ecology' && github.event.inputs.build-heavy-containers == 'true' }}
+        run: |
+          mkdir -p tmp/docker-r-ecology
+          docker run --rm \
+            -v "${PWD}/containers/r-ecology/smoke:/input:ro" \
+            -v "${PWD}/tmp/docker-r-ecology:/output" \
+            microsuite/${{ matrix.image }}:ci \
+            /opt/microsuite/beta_significance.R \
+            /input/distance.tsv /input/metadata.tsv adonis2 group "" 19 0 /output/adonis2.tsv
+          docker run --rm \
+            -v "${PWD}/containers/r-ecology/smoke:/input:ro" \
+            -v "${PWD}/tmp/docker-r-ecology:/output" \
+            microsuite/${{ matrix.image }}:ci \
+            /opt/microsuite/beta_significance.R \
+            /input/distance.tsv /input/metadata.tsv anosim2 group "" 19 0 /output/anosim2.tsv
+          test -s tmp/docker-r-ecology/adonis2.tsv
+          test -s tmp/docker-r-ecology/anosim2.tsv
 
       # Publish images that were built and passed their smoke test. Only on the
       # main branch (never PRs), and only for images actually built this run.

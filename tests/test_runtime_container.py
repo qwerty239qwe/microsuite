@@ -8,6 +8,7 @@ from microsuite._errors import MicrobiomeSuiteError
 from microsuite.runtime import container
 from microsuite.runtime.container import (
     DEFAULT_DADA2_IMAGE,
+    DEFAULT_ECOLOGY_IMAGE,
     Mount,
     PathMapper,
     build_container_command,
@@ -15,6 +16,7 @@ from microsuite.runtime.container import (
     require_engine,
     resolve_dada2_image,
     resolve_diffab_image,
+    resolve_ecology_image,
     resolve_image_digest,
 )
 
@@ -74,6 +76,15 @@ def test_resolve_diffab_image_precedence(monkeypatch) -> None:
     monkeypatch.setenv("MICROSUITE_R_DIFFAB_ANCOMBC_IMAGE", "env:img")
     assert resolve_diffab_image("ancombc", None) == "env:img"
     assert resolve_diffab_image("ancombc", "override:img") == "override:img"
+
+
+def test_resolve_ecology_image_precedence(monkeypatch) -> None:
+    monkeypatch.delenv("MICROSUITE_R_ECOLOGY_IMAGE", raising=False)
+    monkeypatch.delenv("MICROSUITE_R_VEGAN_IMAGE", raising=False)
+    assert resolve_ecology_image(None) == DEFAULT_ECOLOGY_IMAGE
+    monkeypatch.setenv("MICROSUITE_R_ECOLOGY_IMAGE", "env:ecology")
+    assert resolve_ecology_image(None) == "env:ecology"
+    assert resolve_ecology_image("override:ecology") == "override:ecology"
 
 
 def test_resolve_image_digest_repo_digest_then_id(monkeypatch) -> None:

@@ -61,15 +61,48 @@ def beta(
 def beta_significance_cmd(
     distance_matrix: Annotated[Path, typer.Argument(help="Input square distance matrix TSV.")],
     metadata: Annotated[Path, typer.Option("--metadata", "-m", help="Sample metadata TSV.")],
-    column: Annotated[str, typer.Option("--column", help="Metadata grouping column.")],
     output: Annotated[Path, typer.Option("--output", "-o", help="Output TSV.")],
+    column: Annotated[
+        str | None,
+        typer.Option("--column", help="Metadata grouping column (required by native/anosim2)."),
+    ] = None,
     method: Annotated[
-        str, typer.Option("--method", help="permanova, permdisp, or anosim.")
+        str,
+        typer.Option("--method", help="Native: permanova/permdisp/anosim; vegan: adonis2/anosim2."),
     ] = "permanova",
+    backend: Annotated[
+        str, typer.Option("--backend", help="Significance backend: native or vegan.")
+    ] = "native",
+    formula: Annotated[
+        str | None, typer.Option("--formula", help="R formula right-hand side for vegan.")
+    ] = None,
+    strata: Annotated[
+        str | None,
+        typer.Option(
+            "--strata",
+            help="Vegan permutation block: metadata column or colon-separated interaction.",
+        ),
+    ] = None,
     permutations: Annotated[int, typer.Option("--permutations", min=0)] = 999,
     seed: Annotated[int, typer.Option("--seed")] = 0,
+    runtime: Annotated[
+        str, typer.Option("--runtime", help="vegan execution: local Rscript or docker.")
+    ] = "local",
+    image: Annotated[
+        str | None, typer.Option("--image", help="Override the r-ecology container image.")
+    ] = None,
+    engine: Annotated[
+        str, typer.Option("--engine", help="Container engine for --runtime docker.")
+    ] = "docker",
+    run_dir: Annotated[
+        Path | None, typer.Option("--run-dir", help="Write runtime logs here.")
+    ] = None,
+    timeout: Annotated[
+        float | None, typer.Option("--timeout", help="Command timeout in seconds.")
+    ] = None,
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
 ) -> None:
+    output_path = prepare_output(output, force=force)
     result = beta_significance(
         _read_distance_matrix(distance_matrix),
         _read_metadata(metadata),
@@ -77,8 +110,17 @@ def beta_significance_cmd(
         method=method,
         permutations=permutations,
         seed=seed,
+        backend=backend,
+        formula=formula,
+        strata=strata,
+        runtime=runtime,
+        image=image,
+        engine=engine,
+        run_dir=run_dir,
+        timeout=timeout,
+        sidecar_dir=output_path.parent,
     )
-    result.to_csv(prepare_output(output, force=force), sep="\t", index=False)
+    result.to_csv(output_path, sep="\t", index=False)
 
 
 @app.command("mantel")

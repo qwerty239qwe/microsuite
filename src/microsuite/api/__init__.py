@@ -15,6 +15,7 @@ from microsuite.api.ecology import (
     rarefy_table,
     shared_taxa_table,
     taxa_turnover,
+    vegan_beta_significance,
 )
 from microsuite.api.table import read_table, write_table
 from microsuite.methods.assembly import assemble
@@ -90,5 +91,6 @@ __all__ = [
     "primer_check_fails",
     "tax_train",
     "validate_primer_check_config",
+    "vegan_beta_significance",
     "write_table",
 ]
