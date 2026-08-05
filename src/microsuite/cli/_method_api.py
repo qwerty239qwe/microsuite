@@ -11,6 +11,8 @@ from microsuite.methods.abundance import SUPPORTED_BACKENDS as ABUNDANCE_BACKEND
 from microsuite.methods.abundance import abundance
 from microsuite.methods.assembly import SUPPORTED_BACKENDS as ASSEMBLY_BACKENDS
 from microsuite.methods.assembly import assemble
+from microsuite.methods.batch_correct import SUPPORTED_BACKENDS as BATCH_CORRECT_BACKENDS
+from microsuite.methods.batch_correct import batch_correct
 from microsuite.methods.binning import SUPPORTED_BACKENDS as BINNING_BACKENDS
 from microsuite.methods.binning import bin_contigs
 from microsuite.methods.cluster import SUPPORTED_BACKENDS as CLUSTER_BACKENDS
@@ -70,6 +72,7 @@ METHOD_BACKENDS: dict[str, tuple[str, ...]] = {
     "denoise": DENOISE_BACKENDS,
     "cluster": CLUSTER_BACKENDS,
     "assemble": ASSEMBLY_BACKENDS,
+    "batch_correct": BATCH_CORRECT_BACKENDS,
     "bin": BINNING_BACKENDS,
     "normalize": NORMALIZE_BACKENDS,
     "abundance": ABUNDANCE_BACKENDS,
@@ -90,6 +93,7 @@ __all__ = [
     "QIIME2_WRAPPER_METHODS",
     "abundance",
     "assemble",
+    "batch_correct",
     "bin_contigs",
     "cluster",
     "decontam",
