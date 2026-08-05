@@ -8,6 +8,7 @@ import numpy as np
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.batch.value_type import require_value_types
 from microsuite.diversity._matrix import dense_counts
 from microsuite.io.h5ad import read_h5ad, write_h5ad
 
@@ -65,6 +66,13 @@ def normalize_native(
             f"Unsupported normalize method '{method}'. "
             f"Choose one of: {', '.join(NORMALIZE_METHODS)}"
         )
+    # Re-scaling data that is already relative, or CLR-transforming data that is
+    # already CLR, returns a full table computed twice over.
+    if method in ("relative", "total-sum"):
+        require_value_types(adata, ("counts",), operation=f"normalize --method {method}")
+    elif method == "clr":
+        require_value_types(adata, ("counts", "relative"), operation="normalize --method clr")
+
     counts = dense_counts(adata)
     result = cast(Any, adata).copy()
 
