@@ -17,6 +17,8 @@ _ECOLOGY_IMAGE_ENV = "MICROSUITE_R_ECOLOGY_IMAGE"
 _VEGAN_IMAGE_ENV = "MICROSUITE_R_VEGAN_IMAGE"
 DEFAULT_DIFFAB_IMAGE_PREFIX = "ghcr.io/qwerty239qwe/microsuite/r-diffab-"
 _DIFFAB_IMAGE_ENV_PREFIX = "MICROSUITE_R_DIFFAB_"
+DEFAULT_BATCH_IMAGE_PREFIX = "ghcr.io/qwerty239qwe/microsuite/r-batch-"
+_BATCH_IMAGE_ENV_PREFIX = "MICROSUITE_R_BATCH_"
 
 
 @dataclass(frozen=True)
@@ -220,6 +222,17 @@ def resolve_diffab_image(backend: str, override: str | None) -> str:
     if env:
         return env
     return f"{DEFAULT_DIFFAB_IMAGE_PREFIX}{backend}:latest"
+
+
+def resolve_batch_image(backend: str, override: str | None) -> str:
+    """Resolve the per-backend r-batch image: override, then env, then default."""
+    if override:
+        return override
+    env_name = f"{_BATCH_IMAGE_ENV_PREFIX}{backend.upper().replace('-', '_')}_IMAGE"
+    env = os.environ.get(env_name)
+    if env:
+        return env
+    return f"{DEFAULT_BATCH_IMAGE_PREFIX}{backend}:latest"
 
 
 def resolve_image_digest(engine: str, image: str) -> str | None:

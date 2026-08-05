@@ -34,7 +34,7 @@ def _capture(monkeypatch) -> dict:
         # counts/metadata written to command[2]/command[3]
         captured["counts_exists"] = Path(command[2]).exists()
 
-    monkeypatch.setattr("microsuite.diffab._runner.run_command", fake_run_command)
+    monkeypatch.setattr("microsuite.runtime.r_backend.run_command", fake_run_command)
     monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/Rscript")
     return captured
 
