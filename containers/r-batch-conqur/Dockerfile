@@ -75,16 +75,21 @@ RUN set -eux; \
 # behaviour, not something man/ConQuR.Rd specifies -- see the comment in
 # conqur.R. This is the branch's only exercise, real or otherwise, so it
 # must run here rather than waiting for a user to hit it first.
+# The zero-covariate path must REFUSE, not correct. ConQuR's design matrix is
+# degenerate with nothing to condition on: an earlier intercept-only shim died
+# inside model.matrix with "contrasts can be applied only to factors with 2 or
+# more levels". Assert the refusal so the branch stays exercised and a future
+# edit that silently re-enables it fails the build.
 RUN set -eux; \
-    Rscript /opt/microsuite/conqur.R \
+    if Rscript /opt/microsuite/conqur.R \
         /opt/microsuite/smoke/counts.tsv \
         /opt/microsuite/smoke/metadata.tsv \
         /opt/microsuite/smoke/params_no_covariates.json \
-        /tmp/microsuite-smoke-out-no-covariates.tsv; \
-    test -s /tmp/microsuite-smoke-out-no-covariates.tsv; \
-    test "$(wc -l < /tmp/microsuite-smoke-out-no-covariates.tsv)" -eq 21; \
-    Rscript -e "x <- read.delim('/tmp/microsuite-smoke-out-no-covariates.tsv', row.names=1); \
-                stopifnot(all(abs(as.matrix(x) - round(as.matrix(x))) < 1e-8))"; \
-    rm -f /tmp/microsuite-smoke-out-no-covariates.tsv
+        /tmp/microsuite-smoke-no-cov.tsv 2>/tmp/microsuite-no-cov.err; then \
+        echo "expected conqur.R to refuse an empty covariate set" >&2; exit 1; \
+    fi; \
+    grep -q "ConQuR requires at least one covariate" /tmp/microsuite-no-cov.err; \
+    test ! -s /tmp/microsuite-smoke-no-cov.tsv; \
+    rm -f /tmp/microsuite-smoke-no-cov.tsv /tmp/microsuite-no-cov.err
 
 ENTRYPOINT ["Rscript"]

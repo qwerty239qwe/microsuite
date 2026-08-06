@@ -29,6 +29,15 @@ class BatchBackend:
     image names (see `.github/workflows/docker.yml`) and the `containers/`
     directory names are not always the hyphenated backend name.
     """
+    requires_covariates: bool = False
+    """Whether the method is undefined without at least one covariate.
+
+    ConQuR is conditional by construction: it removes batch effects while
+    preserving the key variable of interest, and its design matrix is
+    degenerate with no covariate to condition on. Discovered by execution --
+    the r-batch-conqur build-time smoke failed with 'contrasts can be applied
+    only to factors with 2 or more levels'.
+    """
 
 
 BATCH_BACKENDS: dict[str, BatchBackend] = {
@@ -60,6 +69,7 @@ BATCH_BACKENDS: dict[str, BatchBackend] = {
         value_type="counts",
         supports_covariates=True,
         requires_target=False,
+        requires_covariates=True,
         image="r-batch-conqur",
     ),
     "plsda-batch": BatchBackend(
@@ -101,6 +111,15 @@ def resolve_backend(
         unsupported["--target-col"] = target
     if unsupported:
         reject_options(name, unsupported)
+
+    if record.requires_covariates and not covariates:
+        raise MicrobiomeSuiteError(
+            f"--backend {name} is conditional: it removes batch effects while holding "
+            f"the variables you name fixed, so --covariates is required. Name the "
+            f"biological variable of interest -- correcting without protecting it is "
+            f"how a correction removes the signal along with the batch effect. "
+            f"See docs/batch_correction.md."
+        )
 
     if record.requires_target and not target:
         raise MicrobiomeSuiteError(
