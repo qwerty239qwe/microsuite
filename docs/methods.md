@@ -129,6 +129,25 @@ features clustered by sequence identity, commonly 97%.
 | `qiime2-feature-table` | QIIME 2 2024.10 | ready | `microsuite feature_summarize --backend qiime2 --mode summarize` | `feature_summarize(backend="qiime2", mode="summarize", table=...)` | [QIIME 2 amplicon](../containers/qiime2-amplicon/Dockerfile) | Keeps QIIME-native summaries and sequence tabulation in artifact form. | Feature-table summary and representative-sequence visualization. |
 | `qiime2-taxa` | QIIME 2 2024.10 | ready | `microsuite tax_barplot --backend qiime2`; `microsuite tax_collapse --backend qiime2` | `tax_barplot(...)`; `tax_collapse(...)` | [QIIME 2 amplicon](../containers/qiime2-amplicon/Dockerfile) | Artifact-native taxonomy visualization and collapse. | Taxa barplots and taxonomy-level table collapse. |
 
+### Batch Effect Correction
+
+| Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `mmuphin` (default) | MMUPHin via Bioconductor | ready | `microsuite batch correct table.h5ad --output out.h5ad --batch-col run_id --backend mmuphin --covariates body_site` | `run_batch_correction(adata, backend="mmuphin", batch="run_id", covariates=["body_site"])` | [r-batch-mmuphin](../containers/r-batch-mmuphin/Dockerfile) | Unsupervised, accepts covariates; emits `relative` abundances. | Meta-analysis batch correction across cohorts. |
+| `combat-seq` | sva via Bioconductor | ready | `microsuite batch correct table.h5ad --output out.h5ad --batch-col run_id --backend combat-seq` | `run_batch_correction(adata, backend="combat-seq", batch="run_id")` | [r-batch-combatseq](../containers/r-batch-combatseq/Dockerfile) | Unsupervised, accepts covariates; emits `counts`, so it composes directly with `rarefy` and count-requiring diff-abundance backends. | RNA-seq-style negative-binomial batch adjustment. |
+| `conqur` | ConQuR (GitHub, unreleased) | partial | `microsuite batch correct table.h5ad --output out.h5ad --batch-col run_id --backend conqur` | `run_batch_correction(adata, backend="conqur", batch="run_id")` | [r-batch-conqur](../containers/r-batch-conqur/Dockerfile) | Unsupervised, accepts covariates; emits `counts`. GitHub-only source with no execution history before its container's build-time smoke; see [docs/batch_correction.md](batch_correction.md). | Quantile-regression batch correction for microbiome counts. |
+| `plsda-batch` | PLSDAbatch (GitHub, unreleased) | partial | `microsuite batch correct table.h5ad --output out.h5ad --batch-col run_id --backend plsda-batch --target-col group` | `run_batch_correction(adata, backend="plsda-batch", batch="run_id", target="group")` | [r-batch-plsdabatch](../containers/r-batch-plsdabatch/Dockerfile) | **Supervised**: requires `--target-col`, rejects `--covariates`; emits `clr`. Correcting and then testing the same target inflates significance — see [docs/batch_correction.md](batch_correction.md#5-supervised-backends-and-label-leakage). | PLS-DA-based supervised batch correction. |
+| `metadict` | MetaDICT (GitHub, unreleased) | partial | `microsuite batch correct table.h5ad --output out.h5ad --batch-col run_id --backend metadict --covariates body_site` | `run_batch_correction(adata, backend="metadict", batch="run_id", covariates=["body_site"])` | [r-batch-metadict](../containers/r-batch-metadict/Dockerfile) | Unsupervised, accepts covariates; emits `relative`. GitHub-only source with an upstream column-mislabeling bug microsuite works around; see [docs/batch_correction.md](batch_correction.md). | Covariate-balanced dictionary-learning batch correction. |
+
+Corrected tables record their scale in `adata.uns["microsuite"]["value_type"]`
+as `counts`, `relative`, or `clr`. Commands that require a specific scale
+(`diff_abundance --backend ancombc/aldex2`, `rarefy`, `normalize`) refuse a
+table whose recorded scale they cannot consume; tables without a recorded
+scale are unaffected. Full guidance — when correction is appropriate, why it
+does not replace modelling batch as a covariate, the scale contract, the
+supervised-backend leakage hazard, and how to check a correction worked — is
+in [docs/batch_correction.md](batch_correction.md).
+
 ### Diversity And Ecological Statistics
 
 | Backend | Version | Status | CLI command | Python invocation | Image / environment | Operational tradeoff | Purpose |

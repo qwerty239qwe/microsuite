@@ -9,6 +9,7 @@ from rich.console import Console
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite.cli import (
+    batch_cmd,
     data_cmd,
     diffab_cmd,
     diversity_cmd,
@@ -48,6 +49,7 @@ def root(
 
 
 def _install_groups() -> None:
+    app.add_typer(batch_cmd.app, name="batch")
     app.add_typer(import_cmd.app, name="import")
     app.add_typer(diversity_cmd.app, name="diversity")
     app.add_typer(ordination_cmd.app, name="ordination")

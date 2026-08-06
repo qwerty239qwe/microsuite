@@ -6,8 +6,9 @@ from pathlib import Path
 import pytest
 
 from microsuite._errors import MicrobiomeSuiteError
-from microsuite.diffab import _runner
 from microsuite.diffab._runner import invoke_r_backend
+from microsuite.runtime import r_backend
+from microsuite.runtime.r_backend import invoke_r_script
 from microsuite.runtime.runner import CommandLog
 
 
@@ -17,8 +18,10 @@ def _log() -> CommandLog:
 
 def test_local_argv_no_sidecar(tmp_path: Path, monkeypatch) -> None:
     captured: dict = {}
-    monkeypatch.setattr(_runner, "run_command", lambda command, **kw: captured.update(cmd=command))
-    monkeypatch.setattr(_runner.shutil, "which", lambda name: "/usr/bin/Rscript")
+    monkeypatch.setattr(
+        r_backend, "run_command", lambda command, **kw: captured.update(cmd=command)
+    )
+    monkeypatch.setattr(r_backend.shutil, "which", lambda name: "/usr/bin/Rscript")
     counts, meta, out = tmp_path / "counts.tsv", tmp_path / "metadata.tsv", tmp_path / "out.tsv"
     invoke_r_backend(
         backend="ancombc",
@@ -34,7 +37,7 @@ def test_local_argv_no_sidecar(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_local_missing_rscript_uses_supplied_message(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr(_runner.shutil, "which", lambda name: None)
+    monkeypatch.setattr(r_backend.shutil, "which", lambda name: None)
     with pytest.raises(MicrobiomeSuiteError, match="need R"):
         invoke_r_backend(
             backend="ancombc",
@@ -58,10 +61,12 @@ def test_invalid_runtime_raises(tmp_path: Path) -> None:
 
 def test_docker_argv_mounts_user_and_sidecar(tmp_path: Path, monkeypatch) -> None:
     captured: dict = {}
-    monkeypatch.setattr(_runner, "run_command", lambda command, **kw: captured.update(cmd=command))
-    monkeypatch.setattr(_runner, "require_engine", lambda engine: "/usr/bin/docker")
-    monkeypatch.setattr(_runner, "host_user_spec", lambda: "1000:1000")
-    monkeypatch.setattr(_runner, "resolve_image_digest", lambda engine, image: "sha256:abc")
+    monkeypatch.setattr(
+        r_backend, "run_command", lambda command, **kw: captured.update(cmd=command)
+    )
+    monkeypatch.setattr(r_backend, "require_engine", lambda engine: "/usr/bin/docker")
+    monkeypatch.setattr(r_backend, "host_user_spec", lambda: "1000:1000")
+    monkeypatch.setattr(r_backend, "resolve_image_digest", lambda engine, image: "sha256:abc")
 
     ind, outd = tmp_path / "in", tmp_path / "out"
     ind.mkdir()
@@ -99,3 +104,22 @@ def test_docker_argv_mounts_user_and_sidecar(tmp_path: Path, monkeypatch) -> Non
         "image": "img:1",
         "digest": "sha256:abc",
     }
+
+
+def test_script_name_can_differ_from_backend_name(tmp_path: Path, monkeypatch) -> None:
+    captured: dict = {}
+    monkeypatch.setattr(
+        r_backend, "run_command", lambda command, **kw: captured.update(cmd=command)
+    )
+    monkeypatch.setattr(r_backend.shutil, "which", lambda name: "/usr/bin/Rscript")
+    invoke_r_script(
+        backend="combat-seq",
+        script_package="microsuite.diffab.r",
+        script_name="ancombc",  # any script that exists; the point is the two names differ
+        resolve_image=lambda backend, override: "unused",
+        positional=[tmp_path / "counts.tsv", tmp_path / "out.tsv"],
+        runtime="local",
+        log=CommandLog(task="batch_correct", backend="combat-seq"),
+        local_missing_message="need R",
+    )
+    assert captured["cmd"][1].endswith("ancombc.R")

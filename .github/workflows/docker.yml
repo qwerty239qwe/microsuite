@@ -6,6 +6,8 @@ on:
     paths:
       - "containers/**"
       - "src/microsuite/diversity/r/**"
+      - "src/microsuite/batch/r/**"
+      - "src/microsuite/diffab/r/**"
       - ".github/workflows/docker.yml"
       - "tests/fixtures/**"
   pull_request:
@@ -13,6 +15,8 @@ on:
     paths:
       - "containers/**"
       - "src/microsuite/diversity/r/**"
+      - "src/microsuite/batch/r/**"
+      - "src/microsuite/diffab/r/**"
       - ".github/workflows/docker.yml"
       - "tests/fixtures/**"
   workflow_dispatch:
@@ -116,6 +120,26 @@ jobs:
             heavy: true
           - image: r-ecology
             dockerfile: containers/r-ecology/Dockerfile
+            context: .
+            heavy: true
+          - image: r-batch-mmuphin
+            dockerfile: containers/r-batch-mmuphin/Dockerfile
+            context: .
+            heavy: true
+          - image: r-batch-combatseq
+            dockerfile: containers/r-batch-combatseq/Dockerfile
+            context: .
+            heavy: true
+          - image: r-batch-conqur
+            dockerfile: containers/r-batch-conqur/Dockerfile
+            context: .
+            heavy: true
+          - image: r-batch-plsdabatch
+            dockerfile: containers/r-batch-plsdabatch/Dockerfile
+            context: .
+            heavy: true
+          - image: r-batch-metadict
+            dockerfile: containers/r-batch-metadict/Dockerfile
             context: .
             heavy: true
           - image: microsuite-picrust2

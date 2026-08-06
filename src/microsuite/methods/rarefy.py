@@ -8,6 +8,7 @@ import numpy as np
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.batch.value_type import require_value_types
 from microsuite.diversity._matrix import dense_counts
 from microsuite.io.h5ad import read_h5ad, write_h5ad
 from microsuite.methods._dispatch import require_backend
@@ -30,6 +31,9 @@ def rarefy(
 
 
 def rarefy_native(adata: ad.AnnData, *, depth: int, seed: int = 0) -> ad.AnnData:
+    # Subsampling reads from a matrix that no longer holds read counts is not
+    # meaningful, and produces a plausible table rather than an error.
+    require_value_types(adata, ("counts",), operation="rarefy")
     if depth <= 0:
         raise MicrobiomeSuiteError("Rarefaction depth must be greater than zero.")
     counts = dense_counts(adata)

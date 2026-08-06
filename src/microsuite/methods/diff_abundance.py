@@ -4,6 +4,7 @@ from pathlib import Path
 
 from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.batch.value_type import require_value_types
 from microsuite.diffab.ancombc import run_ancombc
 from microsuite.diffab.r_backends import run_r_diffab_backend
 from microsuite.io.h5ad import read_h5ad
@@ -12,6 +13,7 @@ from microsuite.methods._qiime import require_qiime, run_qiime
 
 SUPPORTED_BACKENDS = ("ancombc", "qiime2-ancombc", "aldex2", "maaslin2", "lefse")
 R_BACKENDS = ("aldex2", "maaslin2", "lefse")
+COUNT_REQUIRING_BACKENDS = ("ancombc", "aldex2")
 
 
 def diff_abundance(
@@ -59,6 +61,8 @@ def diff_abundance(
         return
     if backend in R_BACKENDS:
         adata = read_h5ad(ensure_input(table))
+        if backend in COUNT_REQUIRING_BACKENDS:
+            require_value_types(adata, ("counts",), operation=f"diff_abundance --backend {backend}")
         run_r_diffab_backend(
             adata,
             backend=backend,
@@ -73,6 +77,7 @@ def diff_abundance(
         return
 
     adata = read_h5ad(ensure_input(table))
+    require_value_types(adata, ("counts",), operation=f"diff_abundance --backend {backend}")
     run_ancombc(
         adata,
         group=group,
