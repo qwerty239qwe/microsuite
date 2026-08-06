@@ -17,7 +17,10 @@ COPY src/microsuite/batch/r/mmuphin.R /opt/microsuite/mmuphin.R
 COPY containers/r-batch-mmuphin/smoke/ /opt/microsuite/smoke/
 
 # Build-time smoke: run a real correction, not a package import, and fail the
-# build unless it emits a table with every input feature and sample.
+# build unless it emits a table with every input feature and sample. Also
+# assert the declared `relative` scale (backends.py): mmuphin.R TSS-
+# normalizes adjust_batch()'s count-scale output before writing, so every
+# sample column must sum to ~1.
 RUN set -eux; \
     Rscript /opt/microsuite/mmuphin.R \
         /opt/microsuite/smoke/counts.tsv \
@@ -26,6 +29,8 @@ RUN set -eux; \
         /tmp/microsuite-smoke-out.tsv; \
     test -s /tmp/microsuite-smoke-out.tsv; \
     test "$(wc -l < /tmp/microsuite-smoke-out.tsv)" -eq 21; \
+    Rscript -e "x <- read.delim('/tmp/microsuite-smoke-out.tsv', row.names=1); \
+                stopifnot(all(abs(colSums(as.matrix(x)) - 1) < 1e-6))"; \
     rm -f /tmp/microsuite-smoke-out.tsv
 
 ENTRYPOINT ["Rscript"]

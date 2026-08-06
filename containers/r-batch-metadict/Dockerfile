@@ -49,11 +49,13 @@ COPY src/microsuite/batch/r/metadict.R /opt/microsuite/metadict.R
 COPY containers/r-batch-metadict/smoke/ /opt/microsuite/smoke/
 
 # Build-time smoke: a real correction. MetaDICT declares `relative` as its
-# output type (see backends.py), not counts, so unlike combat_seq.R/conqur.R
-# there is no integer-output assertion here -- only the line-count check.
-# This run also exercises metadict.R's inferred, undocumented fallback (a
-# uniform taxon distance matrix), since the smoke params.json supplies no
-# distance_matrix_path -- see the header comment in metadict.R.
+# output type (see backends.py); unlike combat_seq.R/conqur.R this is not an
+# integer-output assertion but a proportions assertion -- metadict.R
+# TSS-normalizes MetaDICT's count-like `$count` output before writing, so
+# every sample column must sum to ~1. This run also exercises metadict.R's
+# inferred, undocumented fallback (a uniform taxon distance matrix), since
+# the smoke params.json supplies no distance_matrix_path -- see the header
+# comment in metadict.R.
 RUN set -eux; \
     Rscript /opt/microsuite/metadict.R \
         /opt/microsuite/smoke/counts.tsv \
@@ -62,6 +64,8 @@ RUN set -eux; \
         /tmp/microsuite-smoke-out.tsv; \
     test -s /tmp/microsuite-smoke-out.tsv; \
     test "$(wc -l < /tmp/microsuite-smoke-out.tsv)" -eq 21; \
+    Rscript -e "x <- read.delim('/tmp/microsuite-smoke-out.tsv', row.names=1); \
+                stopifnot(all(abs(colSums(as.matrix(x)) - 1) < 1e-6))"; \
     rm -f /tmp/microsuite-smoke-out.tsv
 
 # Second build-time smoke: metadict.R sorts samples into contiguous batch

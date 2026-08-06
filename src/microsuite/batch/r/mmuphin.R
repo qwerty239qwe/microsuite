@@ -29,5 +29,14 @@ fit <- adjust_batch(
 )
 adjusted <- fit$feature_abd_adj
 
+# adjust_batch()'s documented return is "the same format as feature_abd" --
+# i.e. the same scale as its input, which here is raw counts. backends.py
+# declares this backend's output as `relative` (proportions summing to ~1
+# per sample), so TSS-normalize the corrected matrix here to make that
+# label true, rather than passing count-scale numbers downstream under a
+# `relative` stamp.
+sample_sums <- colSums(adjusted)
+adjusted <- sweep(adjusted, 2, sample_sums, "/")
+
 out <- data.frame(feature_id = rownames(adjusted), adjusted, check.names = FALSE)
 write.table(out, args[4], sep = "\t", quote = FALSE, row.names = FALSE)

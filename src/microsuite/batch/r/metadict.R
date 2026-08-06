@@ -164,6 +164,15 @@ fit <- MetaDICT(
 )
 adjusted <- as.matrix(fit$count)
 
+# MetaDICT's `$count` is a corrected COUNT matrix (its internal
+# normalization="uq" only rescales during fitting; the returned values are
+# not proportions), but backends.py declares this backend's output as
+# `relative` (proportions summing to ~1 per sample). TSS-normalize here so
+# that declared scale is actually true of the data being written, rather
+# than stamping count-like numbers as `relative`.
+sample_sums <- colSums(adjusted)
+adjusted <- sweep(adjusted, 2, sample_sums, "/")
+
 # Restore the caller's original sample order (see header comment on the
 # batch-sort workaround), then features-as-rows with feature_id first.
 adjusted <- adjusted[, sample_order, drop = FALSE]
