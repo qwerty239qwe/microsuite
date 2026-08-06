@@ -140,3 +140,17 @@ def test_covariate_confounded_with_batch_raises() -> None:
     # 'sex' varies exactly with 'run_id' here, so no model can separate them.
     with pytest.raises(MicrobiomeSuiteError, match="confounded"):
         run_batch_correction(_confounded(), backend="mmuphin", batch="run_id", covariates=["sex"])
+
+
+def test_combat_seq_declares_counts(monkeypatch) -> None:
+    monkeypatch.setattr(correct_module, "invoke_r_script", _fake_backend())
+    result = run_batch_correction(_adata(), backend="combat-seq", batch="run_id")
+    assert result.uns["microsuite"]["value_type"] == "counts"
+
+
+def test_combat_seq_uses_its_own_script_name(monkeypatch) -> None:
+    capture: dict = {}
+    monkeypatch.setattr(correct_module, "invoke_r_script", _fake_backend(capture=capture))
+    run_batch_correction(_adata(), backend="combat-seq", batch="run_id")
+    assert capture["kwargs"]["script_name"] == "combat_seq"
+    assert capture["kwargs"]["backend"] == "combat-seq"

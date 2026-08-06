@@ -122,6 +122,10 @@ jobs:
             dockerfile: containers/r-batch-mmuphin/Dockerfile
             context: .
             heavy: true
+          - image: r-batch-combatseq
+            dockerfile: containers/r-batch-combatseq/Dockerfile
+            context: .
+            heavy: true
           - image: microsuite-picrust2
             dockerfile: containers/microsuite-picrust2/Dockerfile
             context: .

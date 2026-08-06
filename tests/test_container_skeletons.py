@@ -32,6 +32,7 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
         "r-diffab-lefse": ["Rscript", "lefser"],
         "r-ecology": ["Rscript", "vegan", "adonis2", "anosim2"],
         "r-batch-mmuphin": ["Rscript", "MMUPHin"],
+        "r-batch-combatseq": ["Rscript", "sva", "ComBat_seq"],
         "kraken2": ["kraken2", "bracken"],
         "microsuite-picrust2": ["microsuite", "picrust2"],
         "microsuite-dada2": ["microsuite", "Rscript", "dada2"],

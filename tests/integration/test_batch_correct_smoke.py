@@ -118,3 +118,24 @@ def test_mmuphin_shrinks_batch_and_keeps_group() -> None:
         f"{before_group:.3f} -> {after_group:.3f}"
     )
     assert corrected.uns["microsuite"]["value_type"] == "relative"
+
+
+def test_combat_seq_shrinks_batch_keeps_group_and_returns_counts() -> None:
+    adata = _two_batch_dataset()
+    before_batch, before_group = _batch_and_group_r2(adata)
+
+    corrected = run_batch_correction(
+        adata, backend="combat-seq", batch="run_id", covariates=["group"], runtime="docker"
+    )
+    after_batch, after_group = _batch_and_group_r2(corrected)
+
+    assert after_batch < before_batch * 0.5, (
+        f"batch R2 did not shrink: {before_batch:.3f} -> {after_batch:.3f}"
+    )
+    assert after_group > before_group * 0.5, (
+        f"biological signal was flattened: {before_group:.3f} -> {after_group:.3f}"
+    )
+    assert corrected.uns["microsuite"]["value_type"] == "counts"
+    # The whole point of this backend is that ANCOM-BC can consume its output.
+    values = np.asarray(corrected.X)
+    assert np.allclose(values, np.round(values)), "ComBat_seq returned non-integer counts"
