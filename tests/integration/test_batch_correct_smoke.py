@@ -93,6 +93,38 @@ def _batch_and_group_r2(adata: ad.AnnData) -> tuple[float, float]:
     return float(indexed["run_id"]), float(indexed["group"])
 
 
+def _batch_and_group_r2_euclidean(adata: ad.AnnData, *, clr: bool = False) -> tuple[float, float]:
+    """Same partition, on Euclidean distance -- the right geometry for CLR data.
+
+    Bray-Curtis on CLR values is meaningless (the values are signed), so
+    comparing a CLR-space correction against a Bray-Curtis baseline would
+    compare two different quantities and call the difference an improvement.
+    """
+    from scipy.spatial.distance import pdist, squareform
+
+    from microsuite.methods.normalize import normalize_native
+
+    source = normalize_native(adata, method="clr") if clr else adata
+    values = np.asarray(source.X, dtype=float)
+    distances = pd.DataFrame(
+        squareform(pdist(values, metric="euclidean")),
+        index=list(map(str, adata.obs_names)),
+        columns=list(map(str, adata.obs_names)),
+    )
+    result = beta_significance(
+        distances,
+        pd.DataFrame(adata.obs),
+        method="adonis2",
+        formula="run_id + group",
+        backend="vegan",
+        permutations=199,
+        seed=0,
+        runtime="docker",
+    )
+    indexed = result.set_index("term")["r_squared"]
+    return float(indexed["run_id"]), float(indexed["group"])
+
+
 def test_uncorrected_dataset_has_the_effects_the_test_assumes() -> None:
     # If the generator stops producing a batch effect, every downstream
     # assertion below becomes vacuously true. Check the premise first.
@@ -159,3 +191,24 @@ def test_conqur_shrinks_batch_and_keeps_group() -> None:
     assert corrected.uns["microsuite"]["value_type"] == "counts"
     values = np.asarray(corrected.X)
     assert np.allclose(values, np.round(values)), "ConQuR returned non-integer counts"
+
+
+def test_plsda_batch_shrinks_batch_keeps_group_and_returns_clr() -> None:
+    adata = _two_batch_dataset()
+
+    corrected = run_batch_correction(
+        adata, backend="plsda-batch", batch="run_id", target="group", runtime="docker"
+    )
+    # CLR output is not a distance-compatible abundance table for Bray-Curtis, so
+    # this backend is assessed on Euclidean distance over the CLR values, which is
+    # the Aitchison distance the method itself is defined against.
+    after_batch, after_group = _batch_and_group_r2_euclidean(corrected)
+    before_batch_e, before_group_e = _batch_and_group_r2_euclidean(adata, clr=True)
+
+    assert after_batch < before_batch_e * 0.5, (
+        f"batch R2 did not shrink: {before_batch_e:.3f} -> {after_batch:.3f}"
+    )
+    assert after_group > before_group_e * 0.5, (
+        f"biological signal was flattened: {before_group_e:.3f} -> {after_group:.3f}"
+    )
+    assert corrected.uns["microsuite"]["value_type"] == "clr"

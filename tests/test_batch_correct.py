@@ -154,3 +154,28 @@ def test_combat_seq_uses_its_own_script_name(monkeypatch) -> None:
     run_batch_correction(_adata(), backend="combat-seq", batch="run_id")
     assert capture["kwargs"]["script_name"] == "combat_seq"
     assert capture["kwargs"]["backend"] == "combat-seq"
+
+
+def test_plsda_batch_requires_a_target() -> None:
+    with pytest.raises(MicrobiomeSuiteError, match="supervised"):
+        run_batch_correction(_adata(), backend="plsda-batch", batch="run_id")
+
+
+def test_plsda_batch_rejects_covariates() -> None:
+    with pytest.raises(MicrobiomeSuiteError, match="covariates"):
+        run_batch_correction(
+            _adata(),
+            backend="plsda-batch",
+            batch="run_id",
+            covariates=["sex"],
+            target="sex",
+        )
+
+
+def test_plsda_batch_declares_clr_and_passes_the_target(monkeypatch) -> None:
+    capture: dict = {}
+    monkeypatch.setattr(correct_module, "invoke_r_script", _fake_backend(capture=capture))
+    result = run_batch_correction(_adata(), backend="plsda-batch", batch="run_id", target="sex")
+    assert capture["params"]["target"] == "sex"
+    assert result.uns["microsuite"]["value_type"] == "clr"
+    assert result.uns["microsuite"]["batch_correct"]["target"] == "sex"
