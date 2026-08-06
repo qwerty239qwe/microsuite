@@ -53,12 +53,13 @@ if (is.null(params$target) || is.na(params$target)) {
 # `logratio.transfo(X, logratio = c("none", "CLR", "ILR"), offset = 0)`,
 # where X is samples-as-rows and `offset` "is used to shift the values away
 # from 0, as commonly done with counts data" for CLR/ILR. That confirms the
-# offset mechanism and its purpose, but not a specific value for it: the
-# docs give no default and the man page's own CLR example applies no offset
-# at all (input already non-zero after TSS). INFERRED, NOT DOCUMENTED: an
-# offset of 1 is used here, the common convention for zero-laden count data
-# (matching combat_seq.R/conqur.R's treatment of zeros elsewhere in this
-# codebase), not something logratio-transformations.Rd itself recommends.
+# offset mechanism and its purpose, but not a value to use for count data:
+# the parameter's own default is 0 (a no-op), and the man page's CLR example
+# applies no offset at all (its input is already non-zero after TSS).
+# INFERRED, NOT DOCUMENTED: an offset of 1 is used here, the common
+# convention for zero-laden count data (matching combat_seq.R/conqur.R's
+# treatment of zeros elsewhere in this codebase), not something
+# logratio-transformations.Rd itself recommends.
 X <- t(counts)
 X <- logratio.transfo(X = X, logratio = "CLR", offset = 1)
 class(X) <- "matrix"
