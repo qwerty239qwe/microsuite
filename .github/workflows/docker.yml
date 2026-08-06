@@ -388,13 +388,17 @@ jobs:
         if: ${{ matrix.image == 'r-ecology' && github.event.inputs.build-heavy-containers == 'true' }}
         run: |
           mkdir -p tmp/docker-r-ecology
-          docker run --rm \
+          # The micromamba base runs as UID 1000 while the runner owns this
+          # directory as UID 1001, so the container cannot write /output unless
+          # it runs as the runner. This also matches how microsuite invokes the
+          # image in production, which passes the caller's UID/GID.
+          docker run --rm --user "$(id -u):$(id -g)" \
             -v "${PWD}/containers/r-ecology/smoke:/input:ro" \
             -v "${PWD}/tmp/docker-r-ecology:/output" \
             microsuite/${{ matrix.image }}:ci \
             /opt/microsuite/beta_significance.R \
             /input/distance.tsv /input/metadata.tsv adonis2 group "" 19 0 /output/adonis2.tsv
-          docker run --rm \
+          docker run --rm --user "$(id -u):$(id -g)" \
             -v "${PWD}/containers/r-ecology/smoke:/input:ro" \
             -v "${PWD}/tmp/docker-r-ecology:/output" \
             microsuite/${{ matrix.image }}:ci \
