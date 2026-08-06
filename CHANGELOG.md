@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `batch correct`'s default `--runtime docker` image name is now a
+  declared field per backend (`BatchBackend.image`) rather than derived by
+  interpolating `--backend` verbatim, fixing a broken image pull for
+  `combat-seq` and `plsda-batch` (their images build as `r-batch-combatseq`
+  and `r-batch-plsdabatch`, without the hyphen).
+- `mmuphin` and `metadict` now TSS-normalize their corrected output so the
+  `value_type="relative"` label they record is actually true of the data
+  (previously both likely returned count-scale values under a `relative`
+  stamp; see docs/batch_correction.md Section 4).
+- `batch correct` now rejects NA values in `--batch-col`, `--covariates`,
+  and `--target-col`, and rejects a backend response containing NA or
+  (for `counts`-declared backends) non-integer values, instead of silently
+  propagating them downstream.
+- `metadict.R` now refuses to run if `--batch-col` names a column other
+  than a pre-existing `batch` column in the metadata, instead of silently
+  overwriting that column.
+
+### Note
+
+- Three of the five `batch correct` backends — `conqur`, `plsda-batch`, and
+  `metadict` — have R scripts whose signatures are derived from published
+  package documentation, not from running the packages against real data;
+  no container engine was available while they were written. See "How
+  proven is each backend" in docs/batch_correction.md before trusting their
+  early outputs.
+
 ## [0.3.0] - 2026-08-05
 
 ### Added

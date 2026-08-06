@@ -96,7 +96,25 @@ meta <- meta[colnames(counts), , drop = FALSE]
 
 # MetaDICT reads the batch id from a column literally named "batch" (see
 # above), not from a name passed as an argument, so the caller's chosen
-# batch column is copied into one named exactly that.
+# batch column is copied into one named exactly that. Guard against
+# clobbering an unrelated pre-existing "batch" column: if the caller's
+# --batch-col is some other name (e.g. run_id) and the metadata already
+# has its own "batch" column, silently overwriting it would corrupt that
+# column and, if it were also passed via --covariates, would hand
+# MetaDICT a "covariate" that is a perfect copy of the batch labels --
+# undetectable by correct.py's confounding check, which inspects the
+# original metadata, not this copy.
+if (params$batch != "batch" && "batch" %in% names(meta)) {
+  stop(sprintf(
+    paste0(
+      "metadata already has a column named 'batch', but --batch-col is '%s'. ",
+      "MetaDICT requires the batch column to be literally named 'batch', so ",
+      "copying --batch-col into it would silently overwrite the existing 'batch' ",
+      "column. Rename or drop the existing 'batch' column before running metadict."
+    ),
+    params$batch
+  ))
+}
 meta[["batch"]] <- factor(meta[[params$batch]])
 
 sample_order <- colnames(counts)

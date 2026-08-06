@@ -131,7 +131,10 @@ the implementation of this feature, so none of these three scripts has ever
 been executed against the real package. The container build-time smoke
 tests (`containers/r-batch-conqur`, `containers/r-batch-plsdabatch`,
 `containers/r-batch-metadict`) are, as of this writing, these scripts' first
-real execution — whatever CI run built those images is the first evidence
+real execution — but that build only happens on a **manually dispatched**
+heavy-image build (`workflow_dispatch` with `build-heavy-containers=true`);
+it does not run on ordinary pull-request or push-to-main CI. Whatever
+manually dispatched run first builds those images is the first evidence
 that they work at all.
 
 If you are deciding how much to trust a result, weight it accordingly:
@@ -148,7 +151,9 @@ microsuite, because they are properties of the upstream `MetaDICT` package
 (`BoYuan07/MetaDICT`) itself, not of this wrapper:
 
 1. **MetaDICT mislabels output columns when samples are not already grouped
-   by batch.** Reading `R/MetaDICT.R:201-203` in the package source shows
+   by batch.** Reading `R/MetaDICT.R:201-203` at the pinned commit
+   `5b052877328c05e7337e4ce2789a9f48fdecbd9b` (see
+   `containers/r-batch-metadict/Dockerfile`) in the package source shows
    that `MetaDICT()` builds its corrected count matrix by binding together
    one column-block per batch, in the order batches are first encountered —
    and then reassigns the *original*, unsorted input's column names onto

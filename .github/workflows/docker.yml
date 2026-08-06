@@ -6,6 +6,8 @@ on:
     paths:
       - "containers/**"
       - "src/microsuite/diversity/r/**"
+      - "src/microsuite/batch/r/**"
+      - "src/microsuite/diffab/r/**"
       - ".github/workflows/docker.yml"
       - "tests/fixtures/**"
   pull_request:
@@ -13,6 +15,8 @@ on:
     paths:
       - "containers/**"
       - "src/microsuite/diversity/r/**"
+      - "src/microsuite/batch/r/**"
+      - "src/microsuite/diffab/r/**"
       - ".github/workflows/docker.yml"
       - "tests/fixtures/**"
   workflow_dispatch:

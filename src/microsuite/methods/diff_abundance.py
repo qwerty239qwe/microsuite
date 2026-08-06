@@ -77,7 +77,7 @@ def diff_abundance(
         return
 
     adata = read_h5ad(ensure_input(table))
-    require_value_types(adata, ("counts",), operation="diff_abundance --backend ancombc")
+    require_value_types(adata, ("counts",), operation=f"diff_abundance --backend {backend}")
     run_ancombc(
         adata,
         group=group,

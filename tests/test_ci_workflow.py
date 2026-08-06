@@ -77,7 +77,14 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "containers/r-diffab-maaslin2/Dockerfile" in text
     assert "containers/r-diffab-lefse/Dockerfile" in text
     assert "containers/r-ecology/Dockerfile" in text
-    assert "containers/r-batch-mmuphin/Dockerfile" in text
+    for basename in (
+        "r-batch-mmuphin",
+        "r-batch-combatseq",
+        "r-batch-conqur",
+        "r-batch-plsdabatch",
+        "r-batch-metadict",
+    ):
+        assert f"containers/{basename}/Dockerfile" in text
     assert "containers/r-diffab/Dockerfile" not in text
     assert "build-heavy-containers" in text
     assert "Skipping heavy container image" in text

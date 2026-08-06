@@ -15,6 +15,7 @@ from tempfile import TemporaryDirectory
 from typing import Any, cast
 
 import anndata as ad
+import numpy as np
 import pandas as pd
 
 from microsuite._errors import MicrobiomeSuiteError
@@ -117,6 +118,11 @@ def _validate_design(
             f"Available: {', '.join(map(str, available))}"
         )
 
+    for label, column in [("--batch-col", batch), *[("--covariates", c) for c in covariates]]:
+        _reject_na(adata, column=column, label=label)
+    if target is not None:
+        _reject_na(adata, column=target, label="--target-col")
+
     batch_values = adata.obs[batch].astype(str)
     if batch_values.nunique() < 2:
         raise MicrobiomeSuiteError(
@@ -134,12 +140,29 @@ def _validate_design(
             )
 
 
+def _reject_na(adata: ad.AnnData, *, column: str, label: str) -> None:
+    values = adata.obs[column]
+    na_mask = values.isna()
+    if na_mask.any():
+        offenders = list(map(str, adata.obs_names[na_mask][:5]))
+        raise MicrobiomeSuiteError(
+            f"{label} '{column}' has missing (NA) values for samples: {', '.join(offenders)}. "
+            f"Batch correction requires a fully populated column."
+        )
+
+
 def _read_corrected(path: Path) -> pd.DataFrame:
     if not path.exists() or path.stat().st_size == 0:
         raise MicrobiomeSuiteError("The batch-correction backend produced no output table.")
     frame = pd.read_csv(path, sep="\t", index_col=0)
     frame.index = frame.index.astype(str)
     frame.columns = frame.columns.astype(str)
+    nan_mask = cast("pd.Series", frame.isna().any(axis=1))
+    if nan_mask.any():
+        affected = list(frame.index[nan_mask][:5])
+        raise MicrobiomeSuiteError(
+            f"The batch-correction backend returned NA values for features: {', '.join(affected)}"
+        )
     return frame
 
 
@@ -169,8 +192,15 @@ def _rebuild(
     kept = [name for name in map(str, adata.var_names) if name in set(corrected.index)]
     aligned = corrected.loc[kept, [str(name) for name in adata.obs_names]]
 
+    values = aligned.to_numpy(dtype=float)
+    if record.value_type == "counts" and not np.allclose(values, np.round(values), atol=1e-6):
+        raise MicrobiomeSuiteError(
+            f"'{record.name}' declares value_type='counts' but returned non-integer values. "
+            f"Refusing to stamp fractional data as counts."
+        )
+
     result = cast(Any, adata[:, kept]).copy()
-    result.X = aligned.to_numpy(dtype=float).T
+    result.X = values.T
     record_batch_correction(
         result,
         value_type=record.value_type,

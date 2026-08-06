@@ -172,6 +172,61 @@ def test_plsda_batch_rejects_covariates() -> None:
         )
 
 
+def test_nan_in_batch_column_raises() -> None:
+    adata = _adata()
+    adata.obs.loc["s2", "run_id"] = np.nan
+    with pytest.raises(MicrobiomeSuiteError, match="run_id.*NA|NA.*run_id"):
+        run_batch_correction(adata, backend="mmuphin", batch="run_id")
+
+
+def test_nan_in_covariate_column_raises() -> None:
+    adata = _adata()
+    adata.obs.loc["s3", "sex"] = np.nan
+    with pytest.raises(MicrobiomeSuiteError, match="sex"):
+        run_batch_correction(adata, backend="mmuphin", batch="run_id", covariates=["sex"])
+
+
+def test_nan_in_target_column_raises() -> None:
+    adata = _adata()
+    adata.obs.loc["s1", "sex"] = np.nan
+    with pytest.raises(MicrobiomeSuiteError, match="sex"):
+        run_batch_correction(adata, backend="plsda-batch", batch="run_id", target="sex")
+
+
+def test_counts_backend_rejects_fractional_output(monkeypatch) -> None:
+    payload = {
+        "f1": [11.5, 21.0, 13.0, 19.0],
+        "f2": [31.0, 21.0, 29.0, 23.0],
+        "f3": [6.0, 6.0, 7.0, 5.0],
+    }
+    monkeypatch.setattr(correct_module, "invoke_r_script", _fake_backend(write=payload))
+    with pytest.raises(MicrobiomeSuiteError, match="combat-seq"):
+        run_batch_correction(_adata(), backend="combat-seq", batch="run_id")
+
+
+def test_relative_backend_tolerates_fractional_output(monkeypatch) -> None:
+    # mmuphin declares 'relative', not 'counts', so fractional values are fine.
+    payload = {
+        "f1": [11.5, 21.0, 13.0, 19.0],
+        "f2": [31.0, 21.0, 29.0, 23.0],
+        "f3": [6.0, 6.0, 7.0, 5.0],
+    }
+    monkeypatch.setattr(correct_module, "invoke_r_script", _fake_backend(write=payload))
+    result = run_batch_correction(_adata(), backend="mmuphin", batch="run_id")
+    assert result.X[0][0] == 11.5
+
+
+def test_nan_in_corrected_output_raises(monkeypatch) -> None:
+    payload = {
+        "f1": [11.0, float("nan"), 13.0, 19.0],
+        "f2": [31.0, 21.0, 29.0, 23.0],
+        "f3": [6.0, 6.0, 7.0, 5.0],
+    }
+    monkeypatch.setattr(correct_module, "invoke_r_script", _fake_backend(write=payload))
+    with pytest.raises(MicrobiomeSuiteError, match="f1"):
+        run_batch_correction(_adata(), backend="mmuphin", batch="run_id")
+
+
 def test_plsda_batch_declares_clr_and_passes_the_target(monkeypatch) -> None:
     capture: dict = {}
     monkeypatch.setattr(correct_module, "invoke_r_script", _fake_backend(capture=capture))

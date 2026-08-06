@@ -202,6 +202,16 @@ def test_plsda_batch_shrinks_batch_keeps_group_and_returns_clr() -> None:
     # CLR output is not a distance-compatible abundance table for Bray-Curtis, so
     # this backend is assessed on Euclidean distance over the CLR values, which is
     # the Aitchison distance the method itself is defined against.
+    # NOTE: `after_batch`/`after_group` come from mixOmics's
+    # `logratio.transfo(offset=1)` CLR inside plsda_batch.R, while
+    # `before_batch_e`/`before_group_e` come from microsuite's own
+    # `normalize_native(method="clr")`. These are two different CLR
+    # definitions (different pseudocount/offset handling), so the "before"
+    # and "after" values are not on an identical transform. The comparison
+    # is still defensible because R^2 is a variance-explained fraction
+    # under each transform's own geometry, not an absolute value being
+    # diffed -- but do not assume the two CLR outputs are numerically the
+    # same thing.
     after_batch, after_group = _batch_and_group_r2_euclidean(corrected)
     before_batch_e, before_group_e = _batch_and_group_r2_euclidean(adata, clr=True)
 
