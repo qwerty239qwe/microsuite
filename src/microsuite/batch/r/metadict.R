@@ -29,9 +29,21 @@
 #   string "all" (its default) meaning every non-"batch" column.
 #   R/data_check.R: `if (length(covariates)==1 && covariates=="all") ...
 #   else if (is.vector(covariates)) meta_filtered <- meta[, covariates, ...]`
-#   -- a zero-length vector is a valid `is.vector` value and selects zero
-#   columns, so "no covariates requested" is expressed natively as
-#   `character(0)`, unlike ConQuR, which has no such native empty case.
+#   -- a zero-length vector IS accepted by that branch and produces a
+#   zero-column `meta_filtered`. CORRECTION: an earlier version of this
+#   comment claimed that made "no covariates" natively supported, unlike
+#   ConQuR. That was checked against data_check.R alone and was wrong --
+#   R/MetaDICT.R:224-225 (`meta <- rbind(meta.list[[1]], meta.list[[i]]);
+#   meta$batch <- batchnum`) `rbind()`s those zero-column frames, which
+#   collapses to a *zero-row* data.frame (verified:
+#   `dim(rbind(data.frame(row.names=paste0("s",1:3))[,0,drop=FALSE],
+#   data.frame(row.names=paste0("s",1:3))[,0,drop=FALSE]))` is `0 0`), and
+#   the following `meta$batch <- batchnum` then errors with "replacement
+#   has N rows, data has 0". A zero-length `covariates` is therefore NOT a
+#   working call in practice, despite data_check.R accepting it in
+#   isolation. This script never passes an empty `covariates` to MetaDICT
+#   for that reason -- see the constant-shim-column workaround below,
+#   which is this script's own inference, not a documented recommendation.
 # - Return value: `list(count = <data.frame, taxa x samples>, D=..., R=...,
 #   w=..., meta=..., dist_mat=...)`. `$count` matches the plan's assumed
 #   `$X` in spirit (a features x samples corrected table) but not in name.
@@ -96,13 +108,30 @@ ord <- order(meta[["batch"]])
 counts_sorted <- counts[, ord, drop = FALSE]
 meta_sorted <- meta[ord, , drop = FALSE]
 
-covariates <- if (length(params$covariates) > 0) as.character(params$covariates) else character(0)
+if (length(params$covariates) > 0) {
+  covariates <- as.character(params$covariates)
+} else {
+  # INFERRED WORKAROUND, not documented by MetaDICT: passing a zero-length
+  # `covariates` reaches a crash inside MetaDICT (see the header comment
+  # above, with a reproduction). Mirroring conqur.R's intercept-only
+  # fallback for the same "caller asked for no covariates" case, this adds
+  # a constant single-level column and requests it as the sole covariate,
+  # so `meta_filtered` always has exactly one column and rbind/assignment
+  # inside MetaDICT never hits the zero-column path. A constant column
+  # carries no information, so this should behave like an intercept-only
+  # design -- but that is this script's inference about MetaDICT's
+  # internals, not something the docs confirm, and it is untested until
+  # the build-time smoke below (with no covariates) actually runs it.
+  meta_sorted[[".microsuite_const"]] <- 1
+  covariates <- ".microsuite_const"
+}
 
 # OUR OWN CONTRACT EXTENSION (see header comment): an optional taxon
 # dissimilarity matrix supplied via params.json, since none of
 # distance_matrix/tree/taxonomy has a home in the four positional
 # arguments. Falls back to an uninformative uniform matrix when absent.
-if (!is.null(params$distance_matrix_path) && !is.na(params$distance_matrix_path)) {
+if (!is.null(params$distance_matrix_path) && length(params$distance_matrix_path) == 1L &&
+  !is.na(params$distance_matrix_path)) {
   dist_raw <- as.matrix(read.delim(params$distance_matrix_path, row.names = 1, check.names = FALSE))
   dist_mat <- dist_raw[rownames(counts_sorted), rownames(counts_sorted)]
 } else {
@@ -113,6 +142,13 @@ if (!is.null(params$distance_matrix_path) && !is.na(params$distance_matrix_path)
   # information available" distance matrix should look like. A uniform
   # off-diagonal value treats every pair of taxa as equally (dis)similar,
   # which is this script's least-committal choice, not a package default.
+  # It is not free of effect, though: data_check.R sets sigma to the median
+  # of the distance matrix (here 1) and neighbor=5, so the sequencing graph
+  # ends up with every taxon linked to 5 arbitrary, equally-weighted
+  # "neighbors" chosen only by row-index tie-breaking. That degrades
+  # MetaDICT's beta-weighted smoothness prior on measurement efficiency to
+  # close to a no-op rather than removing it outright -- worth knowing
+  # before trusting this fallback path for anything but a smoke test.
   n_features <- nrow(counts_sorted)
   dist_mat <- matrix(1, nrow = n_features, ncol = n_features)
   diag(dist_mat) <- 0
