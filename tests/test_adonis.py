@@ -1,0 +1,220 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import pytest
+from typer.testing import CliRunner
+
+from microsuite._errors import MicrobiomeSuiteError
+from microsuite.api import adonis2
+from microsuite.cli.app import app
+from microsuite.diversity.adonis import (
+    PermutationScheme,
+    parse_formula,
+    permutation_indices,
+    scheme_from_formula,
+)
+from microsuite.diversity.beta import beta_diversity
+from microsuite.io.tsv import read_tsv
+
+FIXTURE = Path(__file__).parent / "fixtures" / "moving_pictures_small"
+
+
+def fixture_beta_and_metadata() -> tuple[pd.DataFrame, pd.DataFrame]:
+    adata = read_tsv(FIXTURE / "table.tsv", FIXTURE / "metadata.tsv", FIXTURE / "taxonomy.tsv")
+    return beta_diversity(adata, "bray-curtis"), pd.DataFrame(adata.obs)
+
+
+def test_parse_formula_expands_terms_and_random_effects() -> None:
+    formula = parse_formula(
+        "counts ~ disease_status + accession + accession:timepoint + (1 | accession:subject_id)"
+    )
+    assert [term.label for term in formula.terms] == [
+        "disease_status",
+        "accession",
+        "accession:timepoint",
+    ]
+    assert formula.random_groups == (("accession", "subject_id"),)
+    assert formula.columns == ("disease_status", "accession", "timepoint", "subject_id")
+
+
+def test_parse_formula_expands_crossing() -> None:
+    assert [term.label for term in parse_formula("~ a*b").terms] == ["a", "b", "a:b"]
+
+
+@pytest.mark.parametrize(
+    "formula",
+    ["counts ~", "~ (a | b)", "~ (1 | )", "~ a + (a"],
+)
+def test_parse_formula_rejects_malformed_input(formula: str) -> None:
+    with pytest.raises(MicrobiomeSuiteError):
+        parse_formula(formula)
+
+
+def test_adonis2_decomposition_is_additive() -> None:
+    beta, metadata = fixture_beta_and_metadata()
+    result = adonis2(beta, metadata, formula="d ~ body_site + subject", permutations=0, seed=1)
+    terms = result[~result["term"].isin({"Residual", "Total"})]
+    total = float(result.loc[result["term"] == "Total", "sum_of_squares"].iloc[0])
+    residual = float(result.loc[result["term"] == "Residual", "sum_of_squares"].iloc[0])
+
+    assert terms["sum_of_squares"].sum() + residual == pytest.approx(total)
+    assert result["r2"].iloc[:-1].sum() == pytest.approx(1.0)
+    n_samples = int(result["n_samples"].iloc[0])
+    assert int(result.loc[result["term"] == "Total", "df"].iloc[0]) == n_samples - 1
+    assert (
+        terms["df"].sum() + int(result.loc[result["term"] == "Residual", "df"].iloc[0])
+        == n_samples - 1
+    )
+
+
+def test_adonis2_single_term_matches_one_way_permanova() -> None:
+    """With one factor the sequential decomposition reduces to the classic test."""
+    from microsuite.diversity.ecology import _permanova_statistic
+
+    beta, metadata = fixture_beta_and_metadata()
+    result = adonis2(beta, metadata, formula="d ~ body_site", permutations=0, seed=1)
+    samples = [s for s in beta.index.astype(str) if s in set(metadata.index.astype(str))]
+    labels = metadata.loc[samples, "body_site"].astype(str).to_numpy()
+    expected = _permanova_statistic(beta.loc[samples, samples].to_numpy(dtype=float), labels)
+
+    assert float(result.loc[0, "pseudo_f"]) == pytest.approx(expected, rel=1e-9)
+
+
+def test_adonis2_permutation_p_values_are_bounded() -> None:
+    beta, metadata = fixture_beta_and_metadata()
+    result = adonis2(beta, metadata, formula="d ~ body_site", permutations=49, seed=3)
+    p_value = float(result.loc[0, "p_value"])
+    assert 1 / 50 <= p_value <= 1.0
+    assert result.loc[0, "permutation_scheme"] == "free"
+
+
+def test_adonis2_is_reproducible_under_a_seed() -> None:
+    beta, metadata = fixture_beta_and_metadata()
+    kwargs = dict(formula="d ~ body_site", permutations=49, seed=11)
+    first = adonis2(beta, metadata, **kwargs)
+    second = adonis2(beta, metadata, **kwargs)
+    pd.testing.assert_frame_equal(first, second)
+
+
+def test_adonis2_random_term_restricts_permutation() -> None:
+    beta, metadata = fixture_beta_and_metadata()
+    result = adonis2(
+        beta,
+        metadata,
+        formula="d ~ body_site + (1 | subject)",
+        permutations=49,
+        seed=5,
+    )
+    assert result.loc[0, "permutation_scheme"] == "plots-free"
+
+
+def test_adonis2_rejects_a_fully_aliased_term() -> None:
+    beta, metadata = fixture_beta_and_metadata()
+    metadata = metadata.copy()
+    metadata["copy_of_body_site"] = metadata["body_site"]
+    with pytest.raises(MicrobiomeSuiteError, match="aliased"):
+        adonis2(
+            beta,
+            metadata,
+            formula="d ~ body_site + copy_of_body_site",
+            permutations=0,
+        )
+
+
+def test_adonis2_reports_missing_columns() -> None:
+    beta, metadata = fixture_beta_and_metadata()
+    with pytest.raises(MicrobiomeSuiteError, match="not found"):
+        adonis2(beta, metadata, formula="d ~ nope", permutations=0)
+
+
+def test_permutation_indices_respect_blocks_and_plots() -> None:
+    rng = np.random.default_rng(0)
+    blocks = np.repeat([0, 1], 12)
+    plots = np.repeat(np.arange(8), 3)
+    scheme = PermutationScheme(blocks=blocks, plots=plots, within="free")
+
+    for _ in range(25):
+        perm = permutation_indices(scheme, 24, rng)
+        assert np.array_equal(np.sort(perm), np.arange(24))
+        assert np.array_equal(blocks[perm], blocks)
+        # Each plot is filled from exactly one donor plot.
+        donors = pd.DataFrame({"target": plots, "donor": plots[perm]})
+        assert (donors.groupby("target")["donor"].nunique() == 1).all()
+
+
+def test_permutation_indices_only_swap_equal_sized_plots() -> None:
+    rng = np.random.default_rng(1)
+    plots = np.array([0, 0, 0, 1, 1, 2])
+    scheme = PermutationScheme(plots=plots, within="none")
+    sizes = pd.Series(plots).value_counts()
+
+    for _ in range(25):
+        perm = permutation_indices(scheme, 6, rng)
+        assert np.array_equal(np.sort(perm), np.arange(6))
+        donors = pd.DataFrame({"target": plots, "donor": plots[perm]})
+        for target, donor in donors.groupby("target")["donor"].first().items():
+            assert sizes[target] == sizes[donor]
+
+
+def test_permutation_indices_within_none_keeps_sample_order() -> None:
+    rng = np.random.default_rng(2)
+    plots = np.repeat(np.arange(4), 2)
+    scheme = PermutationScheme(plots=plots, within="none")
+    perm = permutation_indices(scheme, 8, rng)
+    # Within a plot the donor samples keep their relative order.
+    for plot in range(4):
+        positions = np.flatnonzero(plots == plot)
+        assert np.all(np.diff(perm[positions]) == 1)
+
+
+def test_scheme_from_formula_nests_subjects_inside_the_outer_factor() -> None:
+    metadata = pd.DataFrame(
+        {
+            "accession": ["A", "A", "B", "B"],
+            "subject_id": ["1", "1", "1", "1"],
+        }
+    )
+    formula = parse_formula("~ accession + (1 | accession:subject_id)")
+    scheme = scheme_from_formula(formula, metadata)
+    # subject_id repeats across studies, so the key must include accession.
+    assert len(set(scheme.plots.tolist())) == 2
+    assert scheme.blocks is not None
+
+
+def test_scheme_from_formula_rejects_multiple_random_terms() -> None:
+    formula = parse_formula("~ a + (1 | b) + (1 | c)")
+    with pytest.raises(MicrobiomeSuiteError, match="Only one random-intercept"):
+        scheme_from_formula(formula, pd.DataFrame({"a": ["x"], "b": ["y"], "c": ["z"]}))
+
+
+def test_adonis_cli_writes_a_table(tmp_path: Path) -> None:
+    beta, metadata = fixture_beta_and_metadata()
+    matrix_path = tmp_path / "dist.tsv"
+    metadata_path = tmp_path / "meta.tsv"
+    output = tmp_path / "adonis.tsv"
+    beta.to_csv(matrix_path, sep="\t")
+    metadata.to_csv(metadata_path, sep="\t")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "diversity",
+            "adonis",
+            str(matrix_path),
+            "--metadata",
+            str(metadata_path),
+            "--formula",
+            "d ~ body_site + (1 | subject)",
+            "--permutations",
+            "19",
+            "--output",
+            str(output),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    written = pd.read_csv(output, sep="\t")
+    assert list(written["term"])[-2:] == ["Residual", "Total"]
+    assert written["permutation_scheme"].iloc[0] == "plots-free"

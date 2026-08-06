@@ -3,6 +3,7 @@
 from microsuite.api.dataset import DataAsset, MicrobiomeDataset
 from microsuite.api.ecology import (
     abundance_table,
+    adonis2,
     alpha_diversity,
     beta_diversity,
     beta_significance,
@@ -50,6 +51,7 @@ __all__ = [
     "DataAsset",
     "MicrobiomeDataset",
     "abundance_table",
+    "adonis2",
     "alpha_diversity",
     "assemble",
     "beta_diversity",

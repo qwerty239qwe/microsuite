@@ -7,6 +7,7 @@ import pandas as pd
 import typer
 
 from microsuite._paths import ensure_input, prepare_output
+from microsuite.diversity.adonis import adonis2
 from microsuite.diversity.alpha import alpha_diversity
 from microsuite.diversity.beta import beta_diversity
 from microsuite.diversity.ecology import (
@@ -121,6 +122,47 @@ def beta_significance_cmd(
         sidecar_dir=output_path.parent,
     )
     result.to_csv(output_path, sep="\t", index=False)
+
+
+@app.command("adonis")
+def adonis_cmd(
+    distance_matrix: Annotated[Path, typer.Argument(help="Input square distance matrix TSV.")],
+    metadata: Annotated[Path, typer.Option("--metadata", "-m", help="Sample metadata TSV.")],
+    formula: Annotated[
+        str,
+        typer.Option(
+            "--formula",
+            help=(
+                "Model formula, e.g. 'dist ~ disease_status + accession"
+                " + accession:timepoint + (1 | accession:subject_id)'."
+                " A '(1 | group)' term restricts permutation instead of adding coefficients."
+            ),
+        ),
+    ],
+    output: Annotated[Path, typer.Option("--output", "-o", help="Output TSV.")],
+    permutations: Annotated[int, typer.Option("--permutations", min=0)] = 999,
+    seed: Annotated[int, typer.Option("--seed")] = 0,
+    blocks: Annotated[
+        str | None,
+        typer.Option("--blocks", help="Metadata column samples may never be permuted across."),
+    ] = None,
+    within: Annotated[
+        str,
+        typer.Option("--within", help="Shuffle samples inside a group: 'free' or 'none'."),
+    ] = "free",
+    force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
+) -> None:
+    """Multi-term PERMANOVA with sequential sums of squares (vegan adonis2)."""
+    result = adonis2(
+        _read_distance_matrix(distance_matrix),
+        _read_metadata(metadata),
+        formula=formula,
+        permutations=permutations,
+        seed=seed,
+        blocks=blocks,
+        within=within,
+    )
+    result.to_csv(prepare_output(output, force=force), sep="\t", index=False)
 
 
 @app.command("mantel")

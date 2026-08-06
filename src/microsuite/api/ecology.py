@@ -6,6 +6,9 @@ from typing import Any
 import anndata as ad
 import pandas as pd
 
+from microsuite.diversity.adonis import (
+    adonis2 as _adonis2,
+)
 from microsuite.diversity.alpha import alpha_diversity as _alpha_diversity
 from microsuite.diversity.beta import beta_diversity as _beta_diversity
 from microsuite.diversity.ecology import (
@@ -152,6 +155,27 @@ def vegan_beta_significance(
         run_dir=run_dir,
         timeout=timeout,
         sidecar_dir=sidecar_dir,
+    )
+
+
+def adonis2(
+    distance_matrix: pd.DataFrame,
+    metadata: pd.DataFrame,
+    *,
+    formula: str,
+    permutations: int = 999,
+    seed: int = 0,
+    blocks: str | None = None,
+    within: str = "free",
+) -> pd.DataFrame:
+    return _adonis2(
+        distance_matrix,
+        metadata,
+        formula=formula,
+        permutations=permutations,
+        seed=seed,
+        blocks=blocks,
+        within=within,
     )
 
 
