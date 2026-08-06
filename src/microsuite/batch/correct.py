@@ -9,6 +9,7 @@ on the wrong numbers.
 from __future__ import annotations
 
 import json
+from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, cast
@@ -67,7 +68,7 @@ def run_batch_correction(
             backend=record.name,
             script_package="microsuite.batch.r",
             script_name=record.script,
-            resolve_image=resolve_batch_image,
+            resolve_image=partial(resolve_batch_image, image=record.image),
             positional=[counts_path, metadata_path, params_path, corrected_path],
             runtime=runtime,
             image=image,
@@ -83,7 +84,7 @@ def run_batch_correction(
             local_missing_message=(
                 f"batch correct --backend {record.name} requires external Rscript and the "
                 f"R package '{record.package}'. Install R, then {record.install_hint}, or "
-                f"use --runtime docker with the r-batch-{record.name} image."
+                f"use --runtime docker with the {record.image} image."
             ),
         )
 

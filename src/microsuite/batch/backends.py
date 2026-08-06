@@ -22,6 +22,13 @@ class BatchBackend:
     value_type: str
     supports_covariates: bool
     requires_target: bool
+    image: str
+    """Basename of the backend's container image, e.g. 'r-batch-combatseq'.
+
+    Declared explicitly rather than derived from `name` because CI's built
+    image names (see `.github/workflows/docker.yml`) and the `containers/`
+    directory names are not always the hyphenated backend name.
+    """
 
 
 BATCH_BACKENDS: dict[str, BatchBackend] = {
@@ -33,6 +40,7 @@ BATCH_BACKENDS: dict[str, BatchBackend] = {
         value_type="relative",
         supports_covariates=True,
         requires_target=False,
+        image="r-batch-mmuphin",
     ),
     "combat-seq": BatchBackend(
         name="combat-seq",
@@ -42,6 +50,7 @@ BATCH_BACKENDS: dict[str, BatchBackend] = {
         value_type="counts",
         supports_covariates=True,
         requires_target=False,
+        image="r-batch-combatseq",
     ),
     "conqur": BatchBackend(
         name="conqur",
@@ -51,6 +60,7 @@ BATCH_BACKENDS: dict[str, BatchBackend] = {
         value_type="counts",
         supports_covariates=True,
         requires_target=False,
+        image="r-batch-conqur",
     ),
     "plsda-batch": BatchBackend(
         name="plsda-batch",
@@ -60,6 +70,7 @@ BATCH_BACKENDS: dict[str, BatchBackend] = {
         value_type="clr",
         supports_covariates=False,
         requires_target=True,
+        image="r-batch-plsdabatch",
     ),
     "metadict": BatchBackend(
         name="metadict",
@@ -69,6 +80,7 @@ BATCH_BACKENDS: dict[str, BatchBackend] = {
         value_type="relative",
         supports_covariates=True,
         requires_target=False,
+        image="r-batch-metadict",
     ),
 }
 

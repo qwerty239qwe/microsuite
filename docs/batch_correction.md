@@ -97,11 +97,13 @@ Notes on specific rows:
   list is routed through a constant placeholder column rather than passed to
   the R package as-is. See the callout at the end of Section 3 for why.
 - All five backends run in their own container image
-  (`ghcr.io/qwerty239qwe/microsuite/r-batch-<backend>`), selected
-  automatically from `--backend`; `--runtime docker` uses the image, `--runtime
-  local` expects a local `Rscript` with the corresponding R package
-  installed (`microsuite batch correct --help` prints the install hint per
-  backend).
+  (`ghcr.io/qwerty239qwe/microsuite/<container image>` from the table
+  above — note that `combat-seq` and `plsda-batch` build as
+  `r-batch-combatseq` and `r-batch-plsdabatch`, without the hyphen, matching
+  the `containers/` directory names and CI), selected automatically from
+  `--backend`; `--runtime docker` uses the image, `--runtime local` expects a
+  local `Rscript` with the corresponding R package installed (`microsuite
+  batch correct --help` prints the install hint per backend).
 
 Example invocation:
 
