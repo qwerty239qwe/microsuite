@@ -22,6 +22,7 @@ RUN micromamba install -y -n base -c conda-forge -c bioconda \
         r-quantreg \
         r-glmnet \
         r-doparallel \
+        r-foreach \
         r-dplyr \
         r-gplots \
         r-vegan \
