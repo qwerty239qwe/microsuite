@@ -25,6 +25,13 @@ params <- fromJSON(args[3], simplifyVector = TRUE)
 
 meta <- meta[colnames(counts), , drop = FALSE]
 
+# Unlike ComBat_seq (a negative-binomial count model), ConQuR fits
+# conditional quantile regressions over the observed values; nothing in
+# man/ConQuR.Rd requires integer input, so this script does not reject
+# non-integer counts the way combat_seq.R does. The build-time smoke still
+# checks the *output* is integer, since that is the capability microsuite
+# declares for this backend.
+#
 # ConQuR::ConQuR takes tax_tab as samples (row) by taxa (col); microsuite
 # writes features as rows, samples as columns, so transpose in and back out.
 tax_tab <- as.data.frame(t(counts))
@@ -41,8 +48,20 @@ if (length(params$covariates) > 0) {
     if (is.character(covariates[[name]])) covariates[[name]] <- factor(covariates[[name]])
   }
 } else {
-  # ConQuR requires a covariate data.frame; an intercept-only frame is the
-  # no-covariate case.
+  # UNVERIFIED, INFERRED FALLBACK: man/ConQuR.Rd documents `covariates` only
+  # as "the key variable of interest and other covariates", and says nothing
+  # about the zero-covariate case. `ConQuR(...)` has no signature form that
+  # omits `covariates`, so passing nothing is not an option; this
+  # intercept-only, single-level factor is our inference for what an
+  # "empty" design should look like, not something the docs specify.
+  # A constant single-level factor is a degenerate design column: the
+  # quantreg/glmnet internals ConQuR calls on it may go rank-deficient or
+  # error on a covariate with no variance, and dummy encoding (ConQuR
+  # imports fastDummies) commonly drops a single-level factor entirely,
+  # which could leave `covariates` effectively empty anyway. This branch is
+  # exercised by a dedicated build-time smoke invocation in
+  # containers/r-batch-conqur/Dockerfile (params_no_covariates.json) so CI,
+  # not a user, is first to find out whether it actually works.
   covariates <- data.frame(intercept_only = factor(rep("a", nrow(tax_tab))))
 }
 

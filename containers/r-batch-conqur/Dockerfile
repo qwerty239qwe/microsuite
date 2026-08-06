@@ -69,4 +69,21 @@ RUN set -eux; \
                 stopifnot(all(abs(as.matrix(x) - round(as.matrix(x))) < 1e-8))"; \
     rm -f /tmp/microsuite-smoke-out.tsv
 
+# Second build-time smoke: the zero-covariates fallback in conqur.R (an
+# intercept-only, single-level factor) is an inference from undocumented
+# behaviour, not something man/ConQuR.Rd specifies -- see the comment in
+# conqur.R. This is the branch's only exercise, real or otherwise, so it
+# must run here rather than waiting for a user to hit it first.
+RUN set -eux; \
+    Rscript /opt/microsuite/conqur.R \
+        /opt/microsuite/smoke/counts.tsv \
+        /opt/microsuite/smoke/metadata.tsv \
+        /opt/microsuite/smoke/params_no_covariates.json \
+        /tmp/microsuite-smoke-out-no-covariates.tsv; \
+    test -s /tmp/microsuite-smoke-out-no-covariates.tsv; \
+    test "$(wc -l < /tmp/microsuite-smoke-out-no-covariates.tsv)" -eq 21; \
+    Rscript -e "x <- read.delim('/tmp/microsuite-smoke-out-no-covariates.tsv', row.names=1); \
+                stopifnot(all(abs(as.matrix(x) - round(as.matrix(x))) < 1e-8))"; \
+    rm -f /tmp/microsuite-smoke-out-no-covariates.tsv
+
 ENTRYPOINT ["Rscript"]
