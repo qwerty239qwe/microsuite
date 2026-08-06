@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A QIIME 2 `adonis` backend through `diversity_test`, with formula,
   permutation-count, and parallel-job forwarding; it writes QIIME `.qzv`
   visualizations and does not expose restricted `strata` permutations.
+- `microsuite batch correct` — batch effect correction with five backends:
+  `mmuphin` (default), `combat-seq`, `conqur`, `plsda-batch`, and `metadict`,
+  each in its own container image. Corrected tables record their scale in
+  `uns["microsuite"]["value_type"]` as `counts`, `relative`, or `clr`.
+- Count-requiring commands (`diff_abundance --backend ancombc/aldex2`,
+  `rarefy`, `normalize`) now refuse tables whose recorded scale they cannot
+  consume. Tables without a recorded scale are unaffected, so no existing
+  pipeline changes behaviour.
 
 ## [0.2.2] - 2026-08-03
 

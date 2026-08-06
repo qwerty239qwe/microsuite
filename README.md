@@ -58,6 +58,7 @@ workflow shape:
 | Assemble / bin metagenomes | `assemble`, `bin` | MEGAHIT, metaSPAdes, MetaBAT2, MaxBin2, CONCOCT |
 | Taxonomy & phylogeny | `tax_classify`, `phylogeny` | QIIME 2, Kraken2, Bracken, MetaPhlAn, EMU, MAFFT/FastTree |
 | Table transforms & summaries | `normalize`, `abundance`, `rarefy` | native, QIIME 2 feature-table |
+| Batch effect correction | `batch correct` | MMUPHin, ComBat-seq, ConQuR, PLSDA-batch, MetaDICT |
 | Diversity & ecology stats | `diversity`, `diversity_calc` | native, QIIME 2 diversity-lib |
 | Differential abundance | `diff_abundance` | ANCOM-BC, ALDEx2, MaAsLin2, LEfSe |
 | Networks | `network infer` | native correlation, SparCC, SPIEC-EASI, FlashWeave |
