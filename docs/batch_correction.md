@@ -83,7 +83,7 @@ in mind — see Section 6.
 | --- | --- | --- | --- | --- |
 | `mmuphin` (default) | `relative` | yes | no | `r-batch-mmuphin` |
 | `combat-seq` | `counts` | yes | no | `r-batch-combatseq` |
-| `conqur` | `counts` | yes | no | `r-batch-conqur` |
+| `conqur` | `counts` | **required** | no | `r-batch-conqur` |
 | `plsda-batch` | `clr` | **no** | **required** | `r-batch-plsdabatch` |
 | `metadict` | `relative` | yes | no | `r-batch-metadict` |
 
@@ -121,6 +121,16 @@ microsuite batch correct table.h5ad \
 Two of the five backends — `mmuphin` and `combat-seq` — wrap R packages
 (`MMUPHin`, `sva`) with stable CRAN/Bioconductor releases and documented,
 stable function signatures.
+
+`conqur` is the one backend that **requires** `--covariates`. ConQuR is
+conditional by construction: it removes batch effects while holding the named
+variables fixed, and with nothing to condition on its design matrix is
+degenerate. Naming the biological variable of interest is also the right
+scientific default — a correction that is not told what to preserve is how the
+signal gets removed along with the batch effect. This constraint was found by
+running the package, not from its documentation: the container smoke failed
+inside `model.matrix` with "contrasts can be applied only to factors with 2 or
+more levels".
 
 **The other three — `conqur`, `plsda-batch`, and `metadict` — are sourced
 directly from GitHub, with no release tags to pin against.** Their R scripts

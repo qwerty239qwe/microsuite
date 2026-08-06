@@ -61,3 +61,29 @@ def test_supported_combination_resolves() -> None:
 def test_script_name_differs_from_backend_name_for_combat_seq() -> None:
     assert BATCH_BACKENDS["combat-seq"].script == "combat_seq"
     assert BATCH_BACKENDS["plsda-batch"].script == "plsda_batch"
+
+
+def test_conqur_requires_covariates() -> None:
+    # ConQuR is conditional by construction: it removes batch effects while
+    # holding the named variables fixed, so an empty covariate set leaves its
+    # design matrix degenerate. Found by execution -- the container smoke died
+    # inside model.matrix with "contrasts can be applied only to factors with
+    # 2 or more levels" -- not from the documentation.
+    with pytest.raises(MicrobiomeSuiteError, match="conditional"):
+        resolve_backend("conqur", covariates=None, target=None)
+    with pytest.raises(MicrobiomeSuiteError, match="--covariates is required"):
+        resolve_backend("conqur", covariates=[], target=None)
+
+
+def test_conqur_accepts_covariates() -> None:
+    assert resolve_backend("conqur", covariates=["group"], target=None).name == "conqur"
+
+
+def test_only_conqur_requires_covariates() -> None:
+    required = {name for name, b in BATCH_BACKENDS.items() if b.requires_covariates}
+    assert required == {"conqur"}
+    # Every other covariate-supporting backend must still run without them.
+    for name, backend in BATCH_BACKENDS.items():
+        if backend.requires_covariates or backend.requires_target:
+            continue
+        assert resolve_backend(name, covariates=None, target=None).name == name

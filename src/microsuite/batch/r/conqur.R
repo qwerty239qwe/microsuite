@@ -52,27 +52,22 @@ batchid <- factor(meta[[params$batch]])
 # ordering elsewhere.
 batch_ref <- if (!is.null(params$batch_ref)) as.character(params$batch_ref) else levels(batchid)[1]
 
-if (length(params$covariates) > 0) {
-  covariates <- meta[, as.character(params$covariates), drop = FALSE]
-  for (name in names(covariates)) {
-    if (is.character(covariates[[name]])) covariates[[name]] <- factor(covariates[[name]])
-  }
-} else {
-  # UNVERIFIED, INFERRED FALLBACK: man/ConQuR.Rd documents `covariates` only
-  # as "the key variable of interest and other covariates", and says nothing
-  # about the zero-covariate case. `ConQuR(...)` has no signature form that
-  # omits `covariates`, so passing nothing is not an option; this
-  # intercept-only, single-level factor is our inference for what an
-  # "empty" design should look like, not something the docs specify.
-  # A constant single-level factor is a degenerate design column: the
-  # quantreg/glmnet internals ConQuR calls on it may go rank-deficient or
-  # error on a covariate with no variance, and dummy encoding (ConQuR
-  # imports fastDummies) commonly drops a single-level factor entirely,
-  # which could leave `covariates` effectively empty anyway. This branch is
-  # exercised by a dedicated build-time smoke invocation in
-  # containers/r-batch-conqur/Dockerfile (params_no_covariates.json) so CI,
-  # not a user, is first to find out whether it actually works.
-  covariates <- data.frame(intercept_only = factor(rep("a", nrow(tax_tab))))
+if (length(params$covariates) == 0) {
+  # Discovered by execution, not from the docs: ConQuR builds a model matrix
+  # over `covariates`, so an empty set leaves nothing to condition on. The
+  # earlier intercept-only shim (a single-level factor) reached
+  # model.matrix and died with "contrasts can be applied only to factors with
+  # 2 or more levels". ConQuR is conditional by construction, so refusing is
+  # correct: the caller must name the variable the correction has to preserve.
+  stop(
+    "ConQuR requires at least one covariate: it removes batch effects while ",
+    "holding the named variables fixed, and its design matrix is degenerate ",
+    "without one. Pass --covariates naming the biological variable of interest."
+  )
+}
+covariates <- meta[, as.character(params$covariates), drop = FALSE]
+for (name in names(covariates)) {
+  if (is.character(covariates[[name]])) covariates[[name]] <- factor(covariates[[name]])
 }
 
 adjusted <- ConQuR(
