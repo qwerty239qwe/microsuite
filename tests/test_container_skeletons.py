@@ -35,6 +35,7 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
         "r-batch-combatseq": ["Rscript", "sva", "ComBat_seq"],
         "r-batch-conqur": ["Rscript", "ConQuR"],
         "r-batch-plsdabatch": ["Rscript", "PLSDAbatch"],
+        "r-batch-metadict": ["Rscript", "MetaDICT"],
         "kraken2": ["kraken2", "bracken"],
         "microsuite-picrust2": ["microsuite", "picrust2"],
         "microsuite-dada2": ["microsuite", "Rscript", "dada2"],

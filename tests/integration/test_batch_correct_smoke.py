@@ -212,3 +212,22 @@ def test_plsda_batch_shrinks_batch_keeps_group_and_returns_clr() -> None:
         f"biological signal was flattened: {before_group_e:.3f} -> {after_group:.3f}"
     )
     assert corrected.uns["microsuite"]["value_type"] == "clr"
+
+
+def test_metadict_shrinks_batch_and_keeps_group() -> None:
+    adata = _two_batch_dataset()
+    before_batch, before_group = _batch_and_group_r2(adata)
+
+    corrected = run_batch_correction(
+        adata, backend="metadict", batch="run_id", covariates=["group"], runtime="docker"
+    )
+    after_batch, after_group = _batch_and_group_r2(corrected)
+
+    assert after_batch < before_batch * 0.5, (
+        f"batch R2 did not shrink: {before_batch:.3f} -> {after_batch:.3f}"
+    )
+    assert after_group > before_group * 0.5, (
+        f"biological signal was flattened along with the batch effect: "
+        f"{before_group:.3f} -> {after_group:.3f}"
+    )
+    assert corrected.uns["microsuite"]["value_type"] == "relative"
