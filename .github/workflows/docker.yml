@@ -126,6 +126,10 @@ jobs:
             dockerfile: containers/r-batch-combatseq/Dockerfile
             context: .
             heavy: true
+          - image: r-batch-conqur
+            dockerfile: containers/r-batch-conqur/Dockerfile
+            context: .
+            heavy: true
           - image: microsuite-picrust2
             dockerfile: containers/microsuite-picrust2/Dockerfile
             context: .
