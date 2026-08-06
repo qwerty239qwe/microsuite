@@ -1,13 +1,12 @@
 #!/usr/bin/env Rscript
 # ConQuR: conditional quantile regression batch removal, returning counts.
 #
-# UNVERIFIED AT RUNTIME: this signature is taken from the published man page
-# (man/ConQuR.Rd at the pinned commit, https://github.com/wdl2459/ConQuR) --
-# there is no container engine available in the environment this script was
-# written in, so it has never been executed against the real ConQuR package.
-# The container's build-time smoke test (see containers/r-batch-conqur/Dockerfile)
-# is this script's first real execution. If that smoke fails, re-check this
-# script against `Rscript -e "args(ConQuR::ConQuR)"` inside the built image.
+# Signature source: the published man page (man/ConQuR.Rd at the pinned commit,
+# https://github.com/wdl2459/ConQuR). It was written without a container engine
+# available, so the r-batch-conqur build-time smoke was its first execution.
+# That smoke has since run and caught a missing `foreach` attachment (see the
+# library() block below). Whether the rest of the call is right is decided by
+# the next heavy-image build, not by this comment.
 #
 # Usage: conqur.R counts.tsv metadata.tsv params.json corrected.tsv
 args <- commandArgs(trailingOnly = TRUE)
@@ -16,6 +15,17 @@ if (length(args) != 4L) {
 }
 suppressPackageStartupMessages({
   library(jsonlite)
+  # ConQuR calls `foreach(...) %do% {...}` but its NAMESPACE only has
+  # import(doParallel) -- it never imports foreach's `%do%` operator, and
+  # importing doParallel does not re-export it. Inside ConQuR's namespace the
+  # lookup for `%do%` therefore falls through to the search path, so foreach
+  # must be ATTACHED here or every call fails with:
+  #   Error in foreach(...) %do% { : could not find function "%do%"
+  # Verified against DESCRIPTION and NAMESPACE at the pinned commit
+  # c7a88794efd4ecfe4d96988dceeec3b410222e48, and reproduced by the
+  # r-batch-conqur build-time smoke before this line was added.
+  library(foreach)
+  library(doParallel)
   library(ConQuR)
 })
 

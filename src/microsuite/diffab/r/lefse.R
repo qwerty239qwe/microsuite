@@ -36,5 +36,24 @@ se <- SummarizedExperiment::SummarizedExperiment(
 # depth -- a complete, plausible, wrong result. relativeAb converts to counts
 # per million, which is what the method assumes.
 se <- lefser::relativeAb(se)
-result <- lefser::lefser(se, classCol = group_col)
+# lefser renamed this parameter across releases: `groupCol` in the versions
+# bioconda ships for R 4.3, `classCol` in current devel (1.23.0). Passing the
+# wrong one is not a hard error -- it lands in `...` while the real parameter
+# takes its default -- so lefser fails with "must refer to a valid dichotomous
+# (two-level) variable" even though the column is a clean two-level factor.
+# Ask the installed function which name it takes rather than pinning a guess.
+lefser_formals <- names(formals(lefser::lefser))
+class_arg <- if ("classCol" %in% lefser_formals) {
+  "classCol"
+} else if ("groupCol" %in% lefser_formals) {
+  "groupCol"
+} else {
+  stop(
+    "Unsupported lefser version: lefser() takes neither 'classCol' nor ",
+    "'groupCol'. Found: ", paste(lefser_formals, collapse = ", ")
+  )
+}
+lefser_args <- list(se)
+lefser_args[[class_arg]] <- group_col
+result <- do.call(lefser::lefser, lefser_args)
 write.table(result, file = output_path, sep = "\t", quote = FALSE, row.names = FALSE)
