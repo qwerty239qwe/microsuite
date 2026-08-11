@@ -498,3 +498,21 @@ def test_adonis2_still_drops_samples_with_missing_metadata_values() -> None:
     result = adonis2(beta, metadata, formula="d ~ body_site", permutations=0)
     assert int(result["n_samples"].iloc[0]) == len(metadata) - 1
 
+
+def test_adonis2_rejects_unknown_within_even_with_zero_permutations() -> None:
+    beta, metadata = fixture_beta_and_metadata()
+    with pytest.raises(MicrobiomeSuiteError, match="free.*none"):
+        adonis2(
+            beta,
+            metadata,
+            formula="d ~ body_site + (1 | subject)",
+            permutations=0,
+            within="bogus",
+        )
+
+
+def test_adonis2_rejects_within_without_a_grouping_term() -> None:
+    beta, metadata = fixture_beta_and_metadata()
+    with pytest.raises(MicrobiomeSuiteError, match="--within"):
+        adonis2(beta, metadata, formula="d ~ body_site", permutations=0, within="none")
+

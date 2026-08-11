@@ -392,6 +392,12 @@ def scheme_from_formula(
     """Turn ``(1 | g)`` terms into a restricted permutation scheme."""
     if not formula.random_groups:
         if blocks is None:
+            if within != "free":
+                raise MicrobiomeSuiteError(
+                    f"--within {within!r} has no effect without a '(1 | group)' term or "
+                    "--blocks: there is no grouping to shuffle within. Add a random-intercept "
+                    "term, pass --blocks, or drop --within (its default is 'free')."
+                )
             return PermutationScheme()
         return PermutationScheme(blocks=_interaction_key(metadata, (blocks,)), within=within)
     if len(formula.random_groups) > 1:
@@ -447,6 +453,8 @@ def adonis2(
     if not isinstance(by, str) or by.lower() not in {"terms", "margin"}:
         raise MicrobiomeSuiteError("--by must be 'terms' or 'margin'.")
     by = by.lower()
+    if within not in {"free", "none"}:
+        raise MicrobiomeSuiteError("--within must be 'free' or 'none'.")
     parsed = parse_formula(formula)
     samples, distances, aligned = _align(
         distance_matrix, metadata, parsed, () if blocks is None else (blocks,)
