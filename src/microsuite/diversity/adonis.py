@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from itertools import combinations
 
 import numpy as np
 import pandas as pd
@@ -125,18 +126,12 @@ def _expand_term(piece: str) -> list[Term]:
         raise MicrobiomeSuiteError(f"Empty operand around '*' in {piece!r}")
     expanded: list[Term] = []
     for size in range(1, len(groups) + 1):
-        for combination in _combinations(range(len(groups)), size):
+        for combination in combinations(range(len(groups)), size):
             factors: list[str] = []
             for index in combination:
                 factors.extend(groups[index])
             expanded.append(Term(tuple(factors)))
     return expanded
-
-
-def _combinations(items: range, size: int) -> list[tuple[int, ...]]:
-    from itertools import combinations
-
-    return list(combinations(items, size))
 
 
 def build_term_matrix(metadata: pd.DataFrame, term: Term) -> np.ndarray:
@@ -330,7 +325,7 @@ def _permute_plots(
     donors: dict[object, object] = {}
     for group in by_size.values():
         shuffled = [group[index] for index in rng.permutation(len(group))]
-        donors.update(zip(group, shuffled, strict=False))
+        donors.update(zip(group, shuffled, strict=True))
 
     out = np.empty(members.shape[0], dtype=np.int64)
     lookup = {position: index for index, position in enumerate(members)}
@@ -338,7 +333,7 @@ def _permute_plots(
         source = positions[donors[plot]]
         if within == "free":
             source = rng.permutation(source)
-        for local, value in zip(member_positions, source, strict=False):
+        for local, value in zip(member_positions, source, strict=True):
             out[lookup[local]] = value
     return out
 
@@ -473,7 +468,7 @@ def adonis2(
             "p_value": float(p_value),
         }
         for label, degree, ss, f_value, p_value in zip(
-            labels, degrees, observed_ss, observed_f, p_values, strict=False
+            labels, degrees, observed_ss, observed_f, p_values, strict=True
         )
     ]
     # Marginal sums of squares exclude the variance terms share, so the residual
@@ -547,7 +542,7 @@ def _align(
     aligned = meta.loc[samples, wanted]
     incomplete = aligned.isna().any(axis=1)
     if bool(incomplete.any()):
-        samples = [sample for sample, drop in zip(samples, incomplete, strict=False) if not drop]
+        samples = [sample for sample, drop in zip(samples, incomplete, strict=True) if not drop]
         aligned = aligned.loc[samples]
     if len(samples) < 3:
         raise MicrobiomeSuiteError(

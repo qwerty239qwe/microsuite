@@ -351,3 +351,29 @@ def test_adonis2_marginal_permutation_p_values_are_bounded() -> None:
     )
     tested = result[~result["term"].isin({"Residual", "Total"})]
     assert ((tested["p_value"] >= 1 / 50) & (tested["p_value"] <= 1.0)).all()
+
+
+def test_adonis2_marginal_handles_a_zero_df_term_in_the_full_model() -> None:
+    """Marginal fitting must tolerate a zero-df term while *building* the model.
+
+    Writing the nested term first -- `study:subject + study` -- leaves `study`
+    fully spanned by the time it is reached, so the sequential build underneath
+    `build_marginal_design` legitimately produces a zero-width block. That path
+    needs `strict=False`; a stricter setting turns a valid formula into an error.
+    """
+    beta, metadata = confounded_fixture()
+    result = adonis2(
+        beta, metadata, formula="d ~ study:subject + study", permutations=0, by="margin"
+    )
+    spanned = result.loc[result["term"] == "study"].iloc[0]
+    assert int(spanned["df"]) == 0
+    assert float(spanned["sum_of_squares"]) == pytest.approx(0.0)
+    # The term that does carry information is unaffected.
+    assert int(result.loc[result["term"] == "study:subject", "df"].iloc[0]) > 0
+
+
+def test_adonis2_rejects_a_zero_df_term_in_sequential_mode() -> None:
+    """Sequential fitting has no such excuse -- the term is simply redundant."""
+    beta, metadata = confounded_fixture()
+    with pytest.raises(MicrobiomeSuiteError, match="aliased"):
+        adonis2(beta, metadata, formula="d ~ study:subject + study", permutations=0)
