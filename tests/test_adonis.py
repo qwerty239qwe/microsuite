@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -12,11 +13,13 @@ from microsuite.api import adonis2
 from microsuite.cli.app import app
 from microsuite.diversity.adonis import (
     PermutationScheme,
+    _achievable_plot_permutations,
     parse_formula,
     permutation_indices,
     scheme_from_formula,
 )
 from microsuite.diversity.beta import beta_diversity
+from microsuite.diversity.vegan import vegan_beta_significance
 from microsuite.io.tsv import read_tsv
 
 FIXTURE = Path(__file__).parent / "fixtures" / "moving_pictures_small"
@@ -403,3 +406,78 @@ def test_adonis2_rejects_a_non_string_by(value: object) -> None:
     beta, metadata = fixture_beta_and_metadata()
     with pytest.raises(MicrobiomeSuiteError, match="terms.*margin"):
         adonis2(beta, metadata, formula="d ~ body_site", permutations=0, by=value)
+
+
+def _repeated_measures_fixture(sizes: list[int]) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Subjects of the given sizes, split into two treatment groups by subject.
+
+    Treatment is constant within a subject (the between-subject case restricted
+    permutation exists for) and carries a strong, deterministic separation, so
+    the observed pseudo-F is large and any failure to restrict permutation
+    properly is easy to see in the resulting p-value.
+    """
+    rows = []
+    for subject_index, size in enumerate(sizes):
+        treatment = "A" if subject_index % 2 == 0 else "B"
+        offset = 5.0 if treatment == "A" else -5.0
+        for replicate in range(size):
+            rows.append(
+                {
+                    "sample_id": f"s{subject_index}-{replicate}",
+                    "subject": f"subject-{subject_index}",
+                    "treatment": treatment,
+                    "feature": offset + 0.01 * replicate,
+                }
+            )
+    metadata = pd.DataFrame(rows).set_index("sample_id")
+    values = metadata["feature"].to_numpy()
+    distances = np.abs(values[:, None] - values[None, :])
+    beta = pd.DataFrame(distances, index=metadata.index, columns=metadata.index)
+    return beta, metadata
+
+
+def test_adonis2_rejects_a_between_subject_design_with_no_achievable_exchange() -> None:
+    """Every plot a distinct size means no between-plot swap is possible; p=1.0 would lie."""
+    beta, metadata = _repeated_measures_fixture([1, 2, 3, 4, 5, 6])
+    with pytest.raises(MicrobiomeSuiteError, match="distinct size"):
+        adonis2(
+            beta,
+            metadata,
+            formula="d ~ treatment + (1 | subject)",
+            permutations=99,
+            seed=1,
+        )
+
+
+def test_adonis2_between_subject_design_with_repeated_sizes_still_works() -> None:
+    beta, metadata = _repeated_measures_fixture([2, 2, 3, 3, 4, 4])
+    result = adonis2(
+        beta,
+        metadata,
+        formula="d ~ treatment + (1 | subject)",
+        permutations=99,
+        seed=1,
+    )
+    treatment_row = result.loc[result["term"] == "treatment"].iloc[0]
+    assert float(treatment_row["p_value"]) < 1.0
+    assert int(treatment_row["achievable_plot_permutations"]) == 8
+
+
+def test_adonis2_warns_when_achievable_permutations_are_coarser_than_requested() -> None:
+    beta, metadata = _repeated_measures_fixture([2, 2, 3, 3])
+    with pytest.warns(UserWarning, match="4 distinct"):
+        result = adonis2(
+            beta,
+            metadata,
+            formula="d ~ treatment + (1 | subject)",
+            permutations=99,
+            seed=1,
+        )
+    treatment_row = result.loc[result["term"] == "treatment"].iloc[0]
+    assert int(treatment_row["achievable_plot_permutations"]) == 4
+
+
+def test_achievable_plot_permutations_matches_a_hand_checked_layout() -> None:
+    """Sizes 2, 2, 3, 3 -> one size-2 pair and one size-3 pair -> 2! * 2! = 4."""
+    scheme = PermutationScheme(plots=np.array([0, 0, 1, 1, 2, 2, 2, 3, 3, 3]))
+    assert _achievable_plot_permutations(scheme, 10, cap=1000) == 4

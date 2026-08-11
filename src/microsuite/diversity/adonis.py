@@ -13,6 +13,7 @@ are not exchangeable, and so restricts how the permutations are drawn.
 from __future__ import annotations
 
 import re
+import warnings
 from dataclasses import dataclass, field
 from itertools import combinations
 
@@ -338,6 +339,49 @@ def _permute_plots(
     return out
 
 
+def _plot_sizes(scheme: PermutationScheme, n: int) -> list[int]:
+    """Size of every plot in the scheme, in the order plots first appear."""
+    if scheme.plots is None:
+        return []
+    blocks = np.zeros(n, dtype=np.int64) if scheme.blocks is None else scheme.blocks
+    sizes: list[int] = []
+    for block in np.unique(blocks):
+        members = np.flatnonzero(blocks == block)
+        plots = scheme.plots[members]
+        for plot in pd.unique(plots):
+            sizes.append(int(np.count_nonzero(plots == plot)))
+    return sizes
+
+
+def _achievable_plot_permutations(scheme: PermutationScheme, n: int, cap: int) -> int:
+    """How many distinct plot-level permutations ``scheme`` can actually reach.
+
+    The product, over every block and then every size class within it, of
+    ``factorial(class size)`` -- that is exactly how many ways ``_permute_plots``
+    can reassign donor plots to target plots. Growth is capped at ``cap``: once
+    the running product reaches it, the exact value stops mattering to any
+    caller comparing against a requested permutation count, and continuing
+    would risk overflow or a long stall on a design with many, large plots.
+    """
+    if scheme.plots is None:
+        return cap
+    blocks = np.zeros(n, dtype=np.int64) if scheme.blocks is None else scheme.blocks
+    total = 1
+    for block in np.unique(blocks):
+        members = np.flatnonzero(blocks == block)
+        plots = scheme.plots[members]
+        by_size: dict[int, int] = {}
+        for plot in pd.unique(plots):
+            size = int(np.count_nonzero(plots == plot))
+            by_size[size] = by_size.get(size, 0) + 1
+        for count in by_size.values():
+            for factor in range(2, count + 1):
+                total *= factor
+                if total >= cap:
+                    return total
+    return total
+
+
 def scheme_from_formula(
     formula: Formula,
     metadata: pd.DataFrame,
@@ -449,6 +493,28 @@ def adonis2(
     observed_ss, observed_f = statistics(combined)
 
     scheme = scheme_from_formula(parsed, aligned, blocks=blocks, within=within)
+    achievable_permutations: int | float = float("nan")
+    if scheme.plots is not None:
+        cap = permutations + 1 if permutations > 0 else 2
+        achievable_permutations = _achievable_plot_permutations(scheme, n, cap)
+        if permutations > 0:
+            if achievable_permutations <= 1:
+                sizes_text = ", ".join(str(size) for size in _plot_sizes(scheme, n))
+                raise MicrobiomeSuiteError(
+                    "Restricted permutation cannot exchange any plots: every plot has a "
+                    f"distinct size ({sizes_text}), so no between-plot swap is possible and "
+                    "the p-value would be meaningless (always 1.0). Equalise plot sizes, "
+                    "drop the '(1 | group)' grouping, or use --blocks instead."
+                )
+            if achievable_permutations < permutations + 1:
+                warnings.warn(
+                    "Restricted permutation scheme can only reach "
+                    f"{achievable_permutations} distinct plot-level permutation(s), coarser "
+                    f"than the requested {permutations}; p-value resolution is limited to "
+                    f"1/{achievable_permutations} steps.",
+                    UserWarning,
+                    stacklevel=2,
+                )
     rng = np.random.default_rng(seed)
     exceedances = np.ones(len(labels), dtype=float)
     for _ in range(permutations):
@@ -514,6 +580,7 @@ def adonis2(
     result["n_samples"] = n
     result["permutations"] = permutations
     result["permutation_scheme"] = scheme.label
+    result["achievable_plot_permutations"] = achievable_permutations
     return result
 
 
