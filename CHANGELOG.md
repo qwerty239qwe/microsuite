@@ -15,8 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and a `(1 | group)` term that restricts which permutations are drawn rather
   than fitting a variance component. Unlike `permute::how()`, group exchange
   also works when group sizes are unbalanced (groups swap only with groups of
-  the same size). Verified against `vegan::adonis2` 2.6-10 on a 3289-sample
-  table for both SS types.
+  the same size). `tests/test_adonis.py` carries an opt-in parity test
+  (`Rscript` on `PATH`) comparing native `Df`, `SumOfSqs`, `R2` and `F`
+  against `vegan::adonis2` 2.7.5 for an additive multi-term model and a
+  model with an interaction.
 
 ### Fixed
 
@@ -36,6 +38,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `metadict.R` now refuses to run if `--batch-col` names a column other
   than a pre-existing `batch` column in the metadata, instead of silently
   overwriting that column.
+- `adonis2`'s `(1 | group)` restricted permutation now raises instead of
+  silently returning `p = 1.0` when every plot has a distinct size, so no
+  between-plot exchange is possible; it warns when the achievable exchange
+  count is coarser than the requested `--permutations`, and reports the
+  achievable count as an output column.
+- `adonis2` now raises when the distance matrix contains sample IDs missing
+  from metadata (naming the missing IDs), instead of silently analysing
+  whichever samples happened to match and reporting a smaller `n_samples`.
+- `adonis2`'s `--within` is now validated up front and rejected when there
+  is no `(1 | group)` term or `--blocks` to shuffle within, instead of
+  being silently ignored.
 
 ### Note
 

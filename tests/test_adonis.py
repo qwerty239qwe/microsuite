@@ -516,3 +516,64 @@ def test_adonis2_rejects_within_without_a_grouping_term() -> None:
     with pytest.raises(MicrobiomeSuiteError, match="--within"):
         adonis2(beta, metadata, formula="d ~ body_site", permutations=0, within="none")
 
+
+def _interaction_fixture() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """A balanced 3x2 factorial design with enough replicates for an interaction term."""
+    rng = np.random.default_rng(42)
+    rows = []
+    for level_a in ("a1", "a2", "a3"):
+        for level_b in ("b1", "b2"):
+            for replicate in range(4):
+                rows.append(
+                    {
+                        "sample_id": f"{level_a}-{level_b}-{replicate}",
+                        "factor_a": level_a,
+                        "factor_b": level_b,
+                    }
+                )
+    metadata = pd.DataFrame(rows).set_index("sample_id")
+    n = len(metadata)
+    points = rng.normal(size=(n, 4))
+    for index, row in enumerate(metadata.itertuples()):
+        points[index, 0] += {"a1": 0.0, "a2": 2.0, "a3": 4.0}[row.factor_a]
+        points[index, 1] += 0.0 if row.factor_b == "b1" else 2.5
+        if row.factor_a == "a2" and row.factor_b == "b2":
+            points[index, 2] += 3.0  # a genuine interaction effect
+    diff = points[:, None, :] - points[None, :, :]
+    distances = np.sqrt(np.square(diff).sum(axis=2))
+    beta = pd.DataFrame(distances, index=metadata.index, columns=metadata.index)
+    return beta, metadata
+
+
+@pytest.mark.skipif(shutil.which("Rscript") is None, reason="Rscript is not installed")
+def test_adonis2_matches_vegan_adonis2_for_an_additive_multi_term_model() -> None:
+    beta, metadata = _interaction_fixture()
+    native = adonis2(beta, metadata, formula="d ~ factor_a + factor_b", permutations=0)
+    vegan = vegan_beta_significance(
+        beta, metadata, method="adonis2", formula="factor_a + factor_b", permutations=0
+    )
+
+    native_terms = native[~native["term"].isin({"Residual", "Total"})]
+    assert list(native_terms["term"]) == list(vegan["term"])
+    for native_row, (_, vegan_row) in zip(native_terms.itertuples(), vegan.iterrows(), strict=True):
+        assert native_row.df == vegan_row["df"]
+        assert native_row.sum_of_squares == pytest.approx(vegan_row["sum_of_squares"], rel=1e-6)
+        assert native_row.r2 == pytest.approx(vegan_row["r_squared"], rel=1e-6)
+        assert native_row.pseudo_f == pytest.approx(vegan_row["f_value"], rel=1e-6)
+
+
+@pytest.mark.skipif(shutil.which("Rscript") is None, reason="Rscript is not installed")
+def test_adonis2_matches_vegan_adonis2_for_a_model_with_an_interaction() -> None:
+    beta, metadata = _interaction_fixture()
+    native = adonis2(beta, metadata, formula="d ~ factor_a * factor_b", permutations=0)
+    vegan = vegan_beta_significance(
+        beta, metadata, method="adonis2", formula="factor_a * factor_b", permutations=0
+    )
+
+    native_terms = native[~native["term"].isin({"Residual", "Total"})]
+    assert list(native_terms["term"]) == list(vegan["term"])
+    for native_row, (_, vegan_row) in zip(native_terms.itertuples(), vegan.iterrows(), strict=True):
+        assert native_row.df == vegan_row["df"]
+        assert native_row.sum_of_squares == pytest.approx(vegan_row["sum_of_squares"], rel=1e-6)
+        assert native_row.r2 == pytest.approx(vegan_row["r_squared"], rel=1e-6)
+        assert native_row.pseudo_f == pytest.approx(vegan_row["f_value"], rel=1e-6)
