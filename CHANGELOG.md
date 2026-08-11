@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `microsuite diversity adonis` / `microsuite.api.adonis2`: formula-based
+  multi-term PERMANOVA. Wilkinson formulas with `+`, `:` and `*`, sequential
+  (type I) or marginal (type II/III) sums of squares via `--by terms|margin`,
+  and a `(1 | group)` term that restricts which permutations are drawn rather
+  than fitting a variance component. Unlike `permute::how()`, group exchange
+  also works when group sizes are unbalanced (groups swap only with groups of
+  the same size). Verified against `vegan::adonis2` 2.6-10 on a 3289-sample
+  table for both SS types.
+
 ### Fixed
 
 - `batch correct`'s default `--runtime docker` image name is now a

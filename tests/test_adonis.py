@@ -377,3 +377,29 @@ def test_adonis2_rejects_a_zero_df_term_in_sequential_mode() -> None:
     beta, metadata = confounded_fixture()
     with pytest.raises(MicrobiomeSuiteError, match="aliased"):
         adonis2(beta, metadata, formula="d ~ study:subject + study", permutations=0)
+
+
+def test_adonis2_marks_an_aliased_term_rather_than_leaving_a_blank_row() -> None:
+    """A zero-df row is a real answer, but it must not read like an absent one."""
+    beta, metadata = confounded_fixture()
+    metadata = metadata.copy()
+    metadata["study_copy"] = metadata["study"]
+    result = adonis2(beta, metadata, formula="d ~ study + study_copy", permutations=0, by="margin")
+    for term in ("study", "study_copy"):
+        row = result.loc[result["term"] == term].iloc[0]
+        assert int(row["df"]) == 0
+        assert "aliased" in row["note"]
+    assert result.loc[result["term"] == "Residual", "note"].iloc[0] == ""
+
+    # The model itself still fits: the residual matches the non-degenerate formula.
+    reference = adonis2(beta, metadata, formula="d ~ study", permutations=0)
+    assert float(result.loc[result["term"] == "Residual", "r2"].iloc[0]) == pytest.approx(
+        float(reference.loc[reference["term"] == "Residual", "r2"].iloc[0])
+    )
+
+
+@pytest.mark.parametrize("value", [None, 3, ["margin"]])
+def test_adonis2_rejects_a_non_string_by(value: object) -> None:
+    beta, metadata = fixture_beta_and_metadata()
+    with pytest.raises(MicrobiomeSuiteError, match="terms.*margin"):
+        adonis2(beta, metadata, formula="d ~ body_site", permutations=0, by=value)

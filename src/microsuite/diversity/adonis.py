@@ -400,9 +400,9 @@ def adonis2(
     """
     if permutations < 0:
         raise MicrobiomeSuiteError("--permutations must be non-negative.")
-    by = by.lower()
-    if by not in {"terms", "margin"}:
+    if not isinstance(by, str) or by.lower() not in {"terms", "margin"}:
         raise MicrobiomeSuiteError("--by must be 'terms' or 'margin'.")
+    by = by.lower()
     parsed = parse_formula(formula)
     samples, distances, aligned = _align(
         distance_matrix, metadata, parsed, () if blocks is None else (blocks,)
@@ -458,6 +458,10 @@ def adonis2(
 
     p_values = exceedances / (permutations + 1) if permutations else np.full(len(labels), np.nan)
     p_values = np.where(sizes > 0, p_values, np.nan)
+    # A zero-df row is a real answer -- the term has no variance the others cannot
+    # reproduce -- but in a TSV it is indistinguishable from a term that simply did
+    # not matter. Say which it is, so a degenerate formula is visible rather than
+    # silently returning a table of blanks.
     rows = [
         {
             "term": label,
@@ -466,6 +470,11 @@ def adonis2(
             "r2": float(ss / total_ss),
             "pseudo_f": float(f_value),
             "p_value": float(p_value),
+            "note": (
+                ""
+                if degree > 0
+                else "aliased: no variance of its own once the other terms are fitted"
+            ),
         }
         for label, degree, ss, f_value, p_value in zip(
             labels, degrees, observed_ss, observed_f, p_values, strict=True
@@ -487,6 +496,7 @@ def adonis2(
             "r2": residual_ss / total_ss,
             "pseudo_f": float("nan"),
             "p_value": float("nan"),
+            "note": "",
         }
     )
     rows.append(
@@ -497,6 +507,7 @@ def adonis2(
             "r2": 1.0,
             "pseudo_f": float("nan"),
             "p_value": float("nan"),
+            "note": "",
         }
     )
     result = pd.DataFrame(rows)
@@ -504,15 +515,6 @@ def adonis2(
     result["permutations"] = permutations
     result["permutation_scheme"] = scheme.label
     return result
-
-
-def _f_statistics(
-    term_ss: np.ndarray, degrees: np.ndarray, total_ss: float, residual_df: int
-) -> np.ndarray:
-    residual_ss = total_ss - term_ss.sum()
-    if residual_ss <= 0.0:
-        return np.zeros_like(term_ss)
-    return (term_ss / degrees) / (residual_ss / residual_df)
 
 
 def _align(
