@@ -218,3 +218,136 @@ def test_adonis_cli_writes_a_table(tmp_path: Path) -> None:
     written = pd.read_csv(output, sep="\t")
     assert list(written["term"])[-2:] == ["Residual", "Total"]
     assert written["permutation_scheme"].iloc[0] == "plots-free"
+
+
+def test_adonis2_marginal_is_order_invariant() -> None:
+    """The point of marginal SS: shared variance goes to nobody, so order stops mattering."""
+    beta, metadata = fixture_beta_and_metadata()
+    forward = adonis2(
+        beta, metadata, formula="d ~ body_site + subject", permutations=0, by="margin"
+    )
+    reverse = adonis2(
+        beta, metadata, formula="d ~ subject + body_site", permutations=0, by="margin"
+    )
+    for term in ("body_site", "subject"):
+        left = forward.loc[forward["term"] == term].iloc[0]
+        right = reverse.loc[reverse["term"] == term].iloc[0]
+        assert left["df"] == right["df"]
+        assert left["sum_of_squares"] == pytest.approx(right["sum_of_squares"])
+        assert left["pseudo_f"] == pytest.approx(right["pseudo_f"])
+
+
+def test_adonis2_rejects_an_unknown_by() -> None:
+    beta, metadata = fixture_beta_and_metadata()
+    with pytest.raises(MicrobiomeSuiteError, match="terms.*margin"):
+        adonis2(beta, metadata, formula="d ~ body_site", permutations=0, by="type-iii")
+
+
+def confounded_fixture() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Synthetic study/disease design where the two factors overlap.
+
+    Studies A and B are single-disease, C and D are mixed -- the same shape as a
+    cross-study meta-analysis, and the shape that makes term order matter.
+    """
+    rng = np.random.default_rng(0)
+    rows = []
+    for study, diseases in (
+        ("A", ["healthy"] * 8),
+        ("B", ["case"] * 8),
+        ("C", ["healthy"] * 4 + ["case"] * 4),
+        ("D", ["healthy"] * 4 + ["case"] * 4),
+    ):
+        for index, disease in enumerate(diseases):
+            rows.append(
+                {
+                    "sample_id": f"{study}{index:02d}",
+                    "study": study,
+                    "disease": disease,
+                    "subject": f"{study}-s{index // 2}",
+                }
+            )
+    metadata = pd.DataFrame(rows).set_index("sample_id")
+
+    # Abundances carry a large study shift and a smaller disease shift, so the
+    # two factors explain overlapping variance.
+    studies = sorted(metadata["study"].unique())
+    counts = rng.lognormal(size=(len(metadata), 25))
+    for position, study in enumerate(studies):
+        rows_for_study = (metadata["study"] == study).to_numpy()
+        counts[rows_for_study, position] += 4.0
+    counts[(metadata["disease"] == "case").to_numpy(), :3] += 1.5
+    proportions = counts / counts.sum(axis=1, keepdims=True)
+
+    difference = np.abs(proportions[:, None, :] - proportions[None, :, :]).sum(axis=2)
+    totals = proportions.sum(axis=1)
+    beta = pd.DataFrame(
+        difference / (totals[:, None] + totals[None, :]),
+        index=metadata.index,
+        columns=metadata.index,
+    )
+    return beta, metadata
+
+
+def test_adonis2_sequential_is_order_dependent_when_terms_are_confounded() -> None:
+    beta, metadata = confounded_fixture()
+    forward = adonis2(beta, metadata, formula="d ~ disease + study", permutations=0)
+    reverse = adonis2(beta, metadata, formula="d ~ study + disease", permutations=0)
+    first = float(forward.loc[forward["term"] == "disease", "sum_of_squares"].iloc[0])
+    second = float(reverse.loc[reverse["term"] == "disease", "sum_of_squares"].iloc[0])
+    # Written first, `disease` also collects the variance it shares with `study`.
+    assert first > second
+
+    # The pair explains the same total either way; only the split changes.
+    forward_pair = forward[forward["term"].isin({"disease", "study"})]["sum_of_squares"].sum()
+    reverse_pair = reverse[reverse["term"].isin({"disease", "study"})]["sum_of_squares"].sum()
+    assert forward_pair == pytest.approx(reverse_pair)
+
+
+def test_adonis2_marginal_recovers_the_unique_contribution() -> None:
+    beta, metadata = confounded_fixture()
+    reverse = adonis2(beta, metadata, formula="d ~ study + disease", permutations=0)
+    marginal = adonis2(beta, metadata, formula="d ~ disease + study", permutations=0, by="margin")
+    # For two terms, `disease` entered last already is its marginal contribution.
+    assert float(marginal.loc[marginal["term"] == "disease", "sum_of_squares"].iloc[0]) == (
+        pytest.approx(float(reverse.loc[reverse["term"] == "disease", "sum_of_squares"].iloc[0]))
+    )
+
+
+def test_adonis2_marginal_reports_a_nested_term_as_zero_df() -> None:
+    """`study` carries nothing of its own once `study:subject` is in the model."""
+    beta, metadata = confounded_fixture()
+    result = adonis2(
+        beta, metadata, formula="d ~ study + study:subject", permutations=0, by="margin"
+    )
+    nested = result.loc[result["term"] == "study"].iloc[0]
+    assert int(nested["df"]) == 0
+    assert float(nested["sum_of_squares"]) == pytest.approx(0.0)
+    assert pd.isna(nested["pseudo_f"])
+    assert pd.isna(nested["p_value"])
+
+
+def test_adonis2_marginal_residual_comes_from_the_full_model() -> None:
+    """Marginal SS omit shared variance, so they must not be used to derive the residual."""
+    beta, metadata = confounded_fixture()
+    sequential = adonis2(beta, metadata, formula="d ~ disease + study", permutations=0)
+    marginal = adonis2(beta, metadata, formula="d ~ disease + study", permutations=0, by="margin")
+
+    for column in ("df", "sum_of_squares"):
+        assert float(marginal.loc[marginal["term"] == "Residual", column].iloc[0]) == (
+            pytest.approx(float(sequential.loc[sequential["term"] == "Residual", column].iloc[0]))
+        )
+
+    terms = marginal[~marginal["term"].isin({"Residual", "Total"})]
+    residual_ss = float(marginal.loc[marginal["term"] == "Residual", "sum_of_squares"].iloc[0])
+    total_ss = float(marginal.loc[marginal["term"] == "Total", "sum_of_squares"].iloc[0])
+    # Strictly less, because the confounded portion is credited to neither term.
+    assert terms["sum_of_squares"].sum() + residual_ss < total_ss
+
+
+def test_adonis2_marginal_permutation_p_values_are_bounded() -> None:
+    beta, metadata = confounded_fixture()
+    result = adonis2(
+        beta, metadata, formula="d ~ disease + study", permutations=49, seed=3, by="margin"
+    )
+    tested = result[~result["term"].isin({"Residual", "Total"})]
+    assert ((tested["p_value"] >= 1 / 50) & (tested["p_value"] <= 1.0)).all()

@@ -150,9 +150,19 @@ def adonis_cmd(
         str,
         typer.Option("--within", help="Shuffle samples inside a group: 'free' or 'none'."),
     ] = "free",
+    by: Annotated[
+        str,
+        typer.Option(
+            "--by",
+            help=(
+                "'terms' for sequential (type I) sums of squares, where order matters; "
+                "'margin' to adjust every term for all others so order does not."
+            ),
+        ),
+    ] = "terms",
     force: Annotated[bool, typer.Option("--force", help="Overwrite existing output.")] = False,
 ) -> None:
-    """Multi-term PERMANOVA with sequential sums of squares (vegan adonis2)."""
+    """Multi-term PERMANOVA (vegan adonis2)."""
     result = adonis2(
         _read_distance_matrix(distance_matrix),
         _read_metadata(metadata),
@@ -161,6 +171,7 @@ def adonis_cmd(
         seed=seed,
         blocks=blocks,
         within=within,
+        by=by,
     )
     result.to_csv(prepare_output(output, force=force), sep="\t", index=False)
 

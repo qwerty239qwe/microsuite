@@ -167,6 +167,7 @@ def adonis2(
     seed: int = 0,
     blocks: str | None = None,
     within: str = "free",
+    by: str = "terms",
 ) -> pd.DataFrame:
     return _adonis2(
         distance_matrix,
@@ -176,6 +177,7 @@ def adonis2(
         seed=seed,
         blocks=blocks,
         within=within,
+        by=by,
     )
 
 

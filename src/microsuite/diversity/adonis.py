@@ -169,7 +169,7 @@ def _is_numeric(values: pd.Series) -> bool:
 
 
 def build_design(
-    metadata: pd.DataFrame, formula: Formula
+    metadata: pd.DataFrame, formula: Formula, *, strict: bool = True
 ) -> tuple[np.ndarray, list[str], list[int]]:
     """Sequential orthonormal basis for the fixed terms.
 
@@ -179,6 +179,10 @@ def build_design(
     of freedom are exactly the new directions it adds -- which is how aliased
     interaction columns silently lose degrees of freedom rather than breaking
     the fit.
+
+    ``strict`` rejects a term that adds nothing at all. Marginal testing drops
+    one term at a time and legitimately produces such models, so it asks for
+    ``strict=False`` and reads the zero off the returned degrees.
     """
     n = metadata.shape[0]
     basis = np.zeros((n, 0), dtype=float)
@@ -192,13 +196,8 @@ def build_design(
         scale = float(np.linalg.norm(block))
         if basis.shape[1]:
             block = block - basis @ (basis.T @ block)
-        left, singular, _ = np.linalg.svd(block, full_matrices=False)
-        if singular.size == 0 or scale <= 0.0:
-            keep = np.zeros(singular.shape, dtype=bool)
-        else:
-            keep = singular > _RANK_TOL * max(n, block.shape[1]) * scale
-        added = left[:, keep]
-        if added.shape[1] == 0:
+        added = _independent_directions(block, scale, n)
+        if added.shape[1] == 0 and strict:
             raise MicrobiomeSuiteError(
                 f"Term '{term.label}' is fully aliased with earlier terms and adds no "
                 "degrees of freedom; drop it from the formula."
@@ -207,6 +206,52 @@ def build_design(
         labels.append(term.label)
         degrees.append(int(added.shape[1]))
     return basis, labels, degrees
+
+
+def _independent_directions(block: np.ndarray, scale: float, n: int) -> np.ndarray:
+    """Orthonormal directions of ``block`` that survive the rank tolerance."""
+    left, singular, _ = np.linalg.svd(block, full_matrices=False)
+    if singular.size == 0 or scale <= 0.0:
+        return left[:, :0]
+    keep = singular > _RANK_TOL * max(n, block.shape[1]) * scale
+    return left[:, keep]
+
+
+def build_marginal_design(
+    metadata: pd.DataFrame, formula: Formula
+) -> tuple[np.ndarray, list[str], list[int], np.ndarray]:
+    """Bases for type II/III (marginal) testing.
+
+    Each term is represented only by the directions it contributes that *no
+    other term* can reproduce, so the shared variance of a confounded design is
+    credited to nobody and term order stops mattering. A term nested inside
+    another -- ``accession`` inside ``accession:timepoint`` -- has nothing left
+    of its own and correctly comes back with zero degrees of freedom.
+
+    Returns the stacked marginal bases, labels, per-term degrees of freedom,
+    and the full-model basis used for the residual.
+    """
+    n = metadata.shape[0]
+    full, labels, _ = build_design(metadata, formula, strict=False)
+
+    blocks: list[np.ndarray] = []
+    degrees: list[int] = []
+    for index in range(len(formula.terms)):
+        others = Formula(
+            tuple(term for position, term in enumerate(formula.terms) if position != index),
+            (),
+        )
+        if others.terms:
+            reduced, _, _ = build_design(metadata, others, strict=False)
+        else:
+            reduced = np.zeros((n, 0), dtype=float)
+        unique = full if reduced.shape[1] == 0 else full - reduced @ (reduced.T @ full)
+        block = _independent_directions(unique, float(np.linalg.norm(full)), n)
+        blocks.append(block)
+        degrees.append(int(block.shape[1]))
+
+    stacked = np.hstack(blocks) if blocks else np.zeros((n, 0), dtype=float)
+    return stacked, labels, degrees, full
 
 
 def gower_matrix(distances: np.ndarray) -> np.ndarray:
@@ -218,11 +263,15 @@ def gower_matrix(distances: np.ndarray) -> np.ndarray:
     return -0.5 * (squared - row_means - column_means + grand_mean)
 
 
-def _term_sums_of_squares(gower: np.ndarray, basis: np.ndarray, offsets: np.ndarray) -> np.ndarray:
-    """Explained SS per term for a (possibly row-permuted) basis."""
-    projected = gower @ basis
-    per_column = np.einsum("ij,ij->j", basis, projected)
-    return np.add.reduceat(per_column, offsets) if per_column.size else per_column
+def _term_sums_of_squares(gower: np.ndarray, basis: np.ndarray, sizes: np.ndarray) -> np.ndarray:
+    """Explained SS per term for a (possibly row-permuted) basis.
+
+    ``sizes`` gives each term's column count; zero-width terms are allowed,
+    which is why this sums by block id rather than by offset.
+    """
+    per_column = np.einsum("ij,ij->j", basis, gower @ basis)
+    block_id = np.repeat(np.arange(sizes.shape[0]), sizes)
+    return np.bincount(block_id, weights=per_column, minlength=sizes.shape[0])
 
 
 @dataclass(frozen=True)
@@ -340,48 +389,80 @@ def adonis2(
     seed: int = 0,
     blocks: str | None = None,
     within: str = "free",
+    by: str = "terms",
 ) -> pd.DataFrame:
-    """Multi-term PERMANOVA with sequential sums of squares.
+    """Multi-term PERMANOVA.
 
-    Mirrors ``vegan::adonis2(..., by = "terms")``: terms are added in the order
-    written, each tested against the residual of the full model, with p-values
-    from permuting sample labels under `scheme_from_formula`.
+    ``by="terms"`` mirrors ``vegan::adonis2(..., by = "terms")``: sequential
+    (type I) sums of squares, so terms are added in the order written and the
+    variance a confounded pair shares is credited to whichever comes first.
+
+    ``by="margin"`` gives type II/III sums of squares: every term is adjusted
+    for all the others, so shared variance is credited to nobody and term order
+    stops mattering. Marginal sums of squares therefore do not add up to the
+    explained total. A term nested inside another has no variance of its own and
+    is reported with zero degrees of freedom and no p-value.
     """
     if permutations < 0:
         raise MicrobiomeSuiteError("--permutations must be non-negative.")
+    by = by.lower()
+    if by not in {"terms", "margin"}:
+        raise MicrobiomeSuiteError("--by must be 'terms' or 'margin'.")
     parsed = parse_formula(formula)
     samples, distances, aligned = _align(
         distance_matrix, metadata, parsed, () if blocks is None else (blocks,)
     )
 
     gower = gower_matrix(distances)
-    basis, labels, degrees = build_design(aligned, parsed)
-    offsets = np.concatenate([[0], np.cumsum(degrees)[:-1]]).astype(int)
+    if by == "terms":
+        basis, labels, degrees = build_design(aligned, parsed)
+        model_rank = int(sum(degrees))
+        explained_basis = basis
+    else:
+        basis, labels, degrees, full = build_marginal_design(aligned, parsed)
+        model_rank = int(full.shape[1])
+        explained_basis = full
+    sizes = np.asarray(degrees, dtype=int)
 
     total_ss = float(np.trace(gower))
     if total_ss <= 0.0:
         raise MicrobiomeSuiteError("Total sum of squares is zero; distances carry no variation.")
     n = len(samples)
-    residual_df = n - 1 - int(sum(degrees))
+    residual_df = n - 1 - model_rank
     if residual_df <= 0:
         raise MicrobiomeSuiteError(
-            f"Model uses {sum(degrees)} of {n - 1} available degrees of freedom, "
+            f"Model uses {model_rank} of {n - 1} available degrees of freedom, "
             "leaving no residual; drop a term or add samples."
         )
 
-    observed_ss = _term_sums_of_squares(gower, basis, offsets)
-    observed_f = _f_statistics(observed_ss, np.asarray(degrees), total_ss, residual_df)
+    # The residual is always taken from the full model, so for marginal testing
+    # the explained basis is carried alongside the per-term marginal blocks.
+    combined = basis if by == "terms" else np.hstack([basis, explained_basis])
+    combined_sizes = sizes if by == "terms" else np.concatenate([sizes, [explained_basis.shape[1]]])
+
+    def statistics(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        sums = _term_sums_of_squares(gower, matrix, combined_sizes)
+        term_ss = sums[: len(labels)]
+        explained = float(sums.sum()) if by == "terms" else float(sums[-1])
+        residual_ss = total_ss - explained
+        if residual_ss <= 0.0:
+            return term_ss, np.zeros_like(term_ss)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            f_values = (term_ss / np.where(sizes > 0, sizes, np.nan)) / (residual_ss / residual_df)
+        return term_ss, f_values
+
+    observed_ss, observed_f = statistics(combined)
 
     scheme = scheme_from_formula(parsed, aligned, blocks=blocks, within=within)
     rng = np.random.default_rng(seed)
     exceedances = np.ones(len(labels), dtype=float)
     for _ in range(permutations):
         permuted = permutation_indices(scheme, n, rng)
-        permuted_ss = _term_sums_of_squares(gower, basis[permuted], offsets)
-        permuted_f = _f_statistics(permuted_ss, np.asarray(degrees), total_ss, residual_df)
-        exceedances += permuted_f >= observed_f
+        _, permuted_f = statistics(combined[permuted])
+        exceedances += np.where(np.isnan(permuted_f), False, permuted_f >= observed_f)
 
     p_values = exceedances / (permutations + 1) if permutations else np.full(len(labels), np.nan)
+    p_values = np.where(sizes > 0, p_values, np.nan)
     rows = [
         {
             "term": label,
@@ -395,7 +476,14 @@ def adonis2(
             labels, degrees, observed_ss, observed_f, p_values, strict=False
         )
     ]
-    residual_ss = total_ss - float(observed_ss.sum())
+    # Marginal sums of squares exclude the variance terms share, so the residual
+    # has to come from the full model rather than from what the terms add up to.
+    explained_ss = float(
+        _term_sums_of_squares(
+            gower, explained_basis, np.asarray([explained_basis.shape[1]], dtype=int)
+        )[0]
+    )
+    residual_ss = total_ss - explained_ss
     rows.append(
         {
             "term": "Residual",
