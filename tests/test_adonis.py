@@ -481,3 +481,20 @@ def test_achievable_plot_permutations_matches_a_hand_checked_layout() -> None:
     """Sizes 2, 2, 3, 3 -> one size-2 pair and one size-3 pair -> 2! * 2! = 4."""
     scheme = PermutationScheme(plots=np.array([0, 0, 1, 1, 2, 2, 2, 3, 3, 3]))
     assert _achievable_plot_permutations(scheme, 10, cap=1000) == 4
+
+
+def test_adonis2_missing_distance_samples_are_rejected_not_silently_dropped() -> None:
+    beta, metadata = fixture_beta_and_metadata()
+    metadata = metadata.drop(index=metadata.index[:2])
+    with pytest.raises(MicrobiomeSuiteError, match="missing from"):
+        adonis2(beta, metadata, formula="d ~ body_site", permutations=0)
+
+
+def test_adonis2_still_drops_samples_with_missing_metadata_values() -> None:
+    """A sample present in metadata but with NA values for a term is dropped, not rejected."""
+    beta, metadata = fixture_beta_and_metadata()
+    metadata = metadata.copy()
+    metadata.loc[metadata.index[0], "body_site"] = np.nan
+    result = adonis2(beta, metadata, formula="d ~ body_site", permutations=0)
+    assert int(result["n_samples"].iloc[0]) == len(metadata) - 1
+

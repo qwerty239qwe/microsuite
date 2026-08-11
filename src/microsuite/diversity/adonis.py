@@ -607,7 +607,15 @@ def _align(
         raise MicrobiomeSuiteError(f"Metadata column not found: {', '.join(missing)}")
 
     known = set(meta.index)
-    samples = [sample for sample in matrix.index if sample in known]
+    missing_samples = [sample for sample in matrix.index if sample not in known]
+    if missing_samples:
+        shown = ", ".join(missing_samples[:10])
+        suffix = "" if len(missing_samples) <= 10 else f", and {len(missing_samples) - 10} more"
+        raise MicrobiomeSuiteError(
+            f"Distance matrix contains {len(missing_samples)} sample ID(s) missing from "
+            f"metadata: {shown}{suffix}"
+        )
+    samples = list(matrix.index)
     aligned = meta.loc[samples, wanted]
     incomplete = aligned.isna().any(axis=1)
     if bool(incomplete.any()):
