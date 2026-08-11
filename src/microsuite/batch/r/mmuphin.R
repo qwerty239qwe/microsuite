@@ -21,11 +21,18 @@ meta[[params$batch]] <- factor(meta[[params$batch]])
 
 covariates <- if (length(params$covariates) > 0) as.character(params$covariates) else NULL
 
+# adjust_batch() writes a diagnostic PDF and defaults to the working directory,
+# which is not writable in the container -- the run dies after the fit with
+# "cannot open file 'adjust_batch_diagnostic.pdf'". Put it beside the output,
+# which the caller has already mounted writable for corrected.tsv.
 fit <- adjust_batch(
   feature_abd = counts,
   batch = params$batch,
   covariates = covariates,
-  data = meta
+  data = meta,
+  control = list(
+    diagnostic_plot = file.path(dirname(args[4]), "adjust_batch_diagnostic.pdf")
+  )
 )
 adjusted <- fit$feature_abd_adj
 
