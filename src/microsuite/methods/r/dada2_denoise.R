@@ -56,6 +56,7 @@ chimera_method <- value_after("--chimera-method", "consensus")
 min_fold_parent_over_abundance <- as.numeric(value_after("--min-fold-parent-over-abundance", "1.0"))
 allow_one_off <- has_flag("--allow-one-off")
 n_reads_learn <- as.integer(value_after("--n-reads-learn", "1000000"))
+error_estimation_function <- value_after("--error-estimation-function", "loess")
 homopolymer_gap_penalty_text <- value_after("--homopolymer-gap-penalty")
 homopolymer_gap_penalty <- if (is.null(homopolymer_gap_penalty_text)) NULL else as.integer(homopolymer_gap_penalty_text)
 band_size_text <- value_after("--band-size")
@@ -85,6 +86,14 @@ if (!pooling_method %in% c("independent", "pseudo")) {
 if (!chimera_method %in% c("consensus", "none")) {
   stop("--chimera-method must be consensus or none.")
 }
+if (!error_estimation_function %in% c("loess", "noqual")) {
+  stop("--error-estimation-function must be loess or noqual.")
+}
+error_estimation_fun <- switch(
+  error_estimation_function,
+  loess = loessErrfun,
+  noqual = noqualErrfun
+)
 
 fastqs <- sort(list.files(input_dir, pattern = "\\.(fastq|fq)(\\.gz)?$", full.names = TRUE))
 if (length(fastqs) == 0) {
@@ -227,8 +236,18 @@ if (paired) {
   keptFiltFs <- filtFs[keep]
   keptFiltRs <- filtRs[keep]
   keptSamples <- sampleFs[keep]
-  errF <- learnErrors(keptFiltFs, nbases = n_reads_learn, multithread = threads)
-  errR <- learnErrors(keptFiltRs, nbases = n_reads_learn, multithread = threads)
+  errF <- learnErrors(
+    keptFiltFs,
+    nbases = n_reads_learn,
+    errorEstimationFunction = error_estimation_fun,
+    multithread = threads
+  )
+  errR <- learnErrors(
+    keptFiltRs,
+    nbases = n_reads_learn,
+    errorEstimationFunction = error_estimation_fun,
+    multithread = threads
+  )
   if (!is.null(output_plot_dir)) {
     write_error_plot(errF, file.path(output_plot_dir, "error_rates_forward.png"))
     write_error_plot(errR, file.path(output_plot_dir, "error_rates_reverse.png"))
@@ -281,7 +300,12 @@ if (paired) {
   keep <- filtered_sample_mask(out, samples)
   keptFilt <- filt[keep]
   keptSamples <- samples[keep]
-  err <- learnErrors(keptFilt, nbases = n_reads_learn, multithread = threads)
+  err <- learnErrors(
+    keptFilt,
+    nbases = n_reads_learn,
+    errorEstimationFunction = error_estimation_fun,
+    multithread = threads
+  )
   if (!is.null(output_plot_dir)) {
     write_error_plot(err, file.path(output_plot_dir, "error_rates.png"))
   }
@@ -340,6 +364,7 @@ if (!is.null(params_out)) {
     min_fold_parent_over_abundance = min_fold_parent_over_abundance,
     allow_one_off = allow_one_off,
     n_reads_learn = n_reads_learn,
+    error_estimation_function = error_estimation_function,
     homopolymer_gap_penalty = if (is.null(homopolymer_gap_penalty)) NA else homopolymer_gap_penalty,
     band_size = if (is.null(band_size)) NA else band_size,
     dada2_version = as.character(packageVersion("dada2")),

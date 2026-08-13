@@ -437,6 +437,7 @@ def test_denoise_dada2_r_builds_rscript_command(
         trunc_len_r=149,
         homopolymer_gap_penalty=-1,
         band_size=32,
+        error_estimation_function="noqual",
         threads=4,
         validate=False,
     )
@@ -455,6 +456,7 @@ def test_denoise_dada2_r_builds_rscript_command(
     assert str(tmp_path / "plots") in command
     assert command[command.index("--homopolymer-gap-penalty") + 1] == "-1"
     assert command[command.index("--band-size") + 1] == "32"
+    assert command[command.index("--error-estimation-function") + 1] == "noqual"
 
 
 def test_dada2_r_script_writes_matching_asv_feature_ids() -> None:
@@ -486,6 +488,8 @@ def test_dada2_r_script_wires_advanced_controls() -> None:
     assert "rm.phix = rm_phix" in script
     assert "pool = pool" in script
     assert "nbases = n_reads_learn" in script
+    assert "errorEstimationFunction = error_estimation_fun" in script
+    assert "noqual = noqualErrfun" in script
     assert "minFoldParentOverAbundance = min_fold_parent_over_abundance" in script
     assert "allowOneOff = allow_one_off" in script
     assert "minOverlap" in script
@@ -493,6 +497,33 @@ def test_dada2_r_script_wires_advanced_controls() -> None:
     assert "trimOverhang" in script
     assert "HOMOPOLYMER_GAP_PENALTY" in script
     assert "BAND_SIZE" in script
+
+
+def test_denoise_rejects_invalid_error_estimation_function(tmp_path: Path) -> None:
+    reads = tmp_path / "reads"
+    reads.mkdir()
+
+    with pytest.raises(MicrobiomeSuiteError, match="error estimation function"):
+        denoise(
+            backend="dada2-r",
+            demux=reads,
+            output_table=tmp_path / "table.tsv",
+            output_rep_seqs=tmp_path / "rep-seqs.fasta",
+            output_stats=tmp_path / "stats.tsv",
+            error_estimation_function="invalid",
+        )
+
+
+def test_denoise_rejects_r_error_estimator_for_qiime(tmp_path: Path) -> None:
+    with pytest.raises(MicrobiomeSuiteError, match="only apply to --backend dada2-r"):
+        denoise(
+            backend="qiime2-dada2",
+            demux=tmp_path / "demux.qza",
+            output_table=tmp_path / "table.qza",
+            output_rep_seqs=tmp_path / "rep-seqs.qza",
+            output_stats=tmp_path / "stats.qza",
+            error_estimation_function="noqual",
+        )
 
 
 def test_denoise_dada2_r_missing_rscript(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
