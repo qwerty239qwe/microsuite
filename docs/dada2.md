@@ -28,6 +28,19 @@ These options are forwarded to `dada()` as `HOMOPOLYMER_GAP_PENALTY` and
 `BAND_SIZE` and are recorded in the DADA2 parameter manifest. They are omitted
 by default, preserving the standard settings for Illumina data.
 
+If archived FASTQs contain no quality-score variation, DADA2's default LOESS
+error estimator cannot fit a quality-dependent model. Use the quality-independent
+estimator explicitly:
+
+```bash
+microsuite denoise --backend dada2-r --mode single \
+  --error-estimation-function noqual ...
+```
+
+The accepted values are `loess` and `noqual`. Omitting the option preserves
+DADA2's standard `loessErrfun`; `noqual` selects `noqualErrfun`. The resolved
+choice is recorded in the DADA2 parameter manifest.
+
 ## Running DADA2 in a container
 
 For the `dada2-r` Docker runtime, microsuite runs the container as the invoking

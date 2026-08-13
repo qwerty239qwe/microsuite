@@ -116,6 +116,13 @@ def register(app: typer.Typer) -> None:
                 "--n-reads-learn", min=1, help="Reads used to train the DADA2 error model."
             ),
         ] = None,
+        error_estimation_function: Annotated[
+            str | None,
+            typer.Option(
+                "--error-estimation-function",
+                help="R/DADA2 error estimator: loess or noqual.",
+            ),
+        ] = None,
         homopolymer_gap_penalty: Annotated[
             int | None,
             typer.Option(
@@ -250,6 +257,7 @@ def register(app: typer.Typer) -> None:
             min_fold_parent_over_abundance=min_fold_parent_over_abundance,
             allow_one_off=allow_one_off,
             n_reads_learn=n_reads_learn,
+            error_estimation_function=error_estimation_function,
             homopolymer_gap_penalty=homopolymer_gap_penalty,
             band_size=band_size,
             hashed_feature_ids=hashed_feature_ids,
