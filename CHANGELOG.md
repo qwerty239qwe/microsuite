@@ -15,6 +15,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exposes `normalization`, `transform`, `min_prevalence`, and `min_abundance`.
   The output directory retains MaAsLin 3's upstream `all_results.tsv` and adds
   distinct `abundance_results.tsv` and `prevalence_results.tsv` contracts.
+- A hardened LEfSe 1.22.0 backend contract: deterministic seeds, explicit
+  reference-class ordering, optional crossed subclass/block designs, configurable
+  Kruskal-Wallis, Wilcoxon, LDA, and p-adjustment thresholds, strict abundance
+  scale/matrix validation, stable `features`/`scores` output, and a parameter
+  manifest recording score orientation. The dedicated Bioconductor 3.23 image
+  is version-pinned and its build runs a real planted-signal smoke test.
+
+### Fixed
+
+- LEfSe no longer accepts CLR or negative values, silently chooses factor order
+  from R's TSV parsing, or relies on `lefser`'s random tied-value handling without
+  a seed. Invalid or nested-only subclass layouts now fail before analysis rather
+  than yielding an empty or misleading blocked comparison.
+- Balanced class-by-subclass designs no longer crash in `lefser` 1.22.0 when its
+  internal `apply()` simplifies equal-length sample-index vectors into a matrix;
+  the wrapper preserves those vectors as a list and runs the same Wilcoxon
+  consistency algorithm.
 
 ## [0.3.0] - 2026-08-17
 

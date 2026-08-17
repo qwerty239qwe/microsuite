@@ -1,13 +1,13 @@
 	group	subject
-S0	A	sub0
-S1	A	sub1
-S2	A	sub2
-S3	A	sub3
-S4	A	sub4
-S5	A	sub5
-S6	B	sub0
-S7	B	sub1
-S8	B	sub2
-S9	B	sub3
-S10	B	sub4
-S11	B	sub5
+S0	A	x
+S1	A	x
+S2	A	x
+S3	A	y
+S4	A	y
+S5	A	y
+S6	B	x
+S7	B	x
+S8	B	x
+S9	B	y
+S10	B	y
+S11	B	y

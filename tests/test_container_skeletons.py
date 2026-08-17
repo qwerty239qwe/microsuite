@@ -30,7 +30,7 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
         "r-diffab-aldex2": ["Rscript", "ALDEx2"],
         "r-diffab-maaslin2": ["Rscript", "Maaslin2"],
         "r-diffab-maaslin3": ["Rscript", "maaslin3 1.4.0"],
-        "r-diffab-lefse": ["Rscript", "lefser"],
+        "r-diffab-lefse": ["Rscript", "lefser 1.22.0"],
         "r-ecology": ["Rscript", "vegan", "adonis2", "anosim2"],
         "r-batch-mmuphin": ["Rscript", "MMUPHin"],
         "r-batch-combatseq": ["Rscript", "sva", "ComBat_seq"],
@@ -272,7 +272,7 @@ def test_methods_reference_links_backends_to_environments() -> None:
         '`diff_abundance(backend="maaslin3", table=..., formula=..., output=...)` |'
     ) in text
     assert (
-        "| `lefse` | R image; lefser via Bioconductor | ready | "
+        "| `lefse` | lefser 1.22.0 | ready | "
         "`microsuite diff_abundance --backend lefse` | "
         '`diff_abundance(backend="lefse", table=..., group=..., output=...)` |'
     ) in text

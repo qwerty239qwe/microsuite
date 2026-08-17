@@ -14,7 +14,6 @@ from microsuite.runtime.runner import CommandLog
 R_BACKEND_PACKAGES = {
     "aldex2": "ALDEx2",
     "maaslin2": "Maaslin2",
-    "lefse": "lefser",
 }
 
 

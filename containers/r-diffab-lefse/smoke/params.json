@@ -1,0 +1,12 @@
+{
+  "comparison": "B",
+  "group": "group",
+  "kruskal_threshold": 0.05,
+  "lda_threshold": 2.0,
+  "p_adjust_method": "none",
+  "reference": "A",
+  "seed": 1234,
+  "subclass": "subject",
+  "trim_names": false,
+  "wilcoxon_threshold": 0.05
+}

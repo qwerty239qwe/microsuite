@@ -6,6 +6,7 @@ from microsuite._errors import MicrobiomeSuiteError
 from microsuite._paths import ensure_input, prepare_output
 from microsuite.batch.value_type import require_value_types
 from microsuite.diffab.ancombc import run_ancombc
+from microsuite.diffab.lefse import run_lefse
 from microsuite.diffab.maaslin3 import run_maaslin3
 from microsuite.diffab.r_backends import run_r_diffab_backend
 from microsuite.io.h5ad import read_h5ad
@@ -13,7 +14,7 @@ from microsuite.methods._dispatch import require_backend
 from microsuite.methods._qiime import require_qiime, run_qiime
 
 SUPPORTED_BACKENDS = ("ancombc", "qiime2-ancombc", "aldex2", "maaslin2", "maaslin3", "lefse")
-R_BACKENDS = ("aldex2", "maaslin2", "lefse")
+R_BACKENDS = ("aldex2", "maaslin2")
 COUNT_REQUIRING_BACKENDS = ("ancombc", "aldex2")
 
 
@@ -37,9 +38,37 @@ def diff_abundance(
     transform: str = "LOG",
     min_prevalence: float = 0.0,
     min_abundance: float = 0.0,
+    subclass: str | None = None,
+    reference: str | None = None,
+    seed: int = 1234,
+    kruskal_threshold: float = 0.05,
+    wilcoxon_threshold: float = 0.05,
+    lda_threshold: float = 2.0,
+    p_adjust_method: str = "none",
+    trim_names: bool = False,
 ) -> None:
     backend = require_backend(backend, SUPPORTED_BACKENDS, "differential abundance")
+    lefse_options = (
+        seed,
+        kruskal_threshold,
+        wilcoxon_threshold,
+        lda_threshold,
+        p_adjust_method,
+        trim_names,
+    )
     if backend == "maaslin3":
+        if subclass is not None or reference is not None or lefse_options != (
+            1234,
+            0.05,
+            0.05,
+            2.0,
+            "none",
+            False,
+        ):
+            raise MicrobiomeSuiteError(
+                "LEfSe subclass, reference, seed, threshold, adjustment, and name-trimming "
+                "options cannot be used with --backend maaslin3."
+            )
         adata = read_h5ad(ensure_input(table))
         run_maaslin3(
             adata,
@@ -60,6 +89,45 @@ def diff_abundance(
             engine=engine,
         )
         return
+    if backend == "lefse":
+        if any(value is not None for value in (formula, fix_formula, rand_formula)):
+            raise MicrobiomeSuiteError(
+                "--formula, --fix-formula, and --rand-formula cannot be used with "
+                "--backend lefse; LEfSe supports a two-class group and optional subclass."
+            )
+        if (normalization, transform, min_prevalence, min_abundance) != (
+            "TSS",
+            "LOG",
+            0.0,
+            0.0,
+        ):
+            raise MicrobiomeSuiteError(
+                "MaAsLin 3 normalization, transform, prevalence, and abundance options "
+                "cannot be used with --backend lefse."
+            )
+        if group is None:
+            raise MicrobiomeSuiteError("--group is required for --backend lefse.")
+        adata = read_h5ad(ensure_input(table))
+        run_lefse(
+            adata,
+            output=output,
+            group=group,
+            subclass=subclass,
+            reference=reference,
+            seed=seed,
+            kruskal_threshold=kruskal_threshold,
+            wilcoxon_threshold=wilcoxon_threshold,
+            lda_threshold=lda_threshold,
+            p_adjust_method=p_adjust_method,
+            trim_names=trim_names,
+            force=force,
+            run_dir=run_dir,
+            timeout=timeout,
+            runtime=runtime,
+            image=image,
+            engine=engine,
+        )
+        return
     if any(value is not None for value in (formula, fix_formula, rand_formula)):
         raise MicrobiomeSuiteError(
             "--formula, --fix-formula, and --rand-formula are currently supported only "
@@ -69,6 +137,22 @@ def diff_abundance(
         raise MicrobiomeSuiteError(
             "--normalization, --transform, --min-prevalence, and --min-abundance are "
             "currently supported only by --backend maaslin3."
+        )
+    if subclass is not None or reference is not None:
+        raise MicrobiomeSuiteError(
+            "--subclass and --reference are supported only by --backend lefse."
+        )
+    if lefse_options != (
+        1234,
+        0.05,
+        0.05,
+        2.0,
+        "none",
+        False,
+    ):
+        raise MicrobiomeSuiteError(
+            "--seed, LEfSe thresholds, --p-adjust-method, and --trim-names are "
+            "supported only by --backend lefse."
         )
     if group is None:
         raise MicrobiomeSuiteError(f"--group is required for --backend {backend}.")

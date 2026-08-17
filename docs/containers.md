@@ -43,6 +43,7 @@ containers/prjna321534-alpha/    BioProject PRJNA321534 alpha-diversity cloud ru
 | `r-dada2` | R DADA2 ASV inference (runtime only; no microsuite) | `Rscript`, `dada2` | implemented |
 | `r-ecology` | vegan formula-based beta-diversity tests | `Rscript`, `vegan` | implemented (heavy) |
 | `r-diffab-maaslin3` | MaAsLin 3 abundance/prevalence models | `Rscript`, `maaslin3` | implemented (heavy) |
+| `r-diffab-lefse` | LEfSe biomarker discovery | `Rscript`, `lefser` 1.22.0 | implemented (heavy) |
 | `microsuite-dada2` | microsuite CLI + R DADA2 backend in one image | `microsuite`, `uv`, `Rscript`, `dada2` | implemented (heavy) |
 | `r-diffab-*` | Per-method R differential abundance backends | `Rscript` plus ANCOMBC, ALDEx2, MaAsLin2, maaslin3, or lefser | implemented (heavy) |
 | `kraken2` | Kraken2 taxonomy profiling and Bracken abundance | `kraken2`, `bracken` | implemented |
