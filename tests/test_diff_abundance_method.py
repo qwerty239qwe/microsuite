@@ -26,7 +26,7 @@ def fixture_table(tmp_path: Path) -> Path:
     return table
 
 
-@pytest.mark.parametrize("script_name", ["ancombc", "aldex2", "maaslin2", "lefse"])
+@pytest.mark.parametrize("script_name", ["ancombc", "aldex2", "maaslin2", "maaslin3", "lefse"])
 def test_r_diffab_scripts_are_external_assets(script_name: str) -> None:
     packaged_script = files("microsuite.diffab.r").joinpath(f"{script_name}.R")
 

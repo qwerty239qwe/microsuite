@@ -29,6 +29,7 @@ def test_container_dockerfiles_exist_with_expected_tools() -> None:
         "r-diffab-ancombc": ["Rscript", "ANCOMBC"],
         "r-diffab-aldex2": ["Rscript", "ALDEx2"],
         "r-diffab-maaslin2": ["Rscript", "Maaslin2"],
+        "r-diffab-maaslin3": ["Rscript", "maaslin3 1.4.0"],
         "r-diffab-lefse": ["Rscript", "lefser"],
         "r-ecology": ["Rscript", "vegan", "adonis2", "anosim2"],
         "r-batch-mmuphin": ["Rscript", "MMUPHin"],
@@ -142,6 +143,7 @@ def test_methods_reference_links_backends_to_environments() -> None:
     assert "[R diffab ancombc](../containers/r-diffab-ancombc/Dockerfile)" in text
     assert "[R diffab aldex2](../containers/r-diffab-aldex2/Dockerfile)" in text
     assert "[R diffab maaslin2](../containers/r-diffab-maaslin2/Dockerfile)" in text
+    assert "[R diffab maaslin3](../containers/r-diffab-maaslin3/Dockerfile)" in text
     assert "[R diffab lefse](../containers/r-diffab-lefse/Dockerfile)" in text
     assert "[Kraken2](../containers/kraken2/Dockerfile)" in text
     assert "[VSEARCH](../containers/vsearch/Dockerfile)" in text
@@ -263,6 +265,11 @@ def test_methods_reference_links_backends_to_environments() -> None:
         "| `maaslin2` | R image; MaAsLin2 via Bioconductor | ready | "
         "`microsuite diff_abundance --backend maaslin2` | "
         '`diff_abundance(backend="maaslin2", table=..., group=..., output=...)` |'
+    ) in text
+    assert (
+        "| `maaslin3` | MaAsLin 3 1.4.0 | ready | "
+        "`microsuite diff_abundance --backend maaslin3` | "
+        '`diff_abundance(backend="maaslin3", table=..., formula=..., output=...)` |'
     ) in text
     assert (
         "| `lefse` | R image; lefser via Bioconductor | ready | "

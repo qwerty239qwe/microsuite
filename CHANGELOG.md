@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- MaAsLin 3 1.4.0 as a new, independently containerized differential-abundance
+  backend for 0.4.0. It accepts a complete lme4 formula or separate fixed and
+  random formula terms, preserves the corrected `TSS` + `LOG` defaults, and
+  exposes `normalization`, `transform`, `min_prevalence`, and `min_abundance`.
+  The output directory retains MaAsLin 3's upstream `all_results.tsv` and adds
+  distinct `abundance_results.tsv` and `prevalence_results.tsv` contracts.
+
 ## [0.3.0] - 2026-08-17
 
 ### Added
