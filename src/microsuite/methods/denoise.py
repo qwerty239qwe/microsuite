@@ -22,6 +22,7 @@ SUPPORTED_BACKENDS = ("qiime2-dada2", "qiime2-deblur", "dada2-r")
 DADA2_MODES = ("single", "paired", "ccs", "pyro")
 POOLING_METHODS = ("independent", "pseudo")
 CHIMERA_METHODS = ("consensus", "none")
+ERROR_ESTIMATION_FUNCTIONS = ("loess", "noqual")
 DADA2_R_SCRIPT = "dada2_denoise.R"
 
 _FASTQ_EXTS = (".fastq.gz", ".fq.gz", ".fastq", ".fq")
@@ -135,6 +136,7 @@ class Dada2Tuning:
     min_fold_parent_over_abundance: float | None = None
     allow_one_off: bool | None = None
     n_reads_learn: int | None = None
+    error_estimation_function: str | None = None
     homopolymer_gap_penalty: int | None = None
     band_size: int | None = None
     min_overlap: int | None = None
@@ -171,6 +173,7 @@ def denoise(
     min_fold_parent_over_abundance: float | None = None,
     allow_one_off: bool | None = None,
     n_reads_learn: int | None = None,
+    error_estimation_function: str | None = None,
     homopolymer_gap_penalty: int | None = None,
     band_size: int | None = None,
     hashed_feature_ids: bool | None = None,
@@ -200,10 +203,20 @@ def denoise(
     if amplicon_length is not None and backend != "dada2-r":
         raise MicrobiomeSuiteError("--amplicon-length only applies to --backend dada2-r.")
     if backend != "dada2-r" and any(
-        value is not None for value in (homopolymer_gap_penalty, band_size)
+        value is not None
+        for value in (error_estimation_function, homopolymer_gap_penalty, band_size)
     ):
         raise MicrobiomeSuiteError(
-            "--homopolymer-gap-penalty and --band-size only apply to --backend dada2-r."
+            "--error-estimation-function, --homopolymer-gap-penalty, and --band-size "
+            "only apply to --backend dada2-r."
+        )
+    if (
+        error_estimation_function is not None
+        and error_estimation_function not in ERROR_ESTIMATION_FUNCTIONS
+    ):
+        raise MicrobiomeSuiteError(
+            f"Unsupported DADA2 error estimation function '{error_estimation_function}'. "
+            f"Choose one of: {', '.join(ERROR_ESTIMATION_FUNCTIONS)}"
         )
     resolved_threads = resolve_threads(threads)
     tuning = Dada2Tuning(
@@ -222,6 +235,7 @@ def denoise(
         min_fold_parent_over_abundance=min_fold_parent_over_abundance,
         allow_one_off=allow_one_off,
         n_reads_learn=n_reads_learn,
+        error_estimation_function=error_estimation_function,
         homopolymer_gap_penalty=homopolymer_gap_penalty,
         band_size=band_size,
         min_overlap=min_overlap,
@@ -686,6 +700,7 @@ def denoise_dada2_r(
         min_fold_parent_over_abundance=tuning.min_fold_parent_over_abundance,
         allow_one_off=tuning.allow_one_off,
         n_reads_learn=tuning.n_reads_learn,
+        error_estimation_function=tuning.error_estimation_function,
         homopolymer_gap_penalty=tuning.homopolymer_gap_penalty,
         band_size=tuning.band_size,
         min_overlap=min_overlap,
@@ -1018,6 +1033,7 @@ def _dada2_r_script_args(
     _append_value(args, "--min-fold-parent-over-abundance", tuning.min_fold_parent_over_abundance)
     _append_bool(args, "--allow-one-off", tuning.allow_one_off)
     _append_value(args, "--n-reads-learn", tuning.n_reads_learn)
+    _append_value(args, "--error-estimation-function", tuning.error_estimation_function)
     _append_value(args, "--homopolymer-gap-penalty", tuning.homopolymer_gap_penalty)
     _append_value(args, "--band-size", tuning.band_size)
     if params_out is not None:
