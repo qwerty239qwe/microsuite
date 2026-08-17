@@ -39,10 +39,7 @@ def beta_significance(
     sidecar_dir: Path | None = None,
 ) -> pd.DataFrame:
     backend = backend.lower()
-    if (
-        backend == "native"
-        and method.lower().replace("-", "") in {"adonis2", "anosim2"}
-    ):
+    if backend == "native" and method.lower().replace("-", "") in {"adonis2", "anosim2"}:
         backend = "vegan"
     if backend == "vegan":
         from microsuite.diversity.vegan import vegan_beta_significance

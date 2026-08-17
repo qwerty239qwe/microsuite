@@ -7,38 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- `batch correct`'s default `--runtime docker` image name is now a
-  declared field per backend (`BatchBackend.image`) rather than derived by
-  interpolating `--backend` verbatim, fixing a broken image pull for
-  `combat-seq` and `plsda-batch` (their images build as `r-batch-combatseq`
-  and `r-batch-plsdabatch`, without the hyphen).
-- `mmuphin` and `metadict` now TSS-normalize their corrected output so the
-  `value_type="relative"` label they record is actually true of the data
-  (previously both likely returned count-scale values under a `relative`
-  stamp; see docs/batch_correction.md Section 4).
-- `batch correct` now rejects NA values in `--batch-col`, `--covariates`,
-  and `--target-col`, and rejects a backend response containing NA or
-  (for `counts`-declared backends) non-integer values, instead of silently
-  propagating them downstream.
-- `metadict.R` now refuses to run if `--batch-col` names a column other
-  than a pre-existing `batch` column in the metadata, instead of silently
-  overwriting that column.
-
-### Note
-
-- Three of the five `batch correct` backends — `conqur`, `plsda-batch`, and
-  `metadict` — have R scripts whose signatures are derived from published
-  package documentation, not from running the packages against real data;
-  no container engine was available while they were written. See "How
-  proven is each backend" in docs/batch_correction.md before trusting their
-  early outputs.
-
-## [0.3.0] - 2026-08-05
+## [0.3.0] - 2026-08-17
 
 ### Added
 
+- `microsuite diversity adonis` / `microsuite.api.adonis2`: formula-based
+  multi-term PERMANOVA. Wilkinson formulas with `+`, `:`, `*`, and `/`, sequential
+  (type I) or marginal (type II/III) sums of squares via `--by terms|margin`,
+  and a `(1 | group)` term that restricts which permutations are drawn rather
+  than fitting a variance component. Unlike `permute::how()`, group exchange
+  also works when group sizes are unbalanced (groups swap only with groups of
+  the same size). `tests/test_adonis.py` carries an opt-in parity test
+  (`Rscript` on `PATH`) comparing native `Df`, `SumOfSqs`, `R2` and `F`
+  against `vegan::adonis2` 2.7.5 for an additive multi-term model and a
+  model with an interaction.
 - Vegan-backed formula beta-diversity significance via `adonis2` and the
   microsuite `anosim2` compatibility entry point (`vegan::anosim`), with
   blocked permutations through `--strata`.
@@ -55,6 +37,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `rarefy`, `normalize`) now refuse tables whose recorded scale they cannot
   consume. Tables without a recorded scale are unaffected, so no existing
   pipeline changes behaviour.
+
+### Fixed
+
+- R/DADA2 denoising now accepts `--error-estimation-function noqual` for
+  archived FASTQs whose uniform quality scores cannot support the default
+  quality-dependent LOESS error model; the resolved estimator is recorded in
+  the DADA2 parameter manifest.
+- `batch correct`'s default `--runtime docker` image name is now a
+  declared field per backend (`BatchBackend.image`) rather than derived by
+  interpolating `--backend` verbatim, fixing a broken image pull for
+  `combat-seq` and `plsda-batch` (their images build as `r-batch-combatseq`
+  and `r-batch-plsdabatch`, without the hyphen).
+- `mmuphin` and `metadict` now TSS-normalize their corrected output so the
+  `value_type="relative"` label they record is actually true of the data
+  (previously both likely returned count-scale values under a `relative`
+  stamp; see docs/batch_correction.md Section 4).
+- `batch correct` now rejects NA values in `--batch-col`, `--covariates`,
+  and `--target-col`, and rejects a backend response containing NA or
+  (for `counts`-declared backends) non-integer values, instead of silently
+  propagating them downstream.
+- `metadict.R` now refuses to run if `--batch-col` names a column other
+  than a pre-existing `batch` column in the metadata, instead of silently
+  overwriting that column.
+- `adonis2`'s `(1 | group)` restricted permutation now raises instead of
+  silently returning `p = 1.0` when every plot has a distinct size, so no
+  between-plot exchange is possible; it warns when the achievable exchange
+  count is coarser than the requested `--permutations`, and reports the
+  achievable count as an output column.
+- `adonis2` now raises when the distance matrix contains sample IDs missing
+  from metadata (naming the missing IDs), instead of silently analysing
+  whichever samples happened to match and reporting a smaller `n_samples`.
+- `adonis2`'s `--within` is now validated up front and rejected when there
+  is no `(1 | group)` term or `--blocks` to shuffle within, instead of
+  being silently ignored.
+- Vegan `adonis2`/`anosim2` now validate restricted-permutation feasibility:
+  all-singleton `--strata` designs are rejected, partial singleton blocks and
+  coarse permutation spaces warn, and output records both
+  `requested_permutations` and `effective_permutations`. Formula columns that
+  are constant within every stratum also warn because their permutation
+  p-values are uninformative. The vegan path now rejects distance-matrix
+  samples missing from metadata instead of silently dropping them.
+
+### Note
+
+- Three of the five `batch correct` backends — `conqur`, `plsda-batch`, and
+  `metadict` — have R scripts whose signatures are derived from published
+  package documentation, not from running the packages against real data;
+  no container engine was available while they were written. See "How
+  proven is each backend" in docs/batch_correction.md before trusting their
+  early outputs.
 
 ## [0.2.2] - 2026-08-03
 

@@ -68,6 +68,13 @@ with `--strata` and `--permutations`. `--strata` accepts one metadata column or
 a colon-separated interaction such as `batch:subject`; the latter is materialised
 as a permutation block. This restricts permutations but does not fit an
 lme4-style random effect, so `(1 | batch:subject)` is rejected explicitly.
+The block is the joint interaction: rows shuffle only within the same batch
+and subject. Unequal stratum sizes are supported, singleton strata cannot
+move, and a design with only singleton strata is rejected. A warning identifies
+coarse permutation spaces and formula columns with no within-stratum variation;
+output records both requested and effective permutation counts. This interface
+does not exchange whole subjects within batches; that requires an explicit
+multi-level `permute::how()` design outside the current microsuite API.
 Use `--runtime docker` with the `r-ecology` image when local R/vegan is not
 installed.
 
