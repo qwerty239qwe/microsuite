@@ -64,8 +64,16 @@ runtime environment.
 For `adonis2`, `formula`, `strata`, and `permutations` may be supplied
 together. `formula` is the right-hand side, for example
 `formula="batch + group / time_point"`; `strata="batch:subject"` creates a
-restricted permutation block from the two metadata columns. This is not a
-mixed-effects random intercept, and lme4-style `(1 | ...)` terms are rejected.
+joint, non-movable permutation block from the two metadata columns: samples
+shuffle only within the same batch-and-subject combination. Strata may have
+unequal sizes, but singleton strata cannot move; an all-singleton design is
+rejected and a permutation space smaller than requested emits a warning.
+Output preserves `permutations` as the requested value and adds
+`requested_permutations` and `effective_permutations`. Formula columns that are
+constant within every stratum warn because their sums of squares and R-squared
+remain descriptive but their permutation p-values may be uninformative. This
+is not a mixed-effects random intercept or whole-subject exchange, and
+lme4-style `(1 | ...)` terms are rejected.
 
 For QIIME 2's formula-based action, use the artifact-oriented
 `diversity_test(backend="qiime2-adonis", distance_matrix=..., metadata=...,

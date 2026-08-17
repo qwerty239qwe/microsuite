@@ -47,9 +47,24 @@ def test_parse_formula_expands_crossing() -> None:
     assert [term.label for term in parse_formula("~ a*b").terms] == ["a", "b", "a:b"]
 
 
+def test_parse_formula_expands_nested_terms() -> None:
+    parsed = parse_formula("response ~ batch + group / time_point + (1 | batch:subject)")
+
+    assert [term.label for term in parsed.terms] == ["batch", "group", "group:time_point"]
+    assert parsed.random_groups == (("batch", "subject"),)
+
+
+def test_parse_formula_expands_a_longer_nesting_chain() -> None:
+    assert [term.label for term in parse_formula("~ site/plot/sample").terms] == [
+        "site",
+        "site:plot",
+        "site:plot:sample",
+    ]
+
+
 @pytest.mark.parametrize(
     "formula",
-    ["counts ~", "~ (a | b)", "~ (1 | )", "~ a + (a"],
+    ["counts ~", "~ (a | b)", "~ (1 | )", "~ a + (a", "~ a//b", "~ a*b/c"],
 )
 def test_parse_formula_rejects_malformed_input(formula: str) -> None:
     with pytest.raises(MicrobiomeSuiteError):

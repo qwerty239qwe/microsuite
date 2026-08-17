@@ -113,7 +113,28 @@ def _split_factors(text: str) -> list[str]:
 
 
 def _expand_term(piece: str) -> list[Term]:
-    """Expand ``a*b`` into ``a``, ``b``, ``a:b``; leave ``a`` and ``a:b`` alone."""
+    """Expand crossing and nesting operators into explicit model terms.
+
+    ``a*b`` becomes ``a + b + a:b`` and ``a/b`` becomes ``a + a:b``.
+    Longer nesting chains accumulate from left to right, so ``a/b/c`` becomes
+    ``a + a:b + a:b:c``.
+    """
+    nested = [part.strip() for part in _split_top_level(piece, "/")]
+    if len(nested) > 1:
+        if any(not part for part in nested):
+            raise MicrobiomeSuiteError(f"Empty operand around '/' in {piece!r}")
+        groups = [tuple(_split_factors(part)) for part in nested]
+        if any(not group for group in groups) or any("*" in part for part in nested):
+            raise MicrobiomeSuiteError(
+                f"Nesting operands must be simple factors or ':' interactions in {piece!r}"
+            )
+        expanded: list[Term] = []
+        factors: list[str] = []
+        for group in groups:
+            factors.extend(group)
+            expanded.append(Term(tuple(factors)))
+        return expanded
+
     crossed = [part.strip() for part in _split_top_level(piece, "*")]
     crossed = [part for part in crossed if part]
     if len(crossed) == 1:

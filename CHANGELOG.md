@@ -7,10 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-17
+
 ### Added
 
 - `microsuite diversity adonis` / `microsuite.api.adonis2`: formula-based
-  multi-term PERMANOVA. Wilkinson formulas with `+`, `:` and `*`, sequential
+  multi-term PERMANOVA. Wilkinson formulas with `+`, `:`, `*`, and `/`, sequential
   (type I) or marginal (type II/III) sums of squares via `--by terms|margin`,
   and a `(1 | group)` term that restricts which permutations are drawn rather
   than fitting a variance component. Unlike `permute::how()`, group exchange
@@ -19,9 +21,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`Rscript` on `PATH`) comparing native `Df`, `SumOfSqs`, `R2` and `F`
   against `vegan::adonis2` 2.7.5 for an additive multi-term model and a
   model with an interaction.
+- Vegan-backed formula beta-diversity significance via `adonis2` and the
+  microsuite `anosim2` compatibility entry point (`vegan::anosim`), with
+  blocked permutations through `--strata`.
+- A dedicated `r-ecology` Docker image with build-time adonis2/anosim2 smoke
+  tests and heavy-image CI registration.
+- A QIIME 2 `adonis` backend through `diversity_test`, with formula,
+  permutation-count, and parallel-job forwarding; it writes QIIME `.qzv`
+  visualizations and does not expose restricted `strata` permutations.
+- `microsuite batch correct` — batch effect correction with five backends:
+  `mmuphin` (default), `combat-seq`, `conqur`, `plsda-batch`, and `metadict`,
+  each in its own container image. Corrected tables record their scale in
+  `uns["microsuite"]["value_type"]` as `counts`, `relative`, or `clr`.
+- Count-requiring commands (`diff_abundance --backend ancombc/aldex2`,
+  `rarefy`, `normalize`) now refuse tables whose recorded scale they cannot
+  consume. Tables without a recorded scale are unaffected, so no existing
+  pipeline changes behaviour.
 
 ### Fixed
 
+- R/DADA2 denoising now accepts `--error-estimation-function noqual` for
+  archived FASTQs whose uniform quality scores cannot support the default
+  quality-dependent LOESS error model; the resolved estimator is recorded in
+  the DADA2 parameter manifest.
 - `batch correct`'s default `--runtime docker` image name is now a
   declared field per backend (`BatchBackend.image`) rather than derived by
   interpolating `--backend` verbatim, fixing a broken image pull for
@@ -49,6 +71,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `adonis2`'s `--within` is now validated up front and rejected when there
   is no `(1 | group)` term or `--blocks` to shuffle within, instead of
   being silently ignored.
+- Vegan `adonis2`/`anosim2` now validate restricted-permutation feasibility:
+  all-singleton `--strata` designs are rejected, partial singleton blocks and
+  coarse permutation spaces warn, and output records both
+  `requested_permutations` and `effective_permutations`. Formula columns that
+  are constant within every stratum also warn because their permutation
+  p-values are uninformative. The vegan path now rejects distance-matrix
+  samples missing from metadata instead of silently dropping them.
 
 ### Note
 
@@ -58,27 +87,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no container engine was available while they were written. See "How
   proven is each backend" in docs/batch_correction.md before trusting their
   early outputs.
-
-## [0.3.0] - 2026-08-05
-
-### Added
-
-- Vegan-backed formula beta-diversity significance via `adonis2` and the
-  microsuite `anosim2` compatibility entry point (`vegan::anosim`), with
-  blocked permutations through `--strata`.
-- A dedicated `r-ecology` Docker image with build-time adonis2/anosim2 smoke
-  tests and heavy-image CI registration.
-- A QIIME 2 `adonis` backend through `diversity_test`, with formula,
-  permutation-count, and parallel-job forwarding; it writes QIIME `.qzv`
-  visualizations and does not expose restricted `strata` permutations.
-- `microsuite batch correct` — batch effect correction with five backends:
-  `mmuphin` (default), `combat-seq`, `conqur`, `plsda-batch`, and `metadict`,
-  each in its own container image. Corrected tables record their scale in
-  `uns["microsuite"]["value_type"]` as `counts`, `relative`, or `clr`.
-- Count-requiring commands (`diff_abundance --backend ancombc/aldex2`,
-  `rarefy`, `normalize`) now refuse tables whose recorded scale they cannot
-  consume. Tables without a recorded scale are unaffected, so no existing
-  pipeline changes behaviour.
 
 ## [0.2.2] - 2026-08-03
 

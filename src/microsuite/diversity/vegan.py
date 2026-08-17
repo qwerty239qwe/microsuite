@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import warnings
 from importlib.resources import files
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -111,6 +112,16 @@ def vegan_beta_significance(
             )
 
     meta, strata_name = _materialise_strata(meta, strata, strata_columns)
+    effective_permutations = permutations
+    if strata_name is not None and permutations > 0:
+        effective_permutations = _validate_strata_permutations(
+            meta[strata_name], requested=permutations
+        )
+        _warn_formula_columns_constant_within_strata(
+            meta,
+            strata_name=strata_name,
+            formula_columns=formula_columns,
+        )
 
     if method == "anosim2":
         group_column = _anosim_group_column(formula_text, column, meta.columns)
@@ -148,6 +159,8 @@ def vegan_beta_significance(
     if result.empty:
         raise MicrobiomeSuiteError(f"vegan {method} returned no result rows.")
     result["strata"] = strata if strata is not None else np.nan
+    result["requested_permutations"] = permutations
+    result["effective_permutations"] = effective_permutations
     result["n_samples"] = len(meta)
     result["dropped_metadata_only"] = ",".join(dropped_metadata_only)
     return result
@@ -204,6 +217,77 @@ def _materialise_strata(
     return result, derived
 
 
+def _validate_strata_permutations(strata: pd.Series, *, requested: int) -> int:
+    """Validate block-restricted exchange and return the usable permutation count.
+
+    vegan treats ``strata`` as non-movable blocks and freely permutes samples
+    within each block.  For block sizes n_i, the complete permutation space is
+    ``prod(factorial(n_i))`` including the observed ordering.  The calculation
+    is capped at ``requested`` because only the number vegan can actually use
+    is part of the public result.
+    """
+    counts = strata.value_counts(sort=False, dropna=False)
+    singleton_count = int((counts == 1).sum())
+    movable_count = int((counts > 1).sum())
+    if movable_count == 0:
+        raise MicrobiomeSuiteError(
+            "Restricted permutation is impossible: every strata level contains one sample, "
+            "so there are no legal non-identity permutations. Add repeated observations per "
+            "stratum, choose a coarser --strata definition, or use unrestricted permutation."
+        )
+
+    if singleton_count:
+        warnings.warn(
+            f"{singleton_count} of {len(counts)} strata level(s) contain one sample and cannot "
+            "move under restricted permutation.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    # Stop multiplying once at least requested + identity arrangements exist.
+    arrangement_cap = requested + 1
+    arrangements = 1
+    for size in counts.astype(int):
+        for factor in range(2, size + 1):
+            arrangements *= factor
+            if arrangements >= arrangement_cap:
+                return requested
+
+    effective = arrangements - 1
+    if effective < requested:
+        warnings.warn(
+            "Restricted permutation can generate only "
+            f"{effective} legal non-identity permutation(s), fewer than the requested "
+            f"{requested}; vegan will use the complete set and p-value resolution is limited "
+            f"to 1/{effective + 1} steps.",
+            UserWarning,
+            stacklevel=2,
+        )
+    return effective
+
+
+def _warn_formula_columns_constant_within_strata(
+    metadata: pd.DataFrame,
+    *,
+    strata_name: str,
+    formula_columns: list[str],
+) -> None:
+    constant: list[str] = []
+    grouped = metadata.groupby(strata_name, sort=False, dropna=False)
+    for column in formula_columns:
+        if bool((grouped[column].nunique(dropna=False) <= 1).all()):
+            constant.append(column)
+    if constant:
+        warnings.warn(
+            "Formula metadata column(s) are constant within every permutation stratum: "
+            f"{', '.join(constant)}. Terms depending only on these columns have no "
+            "within-stratum exchangeability, so their permutation p-values may be "
+            "uninformative; sums of squares and R-squared remain descriptive.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+
 def _formula_columns(formula: str, metadata_columns: pd.Index) -> list[str]:
     names = re.findall(r"`([^`]+)`", formula)
     for match in _FORMULA_IDENTIFIER.finditer(formula):
@@ -218,9 +302,7 @@ def _formula_columns(formula: str, metadata_columns: pd.Index) -> list[str]:
     )
 
 
-def _anosim_group_column(
-    formula: str, column: str | None, metadata_columns: pd.Index
-) -> str:
+def _anosim_group_column(formula: str, column: str | None, metadata_columns: pd.Index) -> str:
     if column is not None:
         if formula != column and formula.strip("`") != column:
             raise MicrobiomeSuiteError(
@@ -259,7 +341,16 @@ def _align_inputs(
     meta.index = meta.index.astype(str)
     if meta.index.has_duplicates:
         raise MicrobiomeSuiteError("Sample metadata IDs must be unique.")
-    sample_ids = [sample for sample in matrix.index if sample in set(meta.index)]
+    known_metadata = set(meta.index)
+    missing_samples = [sample for sample in matrix.index if sample not in known_metadata]
+    if missing_samples:
+        shown = ", ".join(missing_samples[:10])
+        suffix = "" if len(missing_samples) <= 10 else f", and {len(missing_samples) - 10} more"
+        raise MicrobiomeSuiteError(
+            f"Distance matrix contains {len(missing_samples)} sample ID(s) missing from "
+            f"metadata: {shown}{suffix}"
+        )
+    sample_ids = list(matrix.index)
     if len(sample_ids) < 3:
         raise MicrobiomeSuiteError(
             "vegan beta-significance requires at least three shared samples."
