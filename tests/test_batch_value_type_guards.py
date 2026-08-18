@@ -78,7 +78,7 @@ def test_diff_abundance_count_backends_reject_clr(
         module.diff_abundance(backend=backend, table=table, group="g", output=tmp_path / "out.tsv")
 
 
-@pytest.mark.parametrize("backend", ["maaslin2", "lefse"])
+@pytest.mark.parametrize("backend", ["maaslin2"])
 def test_diff_abundance_internally_normalizing_backends_do_not_check(
     backend: str, tmp_path: Path, monkeypatch
 ) -> None:
@@ -90,3 +90,30 @@ def test_diff_abundance_internally_normalizing_backends_do_not_check(
     monkeypatch.setattr(module, "run_r_diffab_backend", lambda *a, **kw: invoked.update(ran=True))
     module.diff_abundance(backend=backend, table=table, group="g", output=tmp_path / "out.tsv")
     assert invoked["ran"] is True
+
+
+def test_lefse_rejects_clr_before_invoking_backend(tmp_path: Path, monkeypatch) -> None:
+    from microsuite.methods import diff_abundance as module
+
+    table = tmp_path / "corrected.h5ad"
+    corrected = ad.AnnData(np.array([[1.0, -1.0], [2.0, -2.0], [3.0, -3.0], [4.0, -4.0]]))
+    corrected.obs_names = ["s1", "s2", "s3", "s4"]
+    corrected.var_names = ["f1", "f2"]
+    corrected.obs["group"] = ["A", "A", "B", "B"]
+    record_batch_correction(
+        corrected,
+        value_type="clr",
+        backend="plsda-batch",
+        batch="run_id",
+        covariates=[],
+        target=None,
+    )
+    write_h5ad(corrected, table)
+    monkeypatch.setattr(
+        "microsuite.diffab.lefse.invoke_r_script",
+        lambda *a, **kw: pytest.fail("R backend must not be invoked"),
+    )
+    with pytest.raises(MicrobiomeSuiteError, match="plsda-batch"):
+        module.diff_abundance(
+            backend="lefse", table=table, group="group", output=tmp_path / "out.tsv"
+        )

@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- MaAsLin 3 1.4.0 as a new, independently containerized differential-abundance
+  backend for 0.4.0. It accepts a complete lme4 formula or separate fixed and
+  random formula terms, preserves the corrected `TSS` + `LOG` defaults, and
+  exposes `normalization`, `transform`, `min_prevalence`, and `min_abundance`.
+  The output directory retains MaAsLin 3's upstream `all_results.tsv` and adds
+  distinct `abundance_results.tsv` and `prevalence_results.tsv` contracts.
+- A hardened LEfSe 1.22.0 backend contract: deterministic seeds, explicit
+  reference-class ordering, optional crossed subclass/block designs, configurable
+  Kruskal-Wallis, Wilcoxon, LDA, and p-adjustment thresholds, strict abundance
+  scale/matrix validation, stable `features`/`scores` output, and a parameter
+  manifest recording score orientation. The dedicated Bioconductor 3.23 image
+  is version-pinned and its build runs a real planted-signal smoke test.
+
+### Fixed
+
+- LEfSe no longer accepts CLR or negative values, silently chooses factor order
+  from R's TSV parsing, or relies on `lefser`'s random tied-value handling without
+  a seed. Invalid or nested-only subclass layouts now fail before analysis rather
+  than yielding an empty or misleading blocked comparison.
+- Balanced class-by-subclass designs no longer crash in `lefser` 1.22.0 when its
+  internal `apply()` simplifies equal-length sample-index vectors into a matrix;
+  the wrapper preserves those vectors as a list and runs the same Wilcoxon
+  consistency algorithm.
+- The original direct R/container entrypoint
+  `lefse.R counts.tsv metadata.tsv group_col output.tsv` remains accepted and
+  maps to the hardened defaults, alongside the new parameter-JSON entrypoint.
+
 ## [0.3.0] - 2026-08-17
 
 ### Added

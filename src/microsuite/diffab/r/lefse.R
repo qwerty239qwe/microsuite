@@ -1,11 +1,11 @@
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) != 4) {
-  stop("Usage: lefse.R counts.tsv metadata.tsv group_col output.tsv")
+  stop("Usage: lefse.R counts.tsv metadata.tsv params.json|group_col output.tsv")
 }
 
 counts_path <- args[[1]]
 metadata_path <- args[[2]]
-group_col <- args[[3]]
+config_arg <- args[[3]]
 output_path <- args[[4]]
 
 if (!requireNamespace("lefser", quietly = TRUE)) {
@@ -15,16 +15,76 @@ if (!requireNamespace("SummarizedExperiment", quietly = TRUE)) {
   stop("R package 'SummarizedExperiment' is required.")
 }
 
+if (file.exists(config_arg)) {
+  if (!requireNamespace("jsonlite", quietly = TRUE)) {
+    stop("R package 'jsonlite' is required when using a LEfSe params JSON file.")
+  }
+  params <- jsonlite::fromJSON(config_arg, simplifyVector = TRUE)
+  required <- c(
+    "group", "reference", "comparison", "seed", "kruskal_threshold",
+    "wilcoxon_threshold", "lda_threshold", "p_adjust_method", "trim_names"
+  )
+  missing_params <- setdiff(required, names(params))
+  if (length(missing_params) > 0) {
+    stop(paste("Missing LEfSe parameters:", paste(missing_params, collapse = ", ")))
+  }
+} else {
+  # Backward compatibility for the original packaged/container entrypoint:
+  # lefse.R counts.tsv metadata.tsv group_col output.tsv
+  params <- list(
+    group = config_arg,
+    subclass = NULL,
+    reference = NULL,
+    comparison = NULL,
+    seed = 1234L,
+    kruskal_threshold = 0.05,
+    wilcoxon_threshold = 0.05,
+    lda_threshold = 2.0,
+    p_adjust_method = "none",
+    trim_names = FALSE
+  )
+}
+
 counts <- read.delim(counts_path, row.names = 1, check.names = FALSE)
 metadata <- read.delim(metadata_path, row.names = 1, check.names = FALSE)
+group_col <- params$group
 if (!(group_col %in% colnames(metadata))) {
   stop(paste("Group column not found:", group_col))
 }
 
+missing_metadata <- setdiff(colnames(counts), rownames(metadata))
+if (length(missing_metadata) > 0) {
+  stop(paste("Samples missing from metadata:", paste(missing_metadata, collapse = ", ")))
+}
 metadata <- metadata[colnames(counts), , drop = FALSE]
-conditions <- factor(metadata[[group_col]])
-if (nlevels(conditions) != 2) {
+observed_levels <- sort(unique(as.character(metadata[[group_col]])))
+if (length(observed_levels) != 2L) {
   stop("LEfSe requires exactly two groups.")
+}
+if (is.null(params$reference)) {
+  params$reference <- observed_levels[[1L]]
+  params$comparison <- observed_levels[[2L]]
+}
+metadata[[group_col]] <- factor(
+  as.character(metadata[[group_col]]),
+  levels = c(params$reference, params$comparison)
+)
+if (anyNA(metadata[[group_col]]) || nlevels(metadata[[group_col]]) != 2) {
+  stop("LEfSe requires exactly two groups.")
+}
+if (!is.null(params$subclass)) {
+  subclass_col <- params$subclass
+  if (!(subclass_col %in% colnames(metadata))) {
+    stop(paste("Subclass column not found:", subclass_col))
+  }
+  metadata[[subclass_col]] <- factor(as.character(metadata[[subclass_col]]))
+  combinations <- table(metadata[[subclass_col]], metadata[[group_col]])
+  if (ncol(combinations) != 2 || any(combinations == 0)) {
+    stop(
+      "LEfSe subclass levels must be represented in both groups; subclass is a ",
+      "crossed blocking/replicate factor, not a nested or random-effect term."
+    )
+  }
 }
 
 se <- SummarizedExperiment::SummarizedExperiment(
@@ -55,5 +115,127 @@ class_arg <- if ("classCol" %in% lefser_formals) {
 }
 lefser_args <- list(se)
 lefser_args[[class_arg]] <- group_col
-result <- do.call(lefser::lefser, lefser_args)
+lefser_args$kruskal.threshold <- params$kruskal_threshold
+lefser_args$wilcox.threshold <- params$wilcoxon_threshold
+lefser_args$lda.threshold <- params$lda_threshold
+lefser_args$trim.names <- params$trim_names
+if ("checkAbundances" %in% lefser_formals) {
+  lefser_args$checkAbundances <- TRUE
+}
+if ("method" %in% lefser_formals) {
+  lefser_args$method <- params$p_adjust_method
+} else if (!identical(params$p_adjust_method, "none")) {
+  stop("Installed lefser does not support p-value adjustment via the 'method' argument.")
+}
+if (!is.null(params$subclass)) {
+  subclass_arg <- if ("subclassCol" %in% lefser_formals) {
+    "subclassCol"
+  } else if ("blockCol" %in% lefser_formals) {
+    "blockCol"
+  } else {
+    stop("Installed lefser does not support a subclass/block column.")
+  }
+  lefser_args[[subclass_arg]] <- params$subclass
+}
+set.seed(as.integer(params$seed))
+if (is.null(params$subclass)) {
+  result <- do.call(lefser::lefser, lefser_args)
+} else {
+  # lefser 1.22.0's fillPmatZmat() builds per-comparison sample indices with
+  # apply(). For a balanced class x subclass table, apply() simplifies the
+  # equal-length vectors to a matrix; seq_along() then sends one sample at a
+  # time to coin::wilcox_test(), which fails with an IndependenceProblem error.
+  # Keep the upstream algorithm but force the indices to remain a list.
+  internal_names <- c("filterKruskal", "wilcox_pstats", "ldaFunction", ".trunc")
+  internals <- lapply(internal_names, function(name) {
+    tryCatch(getFromNamespace(name, "lefser"), error = function(error) NULL)
+  })
+  names(internals) <- internal_names
+  if (any(vapply(internals, is.null, logical(1)))) {
+    stop(
+      "Installed lefser does not expose the internals required for reliable ",
+      "subclass analysis. Use the pinned r-diffab-lefse image."
+    )
+  }
+
+  relab_data <- SummarizedExperiment::assay(se, i = 1L)
+  class_factor <- as.factor(SummarizedExperiment::colData(se)[[group_col]])
+  subclass_factor <- droplevels(
+    as.factor(SummarizedExperiment::colData(se)[[params$subclass]])
+  )
+  relab_sub <- internals$filterKruskal(
+    relab = relab_data,
+    class = class_factor,
+    p.value = params$kruskal_threshold,
+    method = params$p_adjust_method
+  )
+
+  if (nrow(relab_sub) > 0L) {
+    subclass_indices <- seq_along(levels(subclass_factor))
+    comparisons <- expand.grid(
+      subclass_indices,
+      subclass_indices
+    )
+    indices <- lapply(seq_len(nrow(comparisons)), function(index) {
+      first_subclass <- levels(subclass_factor)[comparisons[index, 1L]]
+      second_subclass <- levels(subclass_factor)[comparisons[index, 2L]]
+      c(
+        which(
+          class_factor == levels(class_factor)[1L] &
+            subclass_factor == first_subclass
+        ),
+        which(
+          class_factor == levels(class_factor)[2L] &
+            subclass_factor == second_subclass
+        )
+      )
+    })
+    z_matrix <- pvalue_matrix <- matrix(
+      NA_real_,
+      nrow = nrow(relab_sub),
+      ncol = length(indices),
+      dimnames = list(rownames(relab_sub), NULL)
+    )
+    for (index in seq_along(indices)) {
+      tests <- internals$wilcox_pstats(
+        relab_sub,
+        class = class_factor,
+        index = indices[[index]]
+      )
+      pvalue_matrix[, index] <- stats::p.adjust(
+        tests["pvalue", ], method = params$p_adjust_method
+      )
+      z_matrix[, index] <- tests["statistic", ]
+    }
+    passes_pvalue <- !is.na(pvalue_matrix) &
+      pvalue_matrix <= params$wilcoxon_threshold * 2
+    keep <- rowSums(passes_pvalue) == ncol(passes_pvalue)
+    z_kept <- z_matrix[keep, , drop = FALSE]
+    consistent_direction <- abs(rowSums(z_kept)) == rowSums(abs(z_kept))
+    relab_sub <- relab_sub[names(consistent_direction[consistent_direction]), , drop = FALSE]
+  }
+
+  if (nrow(relab_sub) == 0L) {
+    result <- data.frame(features = character(), scores = numeric())
+  } else {
+    lda_input <- as.data.frame(t(relab_sub))
+    lda_input$class <- class_factor
+    raw_scores <- internals$ldaFunction(lda_input, levels(class_factor))
+    scores <- sign(raw_scores) * log10(1 + abs(raw_scores))
+    result <- data.frame(
+      features = names(scores),
+      scores = as.vector(scores),
+      stringsAsFactors = FALSE
+    )
+    result <- internals$.trunc(result, params$trim_names)
+    result <- result[abs(result$scores) >= params$lda_threshold, , drop = FALSE]
+  }
+}
+if (!is.data.frame(result) || ncol(result) != 2) {
+  stop("lefser returned an unexpected result schema; expected a two-column data.frame.")
+}
+colnames(result) <- c("features", "scores")
+result$features <- as.character(result$features)
+result$scores <- as.numeric(result$scores)
+result <- result[order(-abs(result$scores), result$features, method = "radix"), , drop = FALSE]
 write.table(result, file = output_path, sep = "\t", quote = FALSE, row.names = FALSE)

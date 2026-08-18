@@ -60,7 +60,7 @@ workflow shape:
 | Table transforms & summaries | `normalize`, `abundance`, `rarefy` | native, QIIME 2 feature-table |
 | Batch effect correction | `batch correct` | MMUPHin, ComBat-seq, ConQuR, PLSDA-batch, MetaDICT |
 | Diversity & ecology stats | `diversity`, `diversity_calc` | native, QIIME 2 diversity-lib |
-| Differential abundance | `diff_abundance` | ANCOM-BC, ALDEx2, MaAsLin2, LEfSe |
+| Differential abundance | `diff_abundance` | ANCOM-BC, ALDEx2, MaAsLin2, MaAsLin 3, LEfSe |
 | Networks | `network infer` | native correlation, SparCC, SPIEC-EASI, FlashWeave |
 | Functional profiling | `functional_profile` | PICRUSt2, Tax4Fun2, HUMAnN |
 | ML & longitudinal | `ml classify`, `ml longitudinal` | random forest, XGBoost, native time-series |

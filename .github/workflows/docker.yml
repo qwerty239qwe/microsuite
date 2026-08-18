@@ -114,6 +114,10 @@ jobs:
             dockerfile: containers/r-diffab-maaslin2/Dockerfile
             context: .
             heavy: true
+          - image: r-diffab-maaslin3
+            dockerfile: containers/r-diffab-maaslin3/Dockerfile
+            context: .
+            heavy: true
           - image: r-diffab-lefse
             dockerfile: containers/r-diffab-lefse/Dockerfile
             context: .

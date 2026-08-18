@@ -14,6 +14,9 @@ from microsuite.runtime.runner import CommandLog
 R_BACKEND_PACKAGES = {
     "aldex2": "ALDEx2",
     "maaslin2": "Maaslin2",
+    # Retained as a compatibility entrypoint for callers that imported the
+    # pre-0.4 generic runner directly. Unified dispatch uses run_lefse(), which
+    # provides validation, deterministic controls, and provenance.
     "lefse": "lefser",
 }
 

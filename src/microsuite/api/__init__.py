@@ -23,6 +23,7 @@ from microsuite.methods.assembly import assemble
 from microsuite.methods.binning import bin_contigs
 from microsuite.methods.decontam import decontam
 from microsuite.methods.denoise import denoise
+from microsuite.methods.diff_abundance import diff_abundance
 from microsuite.methods.evaluate import evaluate
 from microsuite.methods.functional_profile import functional_profile
 from microsuite.methods.ml_longitudinal import longitudinal, ml_classify
@@ -61,6 +62,7 @@ __all__ = [
     "constrained_ordination",
     "decontam",
     "denoise",
+    "diff_abundance",
     "evaluate",
     "demux",
     "diversity_core",

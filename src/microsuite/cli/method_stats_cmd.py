@@ -17,8 +17,14 @@ def register(app: typer.Typer) -> None:
     def diff_abundance_cmd(
         backend: Annotated[str, typer.Option("--backend", help="Differential abundance backend.")],
         table: Annotated[Path, typer.Option("--table", help="Input .h5ad table.")],
-        output: Annotated[Path, typer.Option("--output", "-o", help="Output TSV.")],
-        group: Annotated[str, typer.Option("--group", help="Sample metadata group column.")],
+        output: Annotated[
+            Path,
+            typer.Option("--output", "-o", help="Output TSV, or output directory for MaAsLin 3."),
+        ],
+        group: Annotated[
+            str | None,
+            typer.Option("--group", help="Sample metadata group column."),
+        ] = None,
         metadata: Annotated[
             Path | None, typer.Option("--metadata", "-m", help="QIIME 2 sample metadata TSV.")
         ] = None,
@@ -37,6 +43,66 @@ def register(app: typer.Typer) -> None:
             str | None,
             typer.Option("--image", help="Override the per-backend r-diffab container image."),
         ] = None,
+        formula: Annotated[
+            str | None,
+            typer.Option(
+                "--formula",
+                help="Complete MaAsLin 3 lme4 formula, including random effects if needed.",
+            ),
+        ] = None,
+        fix_formula: Annotated[
+            str | None,
+            typer.Option("--fix-formula", help="MaAsLin 3 fixed-effects formula RHS."),
+        ] = None,
+        rand_formula: Annotated[
+            str | None,
+            typer.Option(
+                "--rand-formula", help="MaAsLin 3 random-effects term, e.g. '(1|subject)'."
+            ),
+        ] = None,
+        normalization: Annotated[
+            str,
+            typer.Option("--normalization", help="MaAsLin 3: TSS, CLR, or NONE."),
+        ] = "TSS",
+        transform: Annotated[
+            str,
+            typer.Option("--transform", help="MaAsLin 3: LOG, PLOG, or NONE."),
+        ] = "LOG",
+        min_prevalence: Annotated[
+            float,
+            typer.Option("--min-prevalence", help="MaAsLin 3 feature prevalence cutoff."),
+        ] = 0.0,
+        min_abundance: Annotated[
+            float,
+            typer.Option("--min-abundance", help="MaAsLin 3 feature abundance cutoff."),
+        ] = 0.0,
+        subclass: Annotated[
+            str | None,
+            typer.Option("--subclass", help="LEfSe subclass/block metadata column."),
+        ] = None,
+        reference: Annotated[
+            str | None,
+            typer.Option(
+                "--reference",
+                help="LEfSe reference class; defaults to the first sorted level.",
+            ),
+        ] = None,
+        seed: Annotated[int, typer.Option("--seed", help="LEfSe random seed.")] = 1234,
+        kruskal_threshold: Annotated[
+            float, typer.Option("--kruskal-threshold", help="LEfSe Kruskal-Wallis p-value cutoff.")
+        ] = 0.05,
+        wilcoxon_threshold: Annotated[
+            float, typer.Option("--wilcoxon-threshold", help="LEfSe Wilcoxon p-value cutoff.")
+        ] = 0.05,
+        lda_threshold: Annotated[
+            float, typer.Option("--lda-threshold", help="LEfSe minimum absolute LDA score.")
+        ] = 2.0,
+        p_adjust_method: Annotated[
+            str, typer.Option("--p-adjust-method", help="LEfSe p-value adjustment method.")
+        ] = "none",
+        trim_names: Annotated[
+            bool, typer.Option("--trim-names", help="Trim LEfSe feature names to terminal labels.")
+        ] = False,
     ) -> None:
         diff_abundance(
             backend=backend,
@@ -49,6 +115,21 @@ def register(app: typer.Typer) -> None:
             timeout=timeout,
             runtime=runtime,
             image=image,
+            formula=formula,
+            fix_formula=fix_formula,
+            rand_formula=rand_formula,
+            normalization=normalization,
+            transform=transform,
+            min_prevalence=min_prevalence,
+            min_abundance=min_abundance,
+            subclass=subclass,
+            reference=reference,
+            seed=seed,
+            kruskal_threshold=kruskal_threshold,
+            wilcoxon_threshold=wilcoxon_threshold,
+            lda_threshold=lda_threshold,
+            p_adjust_method=p_adjust_method,
+            trim_names=trim_names,
         )
 
     @app.command("functional_profile")

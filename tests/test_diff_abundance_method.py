@@ -26,7 +26,7 @@ def fixture_table(tmp_path: Path) -> Path:
     return table
 
 
-@pytest.mark.parametrize("script_name", ["ancombc", "aldex2", "maaslin2", "lefse"])
+@pytest.mark.parametrize("script_name", ["ancombc", "aldex2", "maaslin2", "maaslin3", "lefse"])
 def test_r_diffab_scripts_are_external_assets(script_name: str) -> None:
     packaged_script = files("microsuite.diffab.r").joinpath(f"{script_name}.R")
 
@@ -84,7 +84,7 @@ def test_ancombc_invokes_external_script_path(
     assert params["group"] == "treatment"
 
 
-@pytest.mark.parametrize("backend", ["aldex2", "maaslin2", "lefse"])
+@pytest.mark.parametrize("backend", ["aldex2", "maaslin2"])
 def test_r_diffab_backend_invokes_packaged_script(
     backend: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -145,7 +145,7 @@ def test_diff_abundance_writes_runtime_logs(
     assert run["outputs"] == {"output": str(tmp_path / "diff.tsv")}
 
 
-@pytest.mark.parametrize("backend", ["aldex2", "maaslin2", "lefse"])
+@pytest.mark.parametrize("backend", ["aldex2", "maaslin2"])
 def test_r_diffab_backend_writes_runtime_logs(
     backend: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -173,7 +173,7 @@ def test_r_diffab_backend_writes_runtime_logs(
     assert run["outputs"] == {"output": str(tmp_path / "diff.tsv")}
 
 
-@pytest.mark.parametrize("backend", ["aldex2", "maaslin2", "lefse"])
+@pytest.mark.parametrize("backend", ["aldex2", "maaslin2"])
 def test_r_diffab_backend_missing_rscript(
     backend: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
