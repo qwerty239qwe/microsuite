@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Manual heavy-image validation no longer cancels the automatic Docker CI run
   for the same `main` commit; concurrency remains enabled independently for
   push, pull-request, and manually dispatched runs.
+- GitHub Actions use their Node 24-compatible releases, removing deprecated
+  Node 20 runtimes and the retired `setup-java` v4 integration from CI.
 
 ## [0.3.0] - 2026-08-17
 
