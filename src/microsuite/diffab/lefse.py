@@ -75,9 +75,7 @@ def _validate_design(
             )
         metadata[subclass] = metadata[subclass].astype(str)
         if metadata[subclass].str.strip().eq("").any():
-            raise MicrobiomeSuiteError(
-                f"LEfSe subclass column '{subclass}' contains empty values."
-            )
+            raise MicrobiomeSuiteError(f"LEfSe subclass column '{subclass}' contains empty values.")
         if metadata[subclass].nunique() < 2:
             raise MicrobiomeSuiteError("LEfSe subclass must contain at least two levels.")
         combinations = pd.crosstab(metadata[subclass], metadata[group])
@@ -144,7 +142,7 @@ def run_lefse(
     _validate_probability(wilcoxon_threshold, "wilcoxon_threshold")
     if not math.isfinite(lda_threshold) or lda_threshold < 0:
         raise MicrobiomeSuiteError("LEfSe lda_threshold must be non-negative.")
-    method_lookup = {method.lower(): method for method in P_ADJUST_METHODS}
+    method_lookup: dict[str, str] = {method.lower(): method for method in P_ADJUST_METHODS}
     try:
         resolved_method = method_lookup[p_adjust_method.lower()]
     except (AttributeError, KeyError):

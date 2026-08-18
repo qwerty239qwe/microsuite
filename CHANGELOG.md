@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   internal `apply()` simplifies equal-length sample-index vectors into a matrix;
   the wrapper preserves those vectors as a list and runs the same Wilcoxon
   consistency algorithm.
+- The original direct R/container entrypoint
+  `lefse.R counts.tsv metadata.tsv group_col output.tsv` remains accepted and
+  maps to the hardened defaults, alongside the new parameter-JSON entrypoint.
 
 ## [0.3.0] - 2026-08-17
 

@@ -17,6 +17,7 @@ from microsuite._errors import MicrobiomeSuiteError
 from microsuite.batch.value_type import record_batch_correction
 from microsuite.cli.app import app
 from microsuite.diffab.lefse import run_lefse
+from microsuite.diffab.r_backends import run_r_diffab_backend
 from microsuite.io.h5ad import write_h5ad
 from microsuite.methods.diff_abundance import diff_abundance
 
@@ -127,9 +128,7 @@ def test_lefse_forwards_design_reproducibility_and_thresholds(
             "non-finite",
         ),
         (
-            lambda x: setattr(
-                x, "X", np.array([[0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1]])
-            ),
+            lambda x: setattr(x, "X", np.array([[0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1]])),
             {"group": "group"},
             "zero total",
         ),
@@ -161,9 +160,7 @@ def test_lefse_rejects_declared_clr(tmp_path: Path) -> None:
 def test_lefse_force_is_transactional(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     output = tmp_path / "lefse.tsv"
     output.write_text("old\n", encoding="utf-8")
-    monkeypatch.setattr(
-        "microsuite.diffab.lefse.invoke_r_script", _fake_invoke({}, fail=True)
-    )
+    monkeypatch.setattr("microsuite.diffab.lefse.invoke_r_script", _fake_invoke({}, fail=True))
     with pytest.raises(MicrobiomeSuiteError, match="simulated failure"):
         run_lefse(_adata(), output=output, group="group", force=True)
     assert output.read_text(encoding="utf-8") == "old\n"
@@ -189,6 +186,52 @@ def test_unified_method_dispatches_lefse(tmp_path: Path, monkeypatch: pytest.Mon
     assert captured["subclass"] == "subclass"
     assert captured["reference"] == "B"
     assert captured["seed"] == 9
+
+
+def test_legacy_unified_api_call_uses_compatible_defaults(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    table = tmp_path / "table.h5ad"
+    write_h5ad(_adata(), table)
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        "microsuite.methods.diff_abundance.run_lefse",
+        lambda adata, **kwargs: captured.update(kwargs),
+    )
+
+    diff_abundance(
+        backend="lefse",
+        table=table,
+        group="group",
+        output=tmp_path / "lefse.tsv",
+    )
+
+    assert captured["group"] == "group"
+    assert captured["subclass"] is None
+    assert captured["reference"] is None
+    assert captured["seed"] == 1234
+    assert captured["kruskal_threshold"] == 0.05
+    assert captured["wilcoxon_threshold"] == 0.05
+    assert captured["lda_threshold"] == 2.0
+    assert captured["p_adjust_method"] == "none"
+    assert captured["trim_names"] is False
+
+
+def test_legacy_generic_runner_entrypoint_remains_available(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        "microsuite.diffab.r_backends.invoke_r_backend",
+        lambda **kwargs: captured.update(kwargs),
+    )
+
+    output = tmp_path / "lefse.tsv"
+    run_r_diffab_backend(_adata(), backend="lefse", group="group", output=output)
+
+    positional = captured["positional"]
+    assert isinstance(positional, list)
+    assert positional[-2:] == ["group", output]
 
 
 def test_unified_method_rejects_cross_backend_options(tmp_path: Path) -> None:
@@ -222,11 +265,30 @@ def test_lefse_cli_accepts_hardened_options(
     result = CliRunner().invoke(
         app,
         [
-            "diff_abundance", "--backend", "lefse", "--table", str(tmp_path / "x.h5ad"),
-            "--group", "group", "--output", str(tmp_path / "lefse.tsv"),
-            "--subclass", "subclass", "--reference", "B", "--seed", "55",
-            "--kruskal-threshold", "0.1", "--wilcoxon-threshold", "0.2",
-            "--lda-threshold", "1.5", "--p-adjust-method", "BY", "--trim-names",
+            "diff_abundance",
+            "--backend",
+            "lefse",
+            "--table",
+            str(tmp_path / "x.h5ad"),
+            "--group",
+            "group",
+            "--output",
+            str(tmp_path / "lefse.tsv"),
+            "--subclass",
+            "subclass",
+            "--reference",
+            "B",
+            "--seed",
+            "55",
+            "--kruskal-threshold",
+            "0.1",
+            "--wilcoxon-threshold",
+            "0.2",
+            "--lda-threshold",
+            "1.5",
+            "--p-adjust-method",
+            "BY",
+            "--trim-names",
         ],
     )
     assert result.exit_code == 0, result.output
@@ -235,6 +297,35 @@ def test_lefse_cli_accepts_hardened_options(
     assert captured["seed"] == 55
     assert captured["p_adjust_method"] == "BY"
     assert captured["trim_names"] is True
+
+
+def test_lefse_legacy_cli_shape_still_accepted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        "microsuite.cli.method_stats_cmd.diff_abundance", lambda **kwargs: captured.update(kwargs)
+    )
+    result = CliRunner().invoke(
+        app,
+        [
+            "diff_abundance",
+            "--backend",
+            "lefse",
+            "--table",
+            str(tmp_path / "table.h5ad"),
+            "--group",
+            "group",
+            "--output",
+            str(tmp_path / "lefse.tsv"),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["group"] == "group"
+    assert captured["subclass"] is None
+    assert captured["reference"] is None
+    assert captured["seed"] == 1234
 
 
 def test_lefse_r_script_parses() -> None:
@@ -280,8 +371,8 @@ def test_lefse_live_recovers_planted_signal_and_is_reproducible(tmp_path: Path) 
     )
     first = tmp_path / "first.tsv"
     second = tmp_path / "second.tsv"
-    run_lefse(adata, output=first, group="group", reference="A", seed=991)
-    run_lefse(adata, output=second, group="group", reference="A", seed=991)
+    run_lefse(adata, output=first, group="group", reference="A", seed=1234)
+    run_lefse(adata, output=second, group="group", reference="A", seed=1234)
     blocked = tmp_path / "blocked.tsv"
     run_lefse(
         adata,
@@ -298,3 +389,17 @@ def test_lefse_live_recovers_planted_signal_and_is_reproducible(tmp_path: Path) 
     assert result.loc[result["features"] == "planted_hit", "scores"].iloc[0] > 0
     assert "planted_hit" in set(pd.read_csv(blocked, sep="\t")["features"])
     assert first.read_bytes() == second.read_bytes()
+
+    counts = tmp_path / "legacy-counts.tsv"
+    metadata = tmp_path / "legacy-metadata.tsv"
+    legacy = tmp_path / "legacy.tsv"
+    pd.DataFrame(matrix.T, index=adata.var_names, columns=adata.obs_names).to_csv(counts, sep="\t")
+    adata.obs.to_csv(metadata, sep="\t")
+    script = str(files("microsuite.diffab.r").joinpath("lefse.R"))
+    legacy_run = subprocess.run(
+        [rscript, script, str(counts), str(metadata), "group", str(legacy)],
+        capture_output=True,
+        text=True,
+    )
+    assert legacy_run.returncode == 0, legacy_run.stdout + legacy_run.stderr
+    assert legacy.read_bytes() == first.read_bytes()

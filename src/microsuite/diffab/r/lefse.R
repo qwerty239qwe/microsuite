@@ -1,16 +1,13 @@
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) != 4) {
-  stop("Usage: lefse.R counts.tsv metadata.tsv params.json output.tsv")
+  stop("Usage: lefse.R counts.tsv metadata.tsv params.json|group_col output.tsv")
 }
 
 counts_path <- args[[1]]
 metadata_path <- args[[2]]
-params_path <- args[[3]]
+config_arg <- args[[3]]
 output_path <- args[[4]]
 
-if (!requireNamespace("jsonlite", quietly = TRUE)) {
-  stop("R package 'jsonlite' is required.")
-}
 if (!requireNamespace("lefser", quietly = TRUE)) {
   stop("R package 'lefser' is required. Install it with BiocManager::install('lefser').")
 }
@@ -18,14 +15,34 @@ if (!requireNamespace("SummarizedExperiment", quietly = TRUE)) {
   stop("R package 'SummarizedExperiment' is required.")
 }
 
-params <- jsonlite::fromJSON(params_path, simplifyVector = TRUE)
-required <- c(
-  "group", "reference", "comparison", "seed", "kruskal_threshold",
-  "wilcoxon_threshold", "lda_threshold", "p_adjust_method", "trim_names"
-)
-missing_params <- setdiff(required, names(params))
-if (length(missing_params) > 0) {
-  stop(paste("Missing LEfSe parameters:", paste(missing_params, collapse = ", ")))
+if (file.exists(config_arg)) {
+  if (!requireNamespace("jsonlite", quietly = TRUE)) {
+    stop("R package 'jsonlite' is required when using a LEfSe params JSON file.")
+  }
+  params <- jsonlite::fromJSON(config_arg, simplifyVector = TRUE)
+  required <- c(
+    "group", "reference", "comparison", "seed", "kruskal_threshold",
+    "wilcoxon_threshold", "lda_threshold", "p_adjust_method", "trim_names"
+  )
+  missing_params <- setdiff(required, names(params))
+  if (length(missing_params) > 0) {
+    stop(paste("Missing LEfSe parameters:", paste(missing_params, collapse = ", ")))
+  }
+} else {
+  # Backward compatibility for the original packaged/container entrypoint:
+  # lefse.R counts.tsv metadata.tsv group_col output.tsv
+  params <- list(
+    group = config_arg,
+    subclass = NULL,
+    reference = NULL,
+    comparison = NULL,
+    seed = 1234L,
+    kruskal_threshold = 0.05,
+    wilcoxon_threshold = 0.05,
+    lda_threshold = 2.0,
+    p_adjust_method = "none",
+    trim_names = FALSE
+  )
 }
 
 counts <- read.delim(counts_path, row.names = 1, check.names = FALSE)
@@ -40,6 +57,14 @@ if (length(missing_metadata) > 0) {
   stop(paste("Samples missing from metadata:", paste(missing_metadata, collapse = ", ")))
 }
 metadata <- metadata[colnames(counts), , drop = FALSE]
+observed_levels <- sort(unique(as.character(metadata[[group_col]])))
+if (length(observed_levels) != 2L) {
+  stop("LEfSe requires exactly two groups.")
+}
+if (is.null(params$reference)) {
+  params$reference <- observed_levels[[1L]]
+  params$comparison <- observed_levels[[2L]]
+}
 metadata[[group_col]] <- factor(
   as.character(metadata[[group_col]]),
   levels = c(params$reference, params$comparison)

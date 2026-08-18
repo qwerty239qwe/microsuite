@@ -57,13 +57,18 @@ def diff_abundance(
         trim_names,
     )
     if backend == "maaslin3":
-        if subclass is not None or reference is not None or lefse_options != (
-            1234,
-            0.05,
-            0.05,
-            2.0,
-            "none",
-            False,
+        if (
+            subclass is not None
+            or reference is not None
+            or lefse_options
+            != (
+                1234,
+                0.05,
+                0.05,
+                2.0,
+                "none",
+                False,
+            )
         ):
             raise MicrobiomeSuiteError(
                 "LEfSe subclass, reference, seed, threshold, adjustment, and name-trimming "
