@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-18
+
 ### Added
 
 - MaAsLin 3 1.4.0 as a new, independently containerized differential-abundance
@@ -35,6 +37,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The original direct R/container entrypoint
   `lefse.R counts.tsv metadata.tsv group_col output.tsv` remains accepted and
   maps to the hardened defaults, alongside the new parameter-JSON entrypoint.
+- Manual heavy-image validation no longer cancels the automatic Docker CI run
+  for the same `main` commit; concurrency remains enabled independently for
+  push, pull-request, and manually dispatched runs.
 
 ## [0.3.0] - 2026-08-17
 

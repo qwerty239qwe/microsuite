@@ -35,7 +35,10 @@ permissions:
   packages: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Keep an explicitly requested heavy build from cancelling the automatic
+  # push/PR build for the same commit. Repeated runs of the same event type
+  # still supersede one another.
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:

@@ -55,6 +55,8 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert workflow.exists()
 
     text = workflow.read_text(encoding="utf-8")
+    assert "group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}" in text
+    assert "cancel-in-progress: true" in text
     assert "docker-build:" in text
     assert "docker/setup-buildx-action@v3" in text
     assert "docker/build-push-action@v6" in text
