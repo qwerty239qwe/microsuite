@@ -23,7 +23,7 @@ def test_github_actions_ci_runs_project_quality_gate() -> None:
     assert "uv run ty check" in text
     assert "uv build" in text
     assert "nextflow-smoke:" in text
-    assert "nf-core/setup-nextflow@v3" in text
+    assert "nf-core/setup-nextflow@v3.0.1" in text
     assert "nextflow-io/setup-nextflow" not in text
     assert 'version: "25.10.0"' in text
     assert "nextflow run -stub-run workflows/nextflow/main.nf" in text
@@ -38,7 +38,7 @@ def test_github_actions_ci_runs_project_quality_gate() -> None:
     assert "uv pip install cutadapt multiqc" in text
     assert "uv run pytest tests/integration/test_external_tools.py" in text
     assert "mothur-smoke:" in text
-    assert "mamba-org/setup-micromamba@v3" in text
+    assert "mamba-org/setup-micromamba@v3.2.1" in text
     assert "mothur=1.48.5" in text
     assert 'MICROSUITE_RUN_MOTHUR_SMOKE: "1"' in text
     assert "uv run pytest tests/integration/test_mothur_smoke.py" in text
@@ -58,8 +58,8 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}" in text
     assert "cancel-in-progress: true" in text
     assert "docker-build:" in text
-    assert "docker/setup-buildx-action@v4" in text
-    assert "docker/build-push-action@v7" in text
+    assert "docker/setup-buildx-action@v4.2.0" in text
+    assert "docker/build-push-action@v7.3.0" in text
     assert "containers/microsuite/Dockerfile" in text
     assert "containers/fastqc/Dockerfile" in text
     assert "containers/multiqc/Dockerfile" in text
@@ -151,7 +151,7 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "microsuite/${{ matrix.image }}:ci --version" in text
     # Built + smoke-tested images are published to GHCR (main only).
     assert "packages: write" in text
-    assert "docker/login-action@v4" in text
+    assert "docker/login-action@v4.6.0" in text
     assert "ghcr.io/${owner}/microsuite/${{ matrix.image }}" in text
     assert 'sha="sha-$(git rev-parse --short HEAD)"' in text
     assert "docker push" in text
