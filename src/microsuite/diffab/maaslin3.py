@@ -102,6 +102,7 @@ def run_maaslin3(
     timeout: float | None = None,
     runtime: str = "local",
     image: str | None = None,
+    reference: str | None = None,
     engine: str = "docker",
 ) -> None:
     """Run MaAsLin 3 and write its two model families to an output directory."""
@@ -125,6 +126,7 @@ def run_maaslin3(
 
     params = {
         "formula": resolved_formula,
+        **({"reference": reference} if reference else {}),
         "normalization": normalization,
         "transform": transform,
         "min_prevalence": min_prevalence,

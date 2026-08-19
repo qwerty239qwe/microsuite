@@ -86,6 +86,29 @@ def test_maaslin3_forwards_full_formula_and_options(
     assert (output / "prevalence_results.tsv").is_file()
 
 
+def test_maaslin3_forwards_reference_levels(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A named reference reaches params; omitting it leaves params unchanged."""
+    captured: dict[str, object] = {}
+    monkeypatch.setattr("microsuite.diffab.maaslin3.invoke_r_script", _fake_invoke(captured))
+
+    run_maaslin3(
+        _adata(),
+        output=tmp_path / "with-reference",
+        formula="~ batch + group",
+        reference="group,healthy;batch,b1",
+    )
+    assert captured["params"]["reference"] == "group,healthy;batch,b1"
+
+    run_maaslin3(
+        _adata(),
+        output=tmp_path / "without-reference",
+        formula="~ batch + group",
+    )
+    assert "reference" not in captured["params"]
+
+
 def test_maaslin3_combines_fixed_and_random_formulas(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

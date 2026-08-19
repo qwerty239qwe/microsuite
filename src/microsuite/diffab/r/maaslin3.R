@@ -29,6 +29,37 @@ if (length(missing_metadata) > 0) {
   stop(paste("Samples missing from metadata:", paste(missing_metadata, collapse = ", ")))
 }
 metadata <- metadata[colnames(counts), , drop = FALSE]
+
+# MaAsLin 3 refuses a character covariate with more than two levels unless it is
+# already a factor or a reference is named. read.delim yields characters, so a
+# multi-level study or group column would abort the run. Convert every character
+# column to a factor with levels in sorted order, which makes the reference the
+# first sorted level -- deterministic, and controllable by naming levels so the
+# intended baseline sorts first. An explicit params$reference still wins.
+reference_pairs <- list()
+if (!is.null(params$reference) && length(params$reference) > 0) {
+  for (pair in strsplit(as.character(params$reference), ";", fixed = TRUE)[[1]]) {
+    parts <- strsplit(trimws(pair), ",", fixed = TRUE)[[1]]
+    if (length(parts) == 2L) reference_pairs[[trimws(parts[[1]])]] <- trimws(parts[[2]])
+  }
+}
+for (column in colnames(metadata)) {
+  values <- metadata[[column]]
+  if (!is.character(values)) next
+  levels_sorted <- sort(unique(values))
+  wanted <- reference_pairs[[column]]
+  if (!is.null(wanted)) {
+    if (!(wanted %in% levels_sorted)) {
+      stop(paste0("Reference level '", wanted, "' not found in metadata column '", column, "'"))
+    }
+    levels_sorted <- c(wanted, setdiff(levels_sorted, wanted))
+  }
+  metadata[[column]] <- factor(values, levels = levels_sorted)
+  if (length(levels_sorted) > 2L) {
+    message(paste0("microsuite: '", column, "' reference level = '", levels_sorted[[1]], "'"))
+  }
+}
+
 features <- as.data.frame(t(counts), check.names = FALSE)
 
 invisible(maaslin3::maaslin3(
