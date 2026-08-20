@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-08-20
+
+### Fixed
+
+- MaAsLin 3 now accepts character categorical fixed effects with more than two
+  levels after metadata crosses the TSV boundary. Modeled categorical columns
+  are restored as factors; the first sorted level is the default baseline.
+- `diff_abundance(..., backend="maaslin3", reference="column,level")` and the
+  matching CLI `--reference` option select explicit baselines, including
+  semicolon-delimited references for multiple columns. Syntax, duplicate
+  columns, metadata columns, formula membership, categorical types, and levels
+  are validated instead of silently falling back to another baseline.
+- MaAsLin 3 factor conversion and reference logging are limited to modeled
+  fixed effects, so unrelated sample metadata is no longer retyped or reported
+  as if it affected a contrast.
+
 ## [0.4.0] - 2026-08-18
 
 ### Added

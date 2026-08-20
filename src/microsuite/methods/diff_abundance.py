@@ -57,22 +57,17 @@ def diff_abundance(
         trim_names,
     )
     if backend == "maaslin3":
-        if (
-            subclass is not None
-            or reference is not None
-            or lefse_options
-            != (
-                1234,
-                0.05,
-                0.05,
-                2.0,
-                "none",
-                False,
-            )
+        if subclass is not None or lefse_options != (
+            1234,
+            0.05,
+            0.05,
+            2.0,
+            "none",
+            False,
         ):
             raise MicrobiomeSuiteError(
-                "LEfSe subclass, reference, seed, threshold, adjustment, and name-trimming "
-                "options cannot be used with --backend maaslin3."
+                "LEfSe subclass, seed, threshold, adjustment, and name-trimming options "
+                "cannot be used with --backend maaslin3."
             )
         adata = read_h5ad(ensure_input(table))
         run_maaslin3(
@@ -86,6 +81,7 @@ def diff_abundance(
             transform=transform,
             min_prevalence=min_prevalence,
             min_abundance=min_abundance,
+            reference=reference,
             force=force,
             run_dir=run_dir,
             timeout=timeout,
@@ -145,7 +141,8 @@ def diff_abundance(
         )
     if subclass is not None or reference is not None:
         raise MicrobiomeSuiteError(
-            "--subclass and --reference are supported only by --backend lefse."
+            "--subclass is supported only by --backend lefse; --reference is supported "
+            "only by --backend lefse and --backend maaslin3."
         )
     if lefse_options != (
         1234,

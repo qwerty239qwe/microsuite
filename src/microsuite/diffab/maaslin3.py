@@ -74,6 +74,39 @@ def _validate_options(
     return normalization, transform
 
 
+def _normalize_reference(reference: str | None, *, metadata_columns: set[str]) -> str | None:
+    if reference is None:
+        return None
+    if not reference.strip():
+        raise MicrobiomeSuiteError(
+            "MaAsLin 3 reference cannot be empty; use 'column,level' pairs separated by ';'."
+        )
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw_pair in reference.split(";"):
+        if raw_pair.count(",") != 1:
+            raise MicrobiomeSuiteError(
+                "Invalid MaAsLin 3 reference; expected 'column,level' pairs separated by ';'."
+            )
+        column, level = (part.strip() for part in raw_pair.split(",", maxsplit=1))
+        if not column or not level:
+            raise MicrobiomeSuiteError(
+                "Invalid MaAsLin 3 reference; column and level must both be non-empty."
+            )
+        if column in seen:
+            raise MicrobiomeSuiteError(
+                f"MaAsLin 3 reference column is specified more than once: {column}"
+            )
+        if column not in metadata_columns:
+            raise MicrobiomeSuiteError(
+                f"MaAsLin 3 reference column not found in sample metadata: {column}"
+            )
+        seen.add(column)
+        normalized.append(f"{column},{level}")
+    return ";".join(normalized)
+
+
 def _replace_output(staged: Path, output: Path, *, force: bool) -> None:
     if output.exists():
         if not force:
@@ -102,6 +135,7 @@ def run_maaslin3(
     timeout: float | None = None,
     runtime: str = "local",
     image: str | None = None,
+    reference: str | None = None,
     engine: str = "docker",
 ) -> None:
     """Run MaAsLin 3 and write its two model families to an output directory."""
@@ -117,6 +151,10 @@ def run_maaslin3(
         min_prevalence=min_prevalence,
         min_abundance=min_abundance,
     )
+    reference = _normalize_reference(
+        reference,
+        metadata_columns={str(column) for column in adata.obs.columns},
+    )
     if group and group not in adata.obs.columns:
         raise MicrobiomeSuiteError(f"Group column not found in sample metadata: {group}")
     if output.exists() and not force:
@@ -125,6 +163,7 @@ def run_maaslin3(
 
     params = {
         "formula": resolved_formula,
+        **({"reference": reference} if reference is not None else {}),
         "normalization": normalization,
         "transform": transform,
         "min_prevalence": min_prevalence,
