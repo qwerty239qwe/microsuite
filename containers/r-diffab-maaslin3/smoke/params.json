@@ -1,5 +1,6 @@
 {
   "formula": "~ group",
+  "reference": "group,C",
   "normalization": "TSS",
   "transform": "LOG",
   "min_prevalence": 0,

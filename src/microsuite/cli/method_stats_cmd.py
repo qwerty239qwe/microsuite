@@ -84,7 +84,10 @@ def register(app: typer.Typer) -> None:
             str | None,
             typer.Option(
                 "--reference",
-                help="LEfSe reference class; defaults to the first sorted level.",
+                help=(
+                    "LEfSe reference class, or MaAsLin 3 'column,level' pairs separated "
+                    "by ';'. Defaults to the first sorted level."
+                ),
             ),
         ] = None,
         seed: Annotated[int, typer.Option("--seed", help="LEfSe random seed.")] = 1234,

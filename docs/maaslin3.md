@@ -24,6 +24,7 @@ diff_abundance(
     backend="maaslin3",
     table=table_path,
     formula="~ batch + group / time_point + (1 | subject)",
+    reference="group,control",
     output=results_dir,
     runtime="docker",
 )
@@ -35,6 +36,24 @@ model can be split across `--fix-formula 'batch + group / time_point'` and
 `--rand-formula '(1 | subject)'`. `--group` remains shorthand for a one-term
 fixed-effects formula. A complete `--formula` cannot be combined with those
 shorthands, so no term is silently ignored.
+
+## Categorical reference levels
+
+Metadata written through TSV loses pandas categorical dtypes. microsuite 0.4.1
+restores modeled character fixed effects as factors before fitting, including
+variables with more than two levels. Without an explicit reference, the first
+sorted level is the baseline. Set one or more baselines with:
+
+```bash
+--reference 'group,control;batch,batch_1'
+```
+
+The Python API accepts the same string through `reference=`. Each entry must be
+exactly `column,level`; referenced columns must exist, occur as fixed effects in
+the formula, be categorical, and contain the requested level. MaAsLin 3 result
+rows contain contrasts for the non-reference levels, so choosing the baseline
+explicitly is recommended whenever coefficient direction matters. The same CLI
+option has its original single-class meaning when `--backend lefse` is selected.
 
 ## Preprocessing controls
 
