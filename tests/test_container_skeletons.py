@@ -357,11 +357,12 @@ def test_methods_reference_links_backends_to_environments() -> None:
         '`functional_profile(backend="picrust2", table=..., rep_seqs=..., output_dir=...)` |'
     ) in text
     assert (
-        "| `tax4fun2` | Tax4Fun2 R user env | ready | "
+        "| `tax4fun2` | Tax4Fun2 1.1.5 | ready | "
         "`microsuite functional_profile --backend tax4fun2 --table otu-table.tsv "
-        "--rep-seqs otus.fasta --database Tax4Fun2_ReferenceData_v2 --output-dir functions` | "
+        "--rep-seqs otus.fasta --database Tax4Fun2_ReferenceData_v2 "
+        "--output-dir functions --runtime docker` | "
         '`functional_profile(backend="tax4fun2", table=..., rep_seqs=..., '
-        "database=..., output_dir=...)` |"
+        'database=..., output_dir=..., runtime="docker")` |'
     ) in text
     assert (
         "| `humann` | HUMAnN user env | ready | "

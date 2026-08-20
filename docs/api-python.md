@@ -45,6 +45,14 @@ qc_filter(backend="qiime2-filter-reads", demux=demux, database=index, output=fil
 decontam(backend="qiime2-decontam", table=table, metadata=metadata, output=scores)
 evaluate(backend="qiime2-taxonomy", expected_taxa=expected, observed_taxa=observed, output=viz)
 functional_profile(backend="picrust2", table=table, rep_seqs=rep_seqs, output_dir=functions_dir)
+functional_profile(
+    backend="tax4fun2",
+    table=table_tsv,
+    rep_seqs=rep_seqs_fasta,
+    database=tax4fun2_reference,
+    output_dir=functions_dir,
+    runtime="docker",
+)
 functional_profile(backend="humann", reads=reads, output_dir=functions_dir)
 ```
 

@@ -8,6 +8,7 @@ on:
       - "src/microsuite/diversity/r/**"
       - "src/microsuite/batch/r/**"
       - "src/microsuite/diffab/r/**"
+      - "src/microsuite/functional/r/**"
       - ".github/workflows/docker.yml"
       - "tests/fixtures/**"
   pull_request:
@@ -17,6 +18,7 @@ on:
       - "src/microsuite/diversity/r/**"
       - "src/microsuite/batch/r/**"
       - "src/microsuite/diffab/r/**"
+      - "src/microsuite/functional/r/**"
       - ".github/workflows/docker.yml"
       - "tests/fixtures/**"
   workflow_dispatch:
@@ -123,6 +125,10 @@ jobs:
             heavy: true
           - image: r-diffab-lefse
             dockerfile: containers/r-diffab-lefse/Dockerfile
+            context: .
+            heavy: true
+          - image: r-functional-tax4fun2
+            dockerfile: containers/r-functional-tax4fun2/Dockerfile
             context: .
             heavy: true
           - image: r-ecology

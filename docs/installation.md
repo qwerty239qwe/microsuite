@@ -183,6 +183,9 @@ uv run microsuite tax_classify --help
 
 Keep database paths explicit. Tools such as Kraken2, Bracken, MetaPhlAn, EMU,
 PICRUSt2, HUMAnN, and Tax4Fun2 generally need large user-supplied databases.
+Tax4Fun2 can use the reproducible `r-functional-tax4fun2` image while mounting
+the separately downloaded `Tax4Fun2_ReferenceData_v2` directory read-only; see
+[Tax4Fun2](tax4fun2.md) for the reference and input contracts.
 
 ## Cloud/Spot VM Users
 

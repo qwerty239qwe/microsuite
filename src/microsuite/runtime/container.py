@@ -19,6 +19,8 @@ DEFAULT_DIFFAB_IMAGE_PREFIX = "ghcr.io/qwerty239qwe/microsuite/r-diffab-"
 _DIFFAB_IMAGE_ENV_PREFIX = "MICROSUITE_R_DIFFAB_"
 DEFAULT_BATCH_IMAGE_PREFIX = "ghcr.io/qwerty239qwe/microsuite/"
 _BATCH_IMAGE_ENV_PREFIX = "MICROSUITE_R_BATCH_"
+DEFAULT_FUNCTIONAL_IMAGE_PREFIX = "ghcr.io/qwerty239qwe/microsuite/r-functional-"
+_FUNCTIONAL_IMAGE_ENV_PREFIX = "MICROSUITE_R_FUNCTIONAL_"
 
 
 @dataclass(frozen=True)
@@ -242,6 +244,17 @@ def resolve_batch_image(backend: str, override: str | None, *, image: str | None
         return env
     basename = image if image is not None else backend
     return f"{DEFAULT_BATCH_IMAGE_PREFIX}{basename}:latest"
+
+
+def resolve_functional_image(backend: str, override: str | None) -> str:
+    """Resolve a functional-profile image: override, env, then GHCR default."""
+    if override:
+        return override
+    env_name = f"{_FUNCTIONAL_IMAGE_ENV_PREFIX}{backend.upper().replace('-', '_')}_IMAGE"
+    env = os.environ.get(env_name)
+    if env:
+        return env
+    return f"{DEFAULT_FUNCTIONAL_IMAGE_PREFIX}{backend}:latest"
 
 
 def resolve_image_digest(engine: str, image: str) -> str | None:

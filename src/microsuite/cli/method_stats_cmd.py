@@ -169,6 +169,21 @@ def register(app: typer.Typer) -> None:
             bool,
             typer.Option("--normalize-pathways", help="Normalize Tax4Fun2 pathway assignments."),
         ] = False,
+        runtime: Annotated[
+            str,
+            typer.Option(
+                "--runtime",
+                help="Tax4Fun2 execution: local Rscript or the pinned docker image.",
+            ),
+        ] = "local",
+        image: Annotated[
+            str | None,
+            typer.Option("--image", help="Override the r-functional-tax4fun2 image."),
+        ] = None,
+        engine: Annotated[
+            str,
+            typer.Option("--engine", help="Container engine for --runtime docker."),
+        ] = "docker",
         force: Annotated[
             bool, typer.Option("--force", help="Allow non-empty output directory.")
         ] = False,
@@ -191,6 +206,9 @@ def register(app: typer.Typer) -> None:
             database_mode=database_mode,
             min_identity=min_identity,
             normalize_pathways=normalize_pathways,
+            runtime=runtime,
+            image=image,
+            engine=engine,
             force=force,
             run_dir=run_dir,
             timeout=timeout,

@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-20
+
+### Added
+
+- A hardened Tax4Fun2 1.1.5 functional-prediction backend with strict
+  feature-table, representative-FASTA, reference-layout, and option validation.
+- A dedicated `r-functional-tax4fun2` image pinned to the Tax4Fun2 1.1.5 source
+  commit and equipped with BLAST+. Its build runs a real planted two-profile
+  prediction against a minimal reference database and checks prediction direction.
+- Stable `functional_prediction.tsv`, `pathway_prediction.tsv`, `coverage.tsv`,
+  and `tax4fun2_manifest.json` contracts. The manifest captures model options,
+  package version, matched-feature counts, and checksums for the reference files
+  used in prediction; Docker runs additionally retain the image digest sidecar.
+
+### Fixed
+
+- Tax4Fun2 no longer accepts malformed, negative, non-finite, empty, duplicated,
+  or ID-mismatched feature tables and FASTA files, or incomplete reference-data
+  layouts. Output is staged and required schemas are checked before replacement.
+- Tax4Fun2 BLAST databases are built in the output workspace instead of mutating
+  the user-supplied reference directory. BLAST subprocess failures and empty
+  matches now fail explicitly.
+- The backend now reports the per-sample fractions of features and sequences
+  represented in its nearest-reference prediction, making poor reference
+  coverage visible rather than leaving it buried in an upstream log.
+
 ## [0.4.1] - 2026-08-20
 
 ### Fixed
