@@ -447,8 +447,9 @@ jobs:
             -e HOME=/tmp -e MPLCONFIGDIR=/tmp/matplotlib \
             -v "${PWD}/containers/microsuite-picrust2/smoke:/input:ro" \
             -v "${PWD}/tmp/docker-picrust2-custom:/output" \
-            --entrypoint sh microsuite/${{ matrix.image }}:ci -lc '
+          --entrypoint sh microsuite/${{ matrix.image }}:ci -lc '
           set -eu
+          export PATH=/opt/conda/bin:$PATH
           ref_dir=$(/opt/conda/bin/python -c "from picrust2.default_oldIMG import default_ref_dir; print(default_ref_dir)")
           ec_table=$(/opt/conda/bin/python -c "from picrust2.default_oldIMG import default_tables; print(default_tables[\"EC\"])")
           marker_table=$(/opt/conda/bin/python -c "from picrust2.default_oldIMG import default_tables; print(default_tables[\"16S\"])")
