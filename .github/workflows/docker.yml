@@ -440,7 +440,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p tmp/docker-picrust2
-          docker run --rm --user "$(id -u):$(id -g)" \
+          if ! docker run --rm --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp -e MPLCONFIGDIR=/tmp/matplotlib \
             -v "${PWD}/containers/microsuite-picrust2/smoke:/input:ro" \
             -v "${PWD}/tmp/docker-picrust2:/output" \
             microsuite/${{ matrix.image }}:ci \
@@ -448,9 +449,15 @@ jobs:
             --table /input/abundance.tsv \
             --rep-seqs /input/study_seqs_test.fasta \
             --output-dir /output/picrust2 \
+            --run-dir /output/run \
             --threads 1 \
             --picrust2-database SC \
-            --picrust2-coverage
+            --picrust2-coverage; then
+            cat tmp/docker-picrust2/run/stdout.log || true
+            cat tmp/docker-picrust2/run/stderr.log || true
+            cat tmp/docker-picrust2/run/run.json || true
+            exit 1
+          fi
           test -s tmp/docker-picrust2/picrust2/EC_metagenome_out/pred_metagenome_unstrat.tsv.gz
           test -s tmp/docker-picrust2/picrust2/EC_metagenome_out/weighted_nsti.tsv.gz
           test -s tmp/docker-picrust2/picrust2/KO_metagenome_out/pred_metagenome_unstrat.tsv.gz
@@ -467,6 +474,7 @@ jobs:
           # marker table, but exercise microsuite's explicit custom selector
           # and the real single-reference pipeline.
           docker run --rm --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp -e MPLCONFIGDIR=/tmp/matplotlib \
             -v "${PWD}/containers/microsuite-picrust2/smoke:/input:ro" \
             -v "${PWD}/tmp/docker-picrust2-custom:/output" \
             --entrypoint sh microsuite/${{ matrix.image }}:ci -lc '
@@ -478,6 +486,7 @@ jobs:
             --table /input/abundance.tsv \
             --rep-seqs /input/study_seqs_test.fasta \
             --output-dir /output/picrust2 \
+            --run-dir /output/run \
             --threads 1 \
             --picrust2-database custom \
             --picrust2-ref-dir1 "$ref_dir" \
