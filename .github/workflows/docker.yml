@@ -440,10 +440,10 @@ jobs:
         run: |
           # The dual-domain SC trait tables can exceed the 16 GB RAM available
           # on a standard hosted runner during hidden-state prediction.
-          sudo fallocate -l 16G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
+          sudo fallocate -l 16G /mnt/picrust2-swapfile
+          sudo chmod 600 /mnt/picrust2-swapfile
+          sudo mkswap /mnt/picrust2-swapfile
+          sudo swapon /mnt/picrust2-swapfile
           free -h
 
       - name: Smoke test PICRUSt2 SC functional profiling
