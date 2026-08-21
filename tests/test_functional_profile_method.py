@@ -105,7 +105,9 @@ def test_picrust2_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
         calls.append(command)
         if "--version" in command:
             return subprocess.CompletedProcess(command, 0, "PICRUSt2 2.6.3\n", "")
-        _write_picrust2_outputs(Path(command[command.index("-o") + 1]))
+        staged_output = Path(command[command.index("-o") + 1])
+        assert not staged_output.exists()
+        _write_picrust2_outputs(staged_output)
         return subprocess.CompletedProcess(command, 0, "ok\n", "")
 
     monkeypatch.setattr("subprocess.run", fake_run)
@@ -392,8 +394,10 @@ def test_picrust2_docker_clears_image_entrypoint_and_mounts_inputs(
             return subprocess.CompletedProcess(command, 0, "sha256:test\n", "")
         if "--version" in command:
             return subprocess.CompletedProcess(command, 0, "PICRUSt2 2.6.3\n", "")
-        output_mount = next(part for part in command if ":/microsuite/output" in part)
-        _write_picrust2_outputs(Path(output_mount.split(":", 1)[0]))
+        output_mount = next(part for part in command if ":/microsuite/output-root" in part)
+        staged_output = Path(output_mount.split(":", 1)[0]) / "result"
+        assert not staged_output.exists()
+        _write_picrust2_outputs(staged_output)
         return subprocess.CompletedProcess(command, 0, "ok\n", "")
 
     monkeypatch.setattr("subprocess.run", fake_run)
@@ -414,13 +418,14 @@ def test_picrust2_docker_clears_image_entrypoint_and_mounts_inputs(
     )
     probe = next(command for command in calls if "--version" in command)
     assert probe[probe.index("--entrypoint") + 1] == ""
-    docker = next(command for command in calls if ":/microsuite/output" in " ".join(command))
+    docker = next(command for command in calls if ":/microsuite/output-root" in " ".join(command))
     assert "--entrypoint" in docker
     assert docker[docker.index("--entrypoint") + 1] == ""
     assert "example/picrust2:test" in docker
     assert any(str(table.resolve()) in value and value.endswith(":ro") for value in docker)
     assert any(str(fasta.resolve()) in value and value.endswith(":ro") for value in docker)
     inner = docker[docker.index("example/picrust2:test") + 1 :]
+    assert inner[inner.index("-o") + 1] == "/microsuite/output-root/result"
     assert str(reaction_map.resolve()) not in inner
     assert any(str(reaction_map.resolve()) in value and value.endswith(":ro") for value in docker)
     assert "--user" in docker

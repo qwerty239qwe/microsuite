@@ -294,7 +294,6 @@ def functional_profile_picrust2(
         dir=output_dir.parent, prefix=".microsuite-picrust2-"
     ) as stage_temp_dir:
         staged_output = Path(stage_temp_dir) / "result"
-        staged_output.mkdir()
         if runtime == "local":
             assert executable is not None
             command = _picrust2_command(
@@ -812,7 +811,7 @@ def _picrust2_command(
     def path(value: Path) -> str:
         return mapper.to_container(value) if mapper is not None else str(value)
 
-    output_arg = mapper.container_dir(output) if mapper is not None else str(output)
+    output_arg = path(output)
     command = [
         executable,
         "-s",
@@ -910,7 +909,9 @@ def _picrust2_mapper(
     ]
     for index, path in enumerate(dict.fromkeys(files_to_mount)):
         mapper.add_file(path, "ro", f"/microsuite/input{index}/{path.name}")
-    mapper.add_dir(output, "rw", "/microsuite/output")
+    # PICRUSt2 requires its -o path not to exist. Mount the staging parent so
+    # the child output path remains absent until PICRUSt2 creates it.
+    mapper.add_dir(output.parent, "rw", "/microsuite/output-root")
     return mapper
 
 
