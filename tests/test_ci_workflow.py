@@ -152,7 +152,7 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert r"default_tables[\"EC\"]" in text
     assert r"default_tables[\"16S\"]" in text
     assert "/opt/conda/bin/python -c" in text
-    assert "/opt/microsuite/.venv/bin/microsuite functional_profile" in text
+    assert "/opt/conda/bin/microsuite functional_profile" in text
     assert "--picrust2-database custom" in text
     assert "--picrust2-no-pathways" in text
     assert '--picrust2-ref-dir1 "$ref_dir"' in text

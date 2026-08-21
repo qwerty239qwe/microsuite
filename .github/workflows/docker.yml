@@ -452,7 +452,7 @@ jobs:
           ref_dir=$(/opt/conda/bin/python -c "from picrust2.default_oldIMG import default_ref_dir; print(default_ref_dir)")
           ec_table=$(/opt/conda/bin/python -c "from picrust2.default_oldIMG import default_tables; print(default_tables[\"EC\"])")
           marker_table=$(/opt/conda/bin/python -c "from picrust2.default_oldIMG import default_tables; print(default_tables[\"16S\"])")
-          /opt/microsuite/.venv/bin/microsuite functional_profile --backend picrust2 \
+          /opt/conda/bin/microsuite functional_profile --backend picrust2 \
             --table /input/abundance.tsv \
             --rep-seqs /input/study_seqs_test.fasta \
             --output-dir /output/picrust2 \
