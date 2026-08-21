@@ -82,6 +82,33 @@ monolithic image: `MS_CLUSTER`/`MS_IMPORT`/`MS_DIVERSITY`/`MS_REPORT` use the
 `microsuite_amplicon` image (microsuite CLI + vsearch + R), and `MS_FUNCTIONAL`
 uses the `microsuite_picrust2` image, pulled only when functional profiling runs.
 
+`MS_FUNCTIONAL` defaults to PICRUSt2-SC. The existing two-input process call is
+unchanged for SC and oldIMG. For custom references, the workflow uses a
+separate process with a real Nextflow `path` collection for every reference
+directory, trait table, marker table, and map; CLI arguments are rewritten to
+the staged task-local paths. Assets use indexed staging directories to avoid
+same-name collisions between custom domains.
+
+SC and oldIMG may also use pathway, reaction-function, and regroup-map
+overrides without custom references. Path-valued overrides use a staged path
+input process; symbolic reaction-function values remain ordinary values.
+
+The interfaces use different spellings: CLI flags are hyphenated, such as
+`--picrust2-database`, `--picrust2-ref-dir1`, and
+`--picrust2-custom-trait-tables-ref1`; Nextflow parameters are underscored,
+such as `--picrust2_database`, `--picrust2_ref_dir1`, and
+`--picrust2_custom_trait_tables_ref1`. Other Nextflow parameters include
+`--picrust2_ref_dir2`, `--picrust2_marker_gene_table_ref1`,
+`--picrust2_pathway_map`, `--picrust2_reaction_func`, and
+`--picrust2_regroup_map`. Trait-table values may be repeated as a list or
+comma-separated value. `--picrust2_no_pathways`, `--picrust2_coverage`,
+`--picrust2_max_nsti`, and `--picrust2_no_regroup` map to the corresponding
+hyphenated CLI controls. The module shell-quotes generated arguments and does
+not accept arbitrary raw shell text.
+
+See [PICRUSt2 functional profiling](picrust2.md) for the reference-file
+contract, output layout, experimental coverage behavior, and limitations.
+
 ## Manifest contract
 
 Raw-read workflows should use a tab-separated manifest with one row per sample.

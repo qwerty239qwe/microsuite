@@ -83,6 +83,11 @@ remain descriptive but their permutation p-values may be uninformative. This
 is not a mixed-effects random intercept or whole-subject exchange, and
 lme4-style `(1 | ...)` terms are rejected.
 
+The PICRUSt2 backend defaults to PICRUSt2-SC. The 0.6.0 selectors for `SC`,
+legacy `oldIMG`, and custom single/dual references are documented in
+[PICRUSt2 functional profiling](picrust2.md); the same backend can be launched
+from Python when the corresponding core API parameters are supplied.
+
 For QIIME 2's formula-based action, use the artifact-oriented
 `diversity_test(backend="qiime2-adonis", distance_matrix=..., metadata=...,
 formula="batch + group / time_point", permutations=999)`. It writes a QIIME 2

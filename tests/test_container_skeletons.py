@@ -91,6 +91,68 @@ def test_microsuite_image_supports_downloaded_blast_binaries() -> None:
     assert "libgomp1" in text
 
 
+def test_picrust2_image_pins_version_and_checks_both_reference_sets() -> None:
+    text = (CONTAINERS / "microsuite-picrust2" / "Dockerfile").read_text(encoding="utf-8")
+    assert '"picrust2=2.6.3"' in text
+    assert "PICRUSt2 2.6.3" in text
+    assert "picrust2_pipeline_singleRef.py" in text
+    assert "default_ref_dir_bac" in text
+    assert "default_ref_dir_arc" in text
+    assert "default_ref_dir as oldimg_ref_dir" in text
+    assert 'org.opencontainers.image.version="0.6.0"' in text
+    assert 'org.opencontainers.image.source="https://github.com/qwerty239qwe/microsuite"' in text
+
+
+def test_picrust2_smoke_fixture_is_attributed_and_ids_match() -> None:
+    smoke = CONTAINERS / "microsuite-picrust2" / "smoke"
+    fasta_ids = {
+        line[1:].strip()
+        for line in (smoke / "study_seqs_test.fasta").read_text(encoding="utf-8").splitlines()
+        if line.startswith(">")
+    }
+    table_ids = {
+        line.split("\t", 1)[0]
+        for line in (smoke / "abundance.tsv").read_text(encoding="utf-8").splitlines()[1:]
+    }
+    readme = (smoke / "README.md").read_text(encoding="utf-8")
+    assert fasta_ids == table_ids
+    assert "raw.githubusercontent.com/picrust/picrust2/v2.6.3/tests/test_data/place_seqs" in readme
+    assert "--picrust2-coverage" in readme
+    assert 'default_tables["EC"]' in readme
+    assert "--picrust2-database custom --picrust2-no-pathways" in readme
+
+
+def test_picrust2_docs_cover_database_outputs_and_coverage_contract() -> None:
+    text = (ROOT / "docs" / "picrust2.md").read_text(encoding="utf-8")
+    for token in (
+        "PICRUSt2-SC",
+        "oldIMG",
+        "--picrust2-database custom",
+        "--picrust2-ref-dir1",
+        "--picrust2-ref-dir2",
+        "--picrust2-custom-trait-tables-ref1",
+        "--picrust2-marker-gene-table-ref1",
+        "--picrust2-pathway-map",
+        "--picrust2-reaction-func",
+        "--picrust2-regroup-map",
+        "picrust2_manifest.json",
+        "weighted_nsti.tsv.gz",
+        "--picrust2-coverage",
+        "--picrust2-no-regroup",
+        "valid with SC, oldIMG, and custom databases",
+        "opt-in and experimental",
+        "CLI flags are hyphenated",
+        "Nextflow parameters are underscored",
+        "path` collection",
+        "--runtime docker",
+        "--image",
+        "when reproducing a pre-v2.6 PICRUSt2 analysis",
+    ):
+        assert token in text, token
+    assert "not produced by default" in text
+    assert "requires a matching core CLI" not in text
+
+
 def test_r_diffab_smoke_outputs_use_writable_tmp() -> None:
     for backend in ("ancombc", "aldex2", "maaslin2", "lefse"):
         text = (CONTAINERS / f"r-diffab-{backend}" / "Dockerfile").read_text(encoding="utf-8")
@@ -351,9 +413,9 @@ def test_methods_reference_links_backends_to_environments() -> None:
         "output=...)` |"
     ) in text
     assert (
-        "| `picrust2` | PICRUSt2 user env | ready | "
-        "`microsuite functional_profile --backend picrust2 --table table.biom "
-        "--rep-seqs rep-seqs.fasta --output-dir functions` | "
+        "| `picrust2` | PICRUSt2 2.6.3 | ready | "
+        "`microsuite functional_profile --backend picrust2 --table table.tsv "
+        "--rep-seqs rep-seqs.fasta --output-dir functions --picrust2-database SC` | "
         '`functional_profile(backend="picrust2", table=..., rep_seqs=..., output_dir=...)` |'
     ) in text
     assert (

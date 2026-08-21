@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-21
+
+### Added
+
+- A hardened PICRUSt2 API/CLI contract with SC as the default, explicit
+  oldIMG compatibility, custom single/dual reference inputs, strict table/FASTA
+  ID and count validation, and Docker runtime/image overrides.
+- Atomic PICRUSt2 output publication with required-artifact validation and a
+  `picrust2_manifest.json` provenance/stability boundary covering the selected
+  database, options, runtime, software, and reference inputs.
+- A hardened PICRUSt2 2.6.3 container with OCI source/version labels, build-time
+  checks for the bundled PICRUSt2-SC and legacy oldIMG reference files/scripts,
+  and a real heavy Docker CI smoke using an attributed upstream placement
+  fixture.
+- PICRUSt2 documentation for the SC default, oldIMG compatibility selector,
+  custom single/dual reference and trait-table contracts, Docker image
+  overrides, raw output layout, weighted NSTI interpretation, and scientific
+  limitations. Pathway coverage is explicitly opt-in through
+  `--picrust2-coverage` because upstream marks it experimental.
+- Nextflow PICRUSt2 parameters for SC/oldIMG/custom database selection and
+  optional reference, trait, marker, pathway, reaction, regroup, NSTI, and
+  coverage controls. Custom assets are staged through a separate path-input
+  process; the existing two-input SC/oldIMG workflow remains compatible.
+
+### Fixed
+
+- Docker CI now overrides the `microsuite` image entrypoint when checking the
+  upstream PICRUSt2 version and bundled default files, then runs the real
+  `functional_profile --backend picrust2` path and asserts EC, KO, pathway,
+  weighted NSTI, and manifest artifacts.
+
 ## [0.5.0] - 2026-08-20
 
 ### Added

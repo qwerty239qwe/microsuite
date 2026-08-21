@@ -420,6 +420,99 @@ jobs:
           test -s tmp/docker-r-ecology/adonis2.tsv
           test -s tmp/docker-r-ecology/anosim2.tsv
 
+      - name: Smoke test PICRUSt2 image contents
+        if: ${{ matrix.image == 'microsuite-picrust2' && github.event.inputs.build-heavy-containers == 'true' }}
+        run: |
+          set -euo pipefail
+          # The image entrypoint is microsuite, so upstream checks must override
+          # it explicitly rather than accidentally invoking the wrapper CLI.
+          test "$(docker run --rm --entrypoint picrust2_pipeline.py microsuite/${{ matrix.image }}:ci --version)" = "PICRUSt2 2.6.3"
+          docker run --rm --entrypoint python microsuite/${{ matrix.image }}:ci -c '
+          from pathlib import Path
+          from picrust2.default import default_ref_dir_bac, default_ref_dir_arc, default_pathway_map, default_regroup_map
+          from picrust2.default_oldIMG import default_ref_dir, default_pathway_map as oldimg_pathway_map, default_regroup_map as oldimg_regroup_map
+          for path in (default_ref_dir_bac, default_ref_dir_arc, default_pathway_map, default_regroup_map, default_ref_dir, oldimg_pathway_map, oldimg_regroup_map):
+              assert Path(path).exists(), path
+          '
+
+      - name: Smoke test PICRUSt2 custom oldIMG single-reference functional profiling
+        if: ${{ matrix.image == 'microsuite-picrust2' && github.event.inputs.build-heavy-containers == 'true' }}
+        run: |
+          set -euo pipefail
+          mkdir -p tmp/docker-picrust2-custom
+          # Reuse PICRUSt2's bundled oldIMG reference, EC trait table, and 16S
+          # marker table, but exercise microsuite's explicit custom selector
+          # and the real single-reference pipeline.
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp -e MPLCONFIGDIR=/tmp/matplotlib \
+            -v "${PWD}/containers/microsuite-picrust2/smoke:/input:ro" \
+            -v "${PWD}/tmp/docker-picrust2-custom:/output" \
+          --entrypoint sh microsuite/${{ matrix.image }}:ci -lc '
+          set -eu
+          export PATH=/opt/conda/bin:$PATH
+          ref_dir=$(/opt/conda/bin/python -c "from picrust2.default_oldIMG import default_ref_dir; print(default_ref_dir)")
+          ec_table=$(/opt/conda/bin/python -c "from picrust2.default_oldIMG import default_tables; print(default_tables[\"EC\"])")
+          marker_table=$(/opt/conda/bin/python -c "from picrust2.default_oldIMG import default_tables; print(default_tables[\"16S\"])")
+          /opt/conda/bin/microsuite functional_profile --backend picrust2 \
+            --table /input/abundance.tsv \
+            --rep-seqs /input/study_seqs_test.fasta \
+            --output-dir /output/picrust2 \
+            --run-dir /output/run \
+            --threads 1 \
+            --picrust2-database custom \
+            --picrust2-ref-dir1 "$ref_dir" \
+            --picrust2-custom-trait-tables-ref1 "$ec_table" \
+            --picrust2-marker-gene-table-ref1 "$marker_table" \
+            --picrust2-no-pathways
+          '
+          custom_metagenome_count=$(find tmp/docker-picrust2-custom/picrust2 \
+            -mindepth 2 -maxdepth 2 -type f -size +0c \
+            -path '*/*_metagenome_out/pred_metagenome_unstrat.tsv.gz' \
+            | wc -l)
+          test "$custom_metagenome_count" -eq 1
+          test -s tmp/docker-picrust2-custom/picrust2/picrust2_manifest.json
+
+      - name: Provision swap for PICRUSt2-SC smoke
+        if: ${{ matrix.image == 'microsuite-picrust2' && github.event.inputs.build-heavy-containers == 'true' }}
+        run: |
+          # The dual-domain SC trait tables can exceed the 16 GB RAM available
+          # on a standard hosted runner during hidden-state prediction.
+          sudo fallocate -l 16G /mnt/picrust2-swapfile
+          sudo chmod 600 /mnt/picrust2-swapfile
+          sudo mkswap /mnt/picrust2-swapfile
+          sudo swapon /mnt/picrust2-swapfile
+          free -h
+
+      - name: Smoke test PICRUSt2 SC functional profiling
+        if: ${{ matrix.image == 'microsuite-picrust2' && github.event.inputs.build-heavy-containers == 'true' }}
+        run: |
+          set -euo pipefail
+          mkdir -p tmp/docker-picrust2
+          if ! docker run --rm --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp -e MPLCONFIGDIR=/tmp/matplotlib \
+            -v "${PWD}/containers/microsuite-picrust2/smoke:/input:ro" \
+            -v "${PWD}/tmp/docker-picrust2:/output" \
+            microsuite/${{ matrix.image }}:ci \
+            functional_profile --backend picrust2 \
+            --table /input/abundance.tsv \
+            --rep-seqs /input/study_seqs_test.fasta \
+            --output-dir /output/picrust2 \
+            --run-dir /output/run \
+            --threads 1 \
+            --picrust2-database SC \
+            --picrust2-coverage; then
+            cat tmp/docker-picrust2/run/stdout.log || true
+            cat tmp/docker-picrust2/run/stderr.log || true
+            cat tmp/docker-picrust2/run/run.json || true
+            exit 1
+          fi
+          test -s tmp/docker-picrust2/picrust2/EC_metagenome_out/pred_metagenome_unstrat.tsv.gz
+          test -s tmp/docker-picrust2/picrust2/EC_metagenome_out/weighted_nsti.tsv.gz
+          test -s tmp/docker-picrust2/picrust2/KO_metagenome_out/pred_metagenome_unstrat.tsv.gz
+          test -s tmp/docker-picrust2/picrust2/pathways_out/path_abun_unstrat.tsv.gz
+          test -s tmp/docker-picrust2/picrust2/pathways_out/path_cov_unstrat.tsv.gz
+          test -s tmp/docker-picrust2/picrust2/picrust2_manifest.json
+
       # Publish images that were built and passed their smoke test. Only on the
       # main branch (never PRs), and only for images actually built this run.
       - name: Log in to GitHub Container Registry
