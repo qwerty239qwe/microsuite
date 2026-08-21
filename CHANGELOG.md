@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-21
+
+### Added
+
+- A hardened PICRUSt2 API/CLI contract with SC as the default, explicit
+  oldIMG compatibility, custom single/dual reference inputs, strict table/FASTA
+  ID and count validation, and Docker runtime/image overrides.
+- Atomic PICRUSt2 output publication with required-artifact validation and a
+  `picrust2_manifest.json` provenance/stability boundary covering the selected
+  database, options, runtime, software, and reference inputs.
+- A hardened PICRUSt2 2.6.3 container with OCI source/version labels, build-time
+  checks for the bundled PICRUSt2-SC and legacy oldIMG reference files/scripts,
+  and a real heavy Docker CI smoke using an attributed upstream placement
+  fixture.
+- PICRUSt2 documentation for the SC default, oldIMG compatibility selector,
+  custom single/dual reference and trait-table contracts, Docker image
+  overrides, raw output layout, weighted NSTI interpretation, and scientific
+  limitations. Pathway coverage is explicitly opt-in through
+  `--picrust2-coverage` because upstream marks it experimental.
+- Nextflow PICRUSt2 parameters for SC/oldIMG/custom database selection and
+  optional reference, trait, marker, pathway, reaction, regroup, NSTI, and
+  coverage controls. Custom assets are staged through a separate path-input
+  process; the existing two-input SC/oldIMG workflow remains compatible.
+
+### Fixed
+
+- Docker CI now overrides the `microsuite` image entrypoint when checking the
+  upstream PICRUSt2 version and bundled default files, then runs the real
+  `functional_profile --backend picrust2` path and asserts EC, KO, pathway,
+  weighted NSTI, and manifest artifacts.
+
+## [0.5.0] - 2026-08-20
+
+### Added
+
+- A hardened Tax4Fun2 1.1.5 functional-prediction backend with strict
+  feature-table, representative-FASTA, reference-layout, and option validation.
+- A dedicated `r-functional-tax4fun2` image pinned to the Tax4Fun2 1.1.5 source
+  commit and equipped with BLAST+. Its build runs a real planted two-profile
+  prediction against a minimal reference database and checks prediction direction.
+- Stable `functional_prediction.tsv`, `pathway_prediction.tsv`, `coverage.tsv`,
+  and `tax4fun2_manifest.json` contracts. The manifest captures model options,
+  package version, matched-feature counts, and checksums for the reference files
+  used in prediction; Docker runs additionally retain the image digest sidecar.
+
+### Fixed
+
+- Tax4Fun2 no longer accepts malformed, negative, non-finite, empty, duplicated,
+  or ID-mismatched feature tables and FASTA files, or incomplete reference-data
+  layouts. Output is staged and required schemas are checked before replacement.
+- Tax4Fun2 BLAST databases are built in the output workspace instead of mutating
+  the user-supplied reference directory. BLAST subprocess failures and empty
+  matches now fail explicitly.
+- The backend now reports the per-sample fractions of features and sequences
+  represented in its nearest-reference prediction, making poor reference
+  coverage visible rather than leaving it buried in an upstream log.
+
 ## [0.4.1] - 2026-08-20
 
 ### Fixed

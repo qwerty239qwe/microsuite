@@ -21,6 +21,7 @@ microsuite diversity beta-significance beta.tsv --metadata metadata.tsv --backen
 microsuite diversity beta-significance beta.tsv --metadata metadata.tsv --backend vegan --formula "batch + group / time_point" --strata "batch:subject" --permutations 999 --method adonis2 --runtime docker -o repeated-measures.tsv
 microsuite diversity beta-significance beta.tsv --metadata metadata.tsv --backend vegan --column site --method anosim2 --runtime docker -o anosim2.tsv
 microsuite diversity_test --backend qiime2-adonis --distance-matrix distance.qza --metadata metadata.tsv --formula "batch + group / time_point" --permutations 999 --output adonis.qzv
+microsuite functional_profile --backend picrust2 --table table.tsv --rep-seqs rep-seqs.fasta --output-dir functions --picrust2-database SC
 microsuite report --backend native --run-dir runs/table-summary -o report.html
 ```
 
@@ -88,3 +89,7 @@ runs and for higher-level workflow systems that need lightweight provenance.
 Deprecated compatibility commands may remain temporarily. For example,
 `microsuite diffab ancombc` is kept as a compatibility alias for the preferred
 `microsuite diff_abundance --backend ancombc` command.
+
+For PICRUSt2 selectors, custom reference/trait contracts, outputs, coverage
+semantics, Docker overrides, and migration from oldIMG, see
+[PICRUSt2 functional profiling](picrust2.md).

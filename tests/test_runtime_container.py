@@ -17,6 +17,7 @@ from microsuite.runtime.container import (
     resolve_dada2_image,
     resolve_diffab_image,
     resolve_ecology_image,
+    resolve_functional_image,
     resolve_image_digest,
 )
 
@@ -85,6 +86,15 @@ def test_resolve_ecology_image_precedence(monkeypatch) -> None:
     monkeypatch.setenv("MICROSUITE_R_ECOLOGY_IMAGE", "env:ecology")
     assert resolve_ecology_image(None) == "env:ecology"
     assert resolve_ecology_image("override:ecology") == "override:ecology"
+
+
+def test_resolve_functional_image_precedence(monkeypatch) -> None:
+    assert resolve_functional_image("tax4fun2", None) == (
+        "ghcr.io/qwerty239qwe/microsuite/r-functional-tax4fun2:latest"
+    )
+    monkeypatch.setenv("MICROSUITE_R_FUNCTIONAL_TAX4FUN2_IMAGE", "env:tax4fun2")
+    assert resolve_functional_image("tax4fun2", None) == "env:tax4fun2"
+    assert resolve_functional_image("tax4fun2", "override:tax4fun2") == "override:tax4fun2"
 
 
 def test_resolve_image_digest_repo_digest_then_id(monkeypatch) -> None:

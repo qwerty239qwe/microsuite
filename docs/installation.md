@@ -90,6 +90,7 @@ Common examples:
 | `denoise --backend dada2-r` | R, `Rscript`, DADA2 |
 | `diversity alpha --metric breakaway` | R, `Rscript`, Breakaway |
 | `diversity alpha --metric inext` | R, `Rscript`, iNEXT |
+| `functional_profile --backend picrust2` | Docker `microsuite-picrust2` image or PICRUSt2 2.6.3 with bundled SC/oldIMG files |
 | QIIME 2 backends | Activated QIIME 2 environment with required plugins |
 | Kraken2/Bracken | Tool binaries plus prepared databases |
 
@@ -183,6 +184,9 @@ uv run microsuite tax_classify --help
 
 Keep database paths explicit. Tools such as Kraken2, Bracken, MetaPhlAn, EMU,
 PICRUSt2, HUMAnN, and Tax4Fun2 generally need large user-supplied databases.
+Tax4Fun2 can use the reproducible `r-functional-tax4fun2` image while mounting
+the separately downloaded `Tax4Fun2_ReferenceData_v2` directory read-only; see
+[Tax4Fun2](tax4fun2.md) for the reference and input contracts.
 
 ## Cloud/Spot VM Users
 

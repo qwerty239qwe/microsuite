@@ -1,0 +1,3 @@
+nrow	ptw
+1	map00010
+2	map00020

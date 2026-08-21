@@ -45,6 +45,14 @@ qc_filter(backend="qiime2-filter-reads", demux=demux, database=index, output=fil
 decontam(backend="qiime2-decontam", table=table, metadata=metadata, output=scores)
 evaluate(backend="qiime2-taxonomy", expected_taxa=expected, observed_taxa=observed, output=viz)
 functional_profile(backend="picrust2", table=table, rep_seqs=rep_seqs, output_dir=functions_dir)
+functional_profile(
+    backend="tax4fun2",
+    table=table_tsv,
+    rep_seqs=rep_seqs_fasta,
+    database=tax4fun2_reference,
+    output_dir=functions_dir,
+    runtime="docker",
+)
 functional_profile(backend="humann", reads=reads, output_dir=functions_dir)
 ```
 
@@ -74,6 +82,11 @@ constant within every stratum warn because their sums of squares and R-squared
 remain descriptive but their permutation p-values may be uninformative. This
 is not a mixed-effects random intercept or whole-subject exchange, and
 lme4-style `(1 | ...)` terms are rejected.
+
+The PICRUSt2 backend defaults to PICRUSt2-SC. The 0.6.0 selectors for `SC`,
+legacy `oldIMG`, and custom single/dual references are documented in
+[PICRUSt2 functional profiling](picrust2.md); the same backend can be launched
+from Python when the corresponding core API parameters are supplied.
 
 For QIIME 2's formula-based action, use the artifact-oriented
 `diversity_test(backend="qiime2-adonis", distance_matrix=..., metadata=...,

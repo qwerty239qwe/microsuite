@@ -1,0 +1,3 @@
+ptw	description
+map00010	Pathway_A
+map00020	Pathway_B

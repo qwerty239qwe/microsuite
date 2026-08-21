@@ -19,6 +19,10 @@ DEFAULT_DIFFAB_IMAGE_PREFIX = "ghcr.io/qwerty239qwe/microsuite/r-diffab-"
 _DIFFAB_IMAGE_ENV_PREFIX = "MICROSUITE_R_DIFFAB_"
 DEFAULT_BATCH_IMAGE_PREFIX = "ghcr.io/qwerty239qwe/microsuite/"
 _BATCH_IMAGE_ENV_PREFIX = "MICROSUITE_R_BATCH_"
+DEFAULT_FUNCTIONAL_IMAGE_PREFIX = "ghcr.io/qwerty239qwe/microsuite/r-functional-"
+_FUNCTIONAL_IMAGE_ENV_PREFIX = "MICROSUITE_R_FUNCTIONAL_"
+DEFAULT_PICRUST2_IMAGE = "ghcr.io/qwerty239qwe/microsuite/microsuite-picrust2:latest"
+_PICRUST2_IMAGE_ENV = "MICROSUITE_PICRUST2_IMAGE"
 
 
 @dataclass(frozen=True)
@@ -60,10 +64,13 @@ def build_container_command(
     *,
     engine: str = "docker",
     user: str | None = None,
+    entrypoint: str | None = None,
 ) -> list[str]:
     command = [engine, "run", "--rm"]
     if user is not None:
         command.extend(["--user", user])
+    if entrypoint is not None:
+        command.extend(["--entrypoint", entrypoint])
     for mount in mounts:
         spec = f"{mount.host}:{mount.container}"
         if mount.mode == "ro":
@@ -244,6 +251,24 @@ def resolve_batch_image(backend: str, override: str | None, *, image: str | None
     return f"{DEFAULT_BATCH_IMAGE_PREFIX}{basename}:latest"
 
 
+def resolve_functional_image(backend: str, override: str | None) -> str:
+    """Resolve a functional-profile image: override, env, then GHCR default."""
+    if override:
+        return override
+    env_name = f"{_FUNCTIONAL_IMAGE_ENV_PREFIX}{backend.upper().replace('-', '_')}_IMAGE"
+    env = os.environ.get(env_name)
+    if env:
+        return env
+    return f"{DEFAULT_FUNCTIONAL_IMAGE_PREFIX}{backend}:latest"
+
+
+def resolve_picrust2_image(override: str | None = None) -> str:
+    """Resolve the dedicated PICRUSt2 image: override, env, then GHCR default."""
+    if override:
+        return override
+    return os.environ.get(_PICRUST2_IMAGE_ENV, DEFAULT_PICRUST2_IMAGE)
+
+
 def resolve_image_digest(engine: str, image: str) -> str | None:
     """Best-effort image digest via `<engine> inspect`; None if unavailable."""
     exe = shutil.which(engine)
@@ -272,24 +297,54 @@ class PathMapper:
 
     def __init__(self) -> None:
         self._dirs: dict[Path, Mount] = {}
+        self._files: dict[Path, Mount] = {}
 
     def add_dir(self, host_dir: Path, mode: str, container: str) -> None:
         resolved = host_dir.resolve()
+        self._check_container_collision(resolved, container)
         existing = self._dirs.get(resolved)
         if existing is None:
             self._dirs[resolved] = Mount(host=resolved, container=container, mode=mode)
         elif existing.mode == "ro" and mode == "rw":
             self._dirs[resolved] = Mount(host=resolved, container=existing.container, mode="rw")
 
+    def add_file(self, host_file: Path, mode: str, container: str) -> None:
+        resolved = host_file.resolve()
+        self._check_container_collision(resolved, container)
+        existing = self._files.get(resolved)
+        if existing is None:
+            self._files[resolved] = Mount(host=resolved, container=container, mode=mode)
+        elif existing.mode == "ro" and mode == "rw":
+            self._files[resolved] = Mount(host=resolved, container=existing.container, mode="rw")
+
+    def _check_container_collision(self, host: Path, container: str) -> None:
+        mounts = (*self._dirs.values(), *self._files.values())
+        for existing in mounts:
+            existing_container = existing.container.rstrip("/")
+            new_container = container.rstrip("/")
+            overlaps = (
+                existing_container == new_container
+                or existing_container.startswith(new_container + "/")
+                or new_container.startswith(existing_container + "/")
+            )
+            if existing.host != host and overlaps:
+                raise MicrobiomeSuiteError(
+                    f"Container mount path collision: {container} is assigned to both "
+                    f"{existing.host} and {host}."
+                )
+
     def container_dir(self, host_dir: Path) -> str:
         return self._dirs[host_dir.resolve()].container
 
     def to_container(self, host_path: Path) -> str:
         resolved = host_path.resolve()
+        file_mount = self._files.get(resolved)
+        if file_mount is not None:
+            return file_mount.container
         mount = self._dirs.get(resolved.parent)
         if mount is None:
             raise MicrobiomeSuiteError(f"No container mount registered for {resolved.parent}")
         return f"{mount.container}/{resolved.name}"
 
     def mounts(self) -> list[Mount]:
-        return list(self._dirs.values())
+        return [*self._dirs.values(), *self._files.values()]
