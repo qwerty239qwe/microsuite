@@ -136,6 +136,9 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "Smoke test MetaPhlAn image" in text
     assert "Smoke test microsuite-dada2 image" in text
     assert "Smoke test PICRUSt2 image contents" in text
+    assert "Provision swap for PICRUSt2-SC smoke" in text
+    assert "sudo fallocate -l 16G /swapfile" in text
+    assert "sudo swapon /swapfile" in text
     assert "Smoke test PICRUSt2 SC functional profiling" in text
     assert "Smoke test PICRUSt2 custom oldIMG single-reference functional profiling" in text
     assert "--entrypoint picrust2_pipeline.py microsuite/${{ matrix.image }}:ci --version" in text

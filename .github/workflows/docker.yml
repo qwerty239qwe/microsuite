@@ -435,6 +435,17 @@ jobs:
               assert Path(path).exists(), path
           '
 
+      - name: Provision swap for PICRUSt2-SC smoke
+        if: ${{ matrix.image == 'microsuite-picrust2' && github.event.inputs.build-heavy-containers == 'true' }}
+        run: |
+          # The dual-domain SC trait tables can exceed the 16 GB RAM available
+          # on a standard hosted runner during hidden-state prediction.
+          sudo fallocate -l 16G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
+
       - name: Smoke test PICRUSt2 SC functional profiling
         if: ${{ matrix.image == 'microsuite-picrust2' && github.event.inputs.build-heavy-containers == 'true' }}
         run: |
