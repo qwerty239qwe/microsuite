@@ -485,9 +485,7 @@ def _ensure_nonempty_file(path: Path, *, flag: str) -> Path:
     return path
 
 
-def _validate_picrust2_matrix_file(
-    path: Path, *, flag: str
-) -> tuple[Path, tuple[str, ...]]:
+def _validate_picrust2_matrix_file(path: Path, *, flag: str) -> tuple[Path, tuple[str, ...]]:
     """Validate an upstream custom trait/marker matrix without accepting junk files."""
     path = _ensure_nonempty_file(path, flag=flag)
     try:
@@ -512,8 +510,7 @@ def _validate_picrust2_matrix_file(
                     continue
                 if len(row) != len(columns):
                     raise MicrobiomeSuiteError(
-                        f"{flag} line {line_number} has {len(row)} fields; "
-                        f"expected {len(columns)}."
+                        f"{flag} line {line_number} has {len(row)} fields; expected {len(columns)}."
                     )
                 row_id = row[0].strip()
                 if not row_id:
@@ -669,9 +666,7 @@ def _validate_picrust2_config(
             ref2 = _validate_picrust2_reference(ref_dir2, flag="--picrust2-ref-dir2")
             external_paths.append(ref2)
         trait_results1 = [
-            _validate_picrust2_matrix_file(
-                path, flag="--picrust2-custom-trait-tables-ref1"
-            )
+            _validate_picrust2_matrix_file(path, flag="--picrust2-custom-trait-tables-ref1")
             for path in traits1
         ]
         traits1 = [path for path, _ in trait_results1]
@@ -680,8 +675,7 @@ def _validate_picrust2_config(
             family_id = _picrust2_trait_family_id(path)
             if family_id in trait_columns1:
                 raise MicrobiomeSuiteError(
-                    "Duplicate PICRUSt2 custom trait family ID in reference 1: "
-                    f"{family_id}"
+                    f"Duplicate PICRUSt2 custom trait family ID in reference 1: {family_id}"
                 )
             trait_columns1[family_id] = columns
         marker1, marker_columns1 = _validate_picrust2_matrix_file(
@@ -691,9 +685,7 @@ def _validate_picrust2_config(
         external_paths.append(marker1)
         if ref2 is not None:
             trait_results2 = [
-                _validate_picrust2_matrix_file(
-                    path, flag="--picrust2-custom-trait-tables-ref2"
-                )
+                _validate_picrust2_matrix_file(path, flag="--picrust2-custom-trait-tables-ref2")
                 for path in traits2
             ]
             traits2 = [path for path, _ in trait_results2]
@@ -702,8 +694,7 @@ def _validate_picrust2_config(
                 family_id = _picrust2_trait_family_id(path)
                 if family_id in trait_columns2:
                     raise MicrobiomeSuiteError(
-                        "Duplicate PICRUSt2 custom trait family ID in reference 2: "
-                        f"{family_id}"
+                        f"Duplicate PICRUSt2 custom trait family ID in reference 2: {family_id}"
                     )
                 trait_columns2[family_id] = columns
             if marker_gene_table_ref2 is None:

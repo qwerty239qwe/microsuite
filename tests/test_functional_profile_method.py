@@ -100,6 +100,7 @@ def test_picrust2_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
         "which",
         lambda name: "picrust2_pipeline.py" if name == "picrust2_pipeline.py" else None,
     )
+
     def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         if "--version" in command:
@@ -124,9 +125,12 @@ def test_picrust2_builds_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     assert command[command.index("-p") + 1] == "3"
     assert command[command.index("--max_nsti") + 1] == "2.0"
     assert "--coverage" not in command
-    assert json.loads(
-        (tmp_path / "picrust2" / "picrust2_manifest.json").read_text(encoding="utf-8")
-    )["picrust2_version"] == "2.6.3"
+    assert (
+        json.loads((tmp_path / "picrust2" / "picrust2_manifest.json").read_text(encoding="utf-8"))[
+            "picrust2_version"
+        ]
+        == "2.6.3"
+    )
     assert (tmp_path / "picrust2" / "picrust2_manifest.json").is_file()
 
 
@@ -924,9 +928,11 @@ def test_biom_validation_is_sparse_and_rejects_empty_observation_ids(
     monkeypatch.setattr(
         module.importlib,
         "import_module",
-        lambda name: SimpleNamespace(load_table=lambda path: FakeBiomTable())
-        if name == "biom"
-        else original_import(name),
+        lambda name: (
+            SimpleNamespace(load_table=lambda path: FakeBiomTable())
+            if name == "biom"
+            else original_import(name)
+        ),
     )
     with pytest.raises(MicrobiomeSuiteError, match="feature IDs must be non-empty"):
         module._read_biom_ids(table_path, label="PICRUSt2")
@@ -938,9 +944,11 @@ def test_biom_validation_is_sparse_and_rejects_empty_observation_ids(
     monkeypatch.setattr(
         module.importlib,
         "import_module",
-        lambda name: SimpleNamespace(load_table=lambda path: ValidBiomTable())
-        if name == "biom"
-        else original_import(name),
+        lambda name: (
+            SimpleNamespace(load_table=lambda path: ValidBiomTable())
+            if name == "biom"
+            else original_import(name)
+        ),
     )
     assert module._read_biom_ids(table_path, label="PICRUSt2") == ["f1"]
 

@@ -94,7 +94,7 @@ def test_microsuite_image_supports_downloaded_blast_binaries() -> None:
 def test_picrust2_image_pins_version_and_checks_both_reference_sets() -> None:
     text = (CONTAINERS / "microsuite-picrust2" / "Dockerfile").read_text(encoding="utf-8")
     assert '"picrust2=2.6.3"' in text
-    assert 'PICRUSt2 2.6.3' in text
+    assert "PICRUSt2 2.6.3" in text
     assert "picrust2_pipeline_singleRef.py" in text
     assert "default_ref_dir_bac" in text
     assert "default_ref_dir_arc" in text
@@ -118,7 +118,7 @@ def test_picrust2_smoke_fixture_is_attributed_and_ids_match() -> None:
     assert fasta_ids == table_ids
     assert "raw.githubusercontent.com/picrust/picrust2/v2.6.3/tests/test_data/place_seqs" in readme
     assert "--picrust2-coverage" in readme
-    assert "default_tables[\"EC\"]" in readme
+    assert 'default_tables["EC"]' in readme
     assert "--picrust2-database custom --picrust2-no-pathways" in readme
 
 

@@ -174,8 +174,7 @@ def register(app: typer.Typer) -> None:
             typer.Option(
                 "--runtime",
                 help=(
-                    "PICRUSt2/Tax4Fun2 execution: local executable(s) or the selected "
-                    "Docker image."
+                    "PICRUSt2/Tax4Fun2 execution: local executable(s) or the selected Docker image."
                 ),
             ),
         ] = "local",
