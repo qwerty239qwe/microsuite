@@ -135,6 +135,31 @@ def test_github_actions_docker_workflow_builds_and_tests_images() -> None:
     assert "Smoke test MAFFT/FastTree image" in text
     assert "Smoke test MetaPhlAn image" in text
     assert "Smoke test microsuite-dada2 image" in text
+    assert "Smoke test PICRUSt2 image contents" in text
+    assert "Smoke test PICRUSt2 SC functional profiling" in text
+    assert "Smoke test PICRUSt2 custom oldIMG single-reference functional profiling" in text
+    assert "--entrypoint picrust2_pipeline.py microsuite/${{ matrix.image }}:ci --version" in text
+    assert "--entrypoint python microsuite/${{ matrix.image }}:ci -c" in text
+    assert "--picrust2-database SC" in text
+    assert "--picrust2-coverage" in text
+    assert "--entrypoint sh microsuite/${{ matrix.image }}:ci -lc" in text
+    assert r'default_tables[\"EC\"]' in text
+    assert r'default_tables[\"16S\"]' in text
+    assert "--picrust2-database custom" in text
+    assert "--picrust2-no-pathways" in text
+    assert "--picrust2-ref-dir1 \"$ref_dir\"" in text
+    assert "--picrust2-custom-trait-tables-ref1 \"$ec_table\"" in text
+    assert "--picrust2-marker-gene-table-ref1 \"$marker_table\"" in text
+    assert "custom_metagenome_count=$(find tmp/docker-picrust2-custom/picrust2" in text
+    assert "-path '*/*_metagenome_out/pred_metagenome_unstrat.tsv.gz'" in text
+    assert 'test "$custom_metagenome_count" -eq 1' in text
+    assert "tmp/docker-picrust2-custom/picrust2/picrust2_manifest.json" in text
+    assert "EC_metagenome_out/pred_metagenome_unstrat.tsv.gz" in text
+    assert "EC_metagenome_out/weighted_nsti.tsv.gz" in text
+    assert "KO_metagenome_out/pred_metagenome_unstrat.tsv.gz" in text
+    assert "pathways_out/path_abun_unstrat.tsv.gz" in text
+    assert "pathways_out/path_cov_unstrat.tsv.gz" in text
+    assert "picrust2_manifest.json" in text
     assert "containers/microsuite-dada2/Dockerfile" in text
     assert "denoise --backend dada2-r" in text
     assert "--user 10001:10001" in text

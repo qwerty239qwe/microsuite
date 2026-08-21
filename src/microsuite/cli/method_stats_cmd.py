@@ -173,17 +173,111 @@ def register(app: typer.Typer) -> None:
             str,
             typer.Option(
                 "--runtime",
-                help="Tax4Fun2 execution: local Rscript or the pinned docker image.",
+                help=(
+                    "PICRUSt2/Tax4Fun2 execution: local executable(s) or the selected "
+                    "Docker image."
+                ),
             ),
         ] = "local",
         image: Annotated[
             str | None,
-            typer.Option("--image", help="Override the r-functional-tax4fun2 image."),
+            typer.Option(
+                "--image",
+                help="Override the PICRUSt2 or Tax4Fun2 functional-profile image.",
+            ),
         ] = None,
         engine: Annotated[
             str,
             typer.Option("--engine", help="Container engine for --runtime docker."),
         ] = "docker",
+        picrust2_database: Annotated[
+            str,
+            typer.Option(
+                "--picrust2-database",
+                help="PICRUSt2 database: SC, oldIMG, or custom (case-insensitive).",
+            ),
+        ] = "SC",
+        picrust2_ref_dir1: Annotated[
+            Path | None,
+            typer.Option(
+                "--picrust2-ref-dir1", help="Custom PICRUSt2 EPA-ng reference directory 1."
+            ),
+        ] = None,
+        picrust2_ref_dir2: Annotated[
+            Path | None,
+            typer.Option(
+                "--picrust2-ref-dir2", help="Custom PICRUSt2 EPA-ng reference directory 2."
+            ),
+        ] = None,
+        picrust2_custom_trait_tables_ref1: Annotated[
+            list[Path] | None,
+            typer.Option(
+                "--picrust2-custom-trait-tables-ref1",
+                "--picrust2-custom-trait-table-ref1",
+                "--picrust2-custom-trait-tables",
+                help="Custom trait table for reference 1; repeat or comma-delimit.",
+            ),
+        ] = None,
+        picrust2_custom_trait_tables_ref2: Annotated[
+            list[Path] | None,
+            typer.Option(
+                "--picrust2-custom-trait-tables-ref2",
+                "--picrust2-custom-trait-table-ref2",
+                help="Custom trait table for reference 2; repeat or comma-delimit.",
+            ),
+        ] = None,
+        picrust2_marker_gene_table_ref1: Annotated[
+            Path | None,
+            typer.Option(
+                "--picrust2-marker-gene-table-ref1",
+                "--picrust2-marker-gene-table",
+                help="Custom marker-gene table for reference 1.",
+            ),
+        ] = None,
+        picrust2_marker_gene_table_ref2: Annotated[
+            Path | None,
+            typer.Option(
+                "--picrust2-marker-gene-table-ref2",
+                help="Custom marker-gene table for reference 2.",
+            ),
+        ] = None,
+        picrust2_pathway_map: Annotated[
+            Path | None,
+            typer.Option("--picrust2-pathway-map", help="PICRUSt2 pathway map file."),
+        ] = None,
+        picrust2_reaction_func: Annotated[
+            str | None,
+            typer.Option(
+                "--picrust2-reaction-func", help="PICRUSt2 symbolic trait or reaction-map path."
+            ),
+        ] = None,
+        picrust2_regroup_map: Annotated[
+            Path | None,
+            typer.Option("--picrust2-regroup-map", help="PICRUSt2 regroup map file."),
+        ] = None,
+        picrust2_no_regroup: Annotated[
+            bool,
+            typer.Option(
+                "--picrust2-no-regroup",
+                help="Skip PICRUSt2 regrouping and do not apply a regroup map.",
+            ),
+        ] = False,
+        picrust2_no_pathways: Annotated[
+            bool,
+            typer.Option("--picrust2-no-pathways", help="Do not infer PICRUSt2 pathways."),
+        ] = False,
+        picrust2_coverage: Annotated[
+            bool,
+            typer.Option(
+                "--picrust2-coverage", help="Request experimental PICRUSt2 pathway coverage."
+            ),
+        ] = False,
+        picrust2_max_nsti: Annotated[
+            float,
+            typer.Option(
+                "--picrust2-max-nsti", min=0.0, help="Maximum PICRUSt2 NSTI (default: 2.0)."
+            ),
+        ] = 2.0,
         force: Annotated[
             bool, typer.Option("--force", help="Allow non-empty output directory.")
         ] = False,
@@ -209,6 +303,20 @@ def register(app: typer.Typer) -> None:
             runtime=runtime,
             image=image,
             engine=engine,
+            picrust2_database=picrust2_database,
+            picrust2_ref_dir1=picrust2_ref_dir1,
+            picrust2_ref_dir2=picrust2_ref_dir2,
+            picrust2_custom_trait_tables_ref1=picrust2_custom_trait_tables_ref1,
+            picrust2_custom_trait_tables_ref2=picrust2_custom_trait_tables_ref2,
+            picrust2_marker_gene_table_ref1=picrust2_marker_gene_table_ref1,
+            picrust2_marker_gene_table_ref2=picrust2_marker_gene_table_ref2,
+            picrust2_pathway_map=picrust2_pathway_map,
+            picrust2_reaction_func=picrust2_reaction_func,
+            picrust2_regroup_map=picrust2_regroup_map,
+            picrust2_no_regroup=picrust2_no_regroup,
+            picrust2_no_pathways=picrust2_no_pathways,
+            picrust2_coverage=picrust2_coverage,
+            picrust2_max_nsti=picrust2_max_nsti,
             force=force,
             run_dir=run_dir,
             timeout=timeout,

@@ -60,6 +60,9 @@ def test_nextflow_amplicon_microsuite_workflow_drives_cli() -> None:
     main = (NEXTFLOW / "main.nf").read_text(encoding="utf-8")
     assert "amplicon_microsuite" in main
     assert "reads_fasta" in main
+    assert "include { MS_FUNCTIONAL_OVERRIDES } from './modules/ms_functional'" in main
+    assert "include { MS_FUNCTIONAL_SYMBOLIC_OVERRIDE } from './modules/ms_functional'" in main
+    assert "include { MS_FUNCTIONAL_CUSTOM } from './modules/ms_functional'" in main
     for module in modules:
         assert f"./modules/{module.removesuffix('.nf')}" in main
     # every microsuite step is driven through the CLI
@@ -86,6 +89,145 @@ def test_nextflow_microsuite_modules_use_cli_and_stubs() -> None:
         for token in tokens:
             assert token in text, f"{module}: {token}"
         assert "placeholder" not in text
+
+
+def test_nextflow_picrust2_defaults_and_safe_custom_arguments() -> None:
+    module = (NEXTFLOW / "modules" / "ms_functional.nf").read_text(encoding="utf-8")
+    config = (NEXTFLOW / "nextflow.config").read_text(encoding="utf-8")
+
+    assert "'--picrust2-database', params.picrust2_database ?: 'SC'" in module
+    for option in (
+        "--picrust2-ref-dir1",
+        "--picrust2-ref-dir2",
+        "--picrust2-custom-trait-tables-ref1",
+        "--picrust2-custom-trait-tables-ref2",
+        "--picrust2-marker-gene-table-ref1",
+        "--picrust2-marker-gene-table-ref2",
+        "--picrust2-pathway-map",
+        "--picrust2-reaction-func",
+        "--picrust2-regroup-map",
+        "--picrust2-max-nsti",
+        "--picrust2-no-pathways",
+        "--picrust2-coverage",
+        "--picrust2-no-regroup",
+    ):
+        assert option in module
+    assert "shell_quote" in module
+    assert "picrust2_args" not in module
+    assert "process MS_FUNCTIONAL_OVERRIDES" in module
+    assert "path override_assets, stageAs: 'picrust2_override_asset??/*'" in module
+    assert "val override_plan" in module
+    assert "process MS_FUNCTIONAL_SYMBOLIC_OVERRIDE" in module
+    assert "picrust2_database = 'SC'" in config
+    for key in (
+        "picrust2_ref_dir1",
+        "picrust2_ref_dir2",
+        "picrust2_custom_trait_tables_ref1",
+        "picrust2_custom_trait_tables_ref2",
+        "picrust2_marker_gene_table_ref1",
+        "picrust2_marker_gene_table_ref2",
+        "picrust2_pathway_map",
+        "picrust2_reaction_func",
+        "picrust2_regroup_map",
+        "picrust2_max_nsti",
+        "picrust2_no_pathways",
+        "picrust2_coverage",
+        "picrust2_no_regroup",
+    ):
+        assert key in config
+
+
+def test_nextflow_custom_picrust2_assets_are_real_staged_path_inputs() -> None:
+    module = (NEXTFLOW / "modules" / "ms_functional.nf").read_text(encoding="utf-8")
+    main = (NEXTFLOW / "main.nf").read_text(encoding="utf-8")
+
+    # The custom process receives one collection of path inputs. Nextflow
+    # stages every member; custom_plan contains only indexes into that staged
+    # collection, which prevents host paths from leaking into containers.
+    assert "process MS_FUNCTIONAL_CUSTOM" in module
+    assert "path custom_assets, stageAs: 'picrust2_custom_asset??/*'" in module
+    assert "val custom_plan" in module
+    assert "def staged_at" in module
+    assert "custom_assets[index as int]" in module
+    for option in (
+        "staged_at(custom_plan.ref_dir1)",
+        "staged_at(custom_plan.ref_dir2)",
+        "staged_at(index)",
+        "staged_at(custom_plan.marker_gene_table_ref1)",
+        "staged_at(custom_plan.marker_gene_table_ref2)",
+        "staged_at(custom_plan.pathway_map)",
+        "staged_at(custom_plan.reaction_func_path)",
+        "staged_at(custom_plan.regroup_map)",
+    ):
+        assert option in module
+
+    assert "def add_asset = { value, flag ->" in main
+    assert "custom_assets << source" in main
+    assert "def has_mapping_overrides = [" in main
+    assert "def add_override_asset = { value, flag ->" in main
+    assert "override_assets << source" in main
+    for staging_call in (
+        "override_plan.pathway_map = add_override_asset",
+        "override_plan.regroup_map = add_override_asset",
+        "override_plan.reaction_func_path = add_override_asset",
+        "override_plan.reaction_func_value = reaction_func.toString()",
+    ):
+        assert staging_call in main
+    for option in (
+        "params.picrust2_ref_dir1",
+        "params.picrust2_ref_dir2",
+        "params.picrust2_custom_trait_tables_ref1",
+        "params.picrust2_custom_trait_tables_ref2",
+        "params.picrust2_marker_gene_table_ref1",
+        "params.picrust2_marker_gene_table_ref2",
+        "params.picrust2_pathway_map",
+        "params.picrust2_reaction_func",
+        "params.picrust2_regroup_map",
+    ):
+        assert option in main
+    for staging_call in (
+        "custom_plan.ref_dir1 = add_asset(params.picrust2_ref_dir1",
+        "values(params.picrust2_custom_trait_tables_ref1)",
+        "add_asset(value, '--picrust2-custom-trait-tables-ref1')",
+        "values(params.picrust2_custom_trait_tables_ref2)",
+        "add_asset(value, '--picrust2-custom-trait-tables-ref2')",
+        "custom_plan.marker_gene_table_ref1 = add_asset",
+        "custom_plan.marker_gene_table_ref2 = add_asset",
+        "custom_plan.pathway_map = add_optional_asset",
+        "custom_plan.regroup_map = add_optional_asset",
+        "custom_plan.reaction_func_path = add_asset",
+    ):
+        assert staging_call in main
+    assert "MS_FUNCTIONAL_CUSTOM(" in main
+    assert "MS_FUNCTIONAL_OVERRIDES(" in main
+    assert "} else if (has_path_mapping_overrides) {" in main
+    assert "} else if (has_mapping_overrides) {" in main
+    assert "MS_FUNCTIONAL_SYMBOLIC_OVERRIDE(" in main
+    assert "custom_assets_ch = Channel.value(custom_assets)" in main
+    assert "custom_plan_ch = Channel.value(custom_plan)" in main
+    assert "MS_FUNCTIONAL(MS_CLUSTER.out.table, MS_CLUSTER.out.rep_seqs)" in main
+    assert (
+        "def is_custom_database = params.picrust2_database?.toString()?.trim()?"
+        ".equalsIgnoreCase('custom')"
+    ) in main
+    assert "if (has_custom_assets && !is_custom_database)" in main
+    assert "if (is_custom_database)" in main
+
+
+def test_nextflow_symbolic_reaction_override_does_not_bind_empty_path_input() -> None:
+    module = (NEXTFLOW / "modules" / "ms_functional.nf").read_text(encoding="utf-8")
+    main = (NEXTFLOW / "main.nf").read_text(encoding="utf-8")
+    symbolic_process = module.split("process MS_FUNCTIONAL_SYMBOLIC_OVERRIDE", 1)[1].split(
+        "// Custom references are a separate process", 1
+    )[0]
+
+    assert "path otu_table" in symbolic_process
+    assert "path rep_seqs" in symbolic_process
+    assert "override_assets" not in symbolic_process
+    assert "path override_assets" not in symbolic_process
+    assert "reaction_func_is_symbolic" in main
+    assert "has_path_mapping_overrides" in main
+    assert "MS_FUNCTIONAL_SYMBOLIC_OVERRIDE(" in main
 
 
 def test_nextflow_modules_use_real_commands_and_stubs() -> None:
